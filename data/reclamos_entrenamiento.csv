@@ -1,0 +1,106 @@
+texto,categoria
+Mi pedido está demorado y todavía no llega a mi dirección.,Retraso de pedido
+El repartidor se retrasó demasiado y la comida llegó fría.,Retraso de pedido
+Han pasado más de 60 minutos y sigo esperando mi pedido.,Retraso de pedido
+La aplicación indica que el pedido llegaba en 30 minutos pero ya pasó una hora.,Retraso de pedido
+Mi pedido llegó tarde y quiero una solución.,Retraso de pedido
+El delivery demoró mucho y necesito saber qué ocurrió.,Retraso de pedido
+El tiempo estimado cambió varias veces y el pedido no llegó.,Retraso de pedido
+"La comida llegó tarde, fría y en mal estado por la demora.",Retraso de pedido
+Estoy esperando mi pedido desde hace mucho tiempo.,Retraso de pedido
+El pedido aparece en camino pero nunca llega.,Retraso de pedido
+El repartidor se quedó detenido y el pedido se retrasó demasiado.,Retraso de pedido
+Mi almuerzo llegó fuera del horario indicado.,Retraso de pedido
+El pedido llegó muy tarde y ya no lo necesito.,Retraso de pedido
+La entrega demoró más de lo prometido.,Retraso de pedido
+Solicito revisión porque mi pedido llegó con mucho retraso.,Retraso de pedido
+Me cobraron dos veces por el mismo pedido.,Cobro indebido
+Tengo un cargo que no reconozco en mi tarjeta.,Cobro indebido
+El monto cobrado es mayor al precio que aparecía en la app.,Cobro indebido
+Solicito devolución porque me hicieron un cobro indebido.,Cobro indebido
+Se realizó un cargo adicional sin autorización.,Cobro indebido
+Me descontaron dinero pero el pedido fue cancelado.,Cobro indebido
+El sistema cobró el pedido aunque no se confirmó la compra.,Cobro indebido
+Aparece un cobro duplicado en mi cuenta bancaria.,Cobro indebido
+El pago se procesó dos veces.,Cobro indebido
+Me hicieron un cargo incorrecto por delivery.,Cobro indebido
+No reconozco el monto cobrado por este pedido.,Cobro indebido
+Quiero reclamar porque la app cobró más de lo indicado.,Cobro indebido
+Me cobraron un pedido que no recibí.,Cobro indebido
+Necesito el reembolso del cobro incorrecto.,Cobro indebido
+Mi banco muestra un cargo doble por la misma operación.,Cobro indebido
+Pedí una hamburguesa y me llegó otro producto.,Producto incorrecto
+El restaurante envió un producto diferente al solicitado.,Producto incorrecto
+Mi pedido no corresponde con lo que compré.,Producto incorrecto
+Recibí una bebida distinta a la que seleccioné.,Producto incorrecto
+Me llegó una comida equivocada.,Producto incorrecto
+El producto entregado no es el que figura en mi boleta.,Producto incorrecto
+La orden tiene platos que no pedí.,Producto incorrecto
+Solicité pollo y me entregaron una hamburguesa.,Producto incorrecto
+El pedido llegó cambiado con el de otra persona.,Producto incorrecto
+El producto enviado es incorrecto.,Producto incorrecto
+No recibí lo que aparece en la aplicación.,Producto incorrecto
+El restaurante se equivocó con mi pedido.,Producto incorrecto
+Pedí un combo específico y llegó otro combo.,Producto incorrecto
+El artículo recibido no coincide con el pedido.,Producto incorrecto
+Quiero reportar que me entregaron otro producto.,Producto incorrecto
+Mi pedido llegó incompleto y faltan productos.,Producto incompleto
+No vino la bebida incluida en el combo.,Producto incompleto
+Faltan las papas de mi pedido.,Producto incompleto
+El restaurante no envió todos los productos.,Producto incompleto
+Mi orden llegó sin una parte importante.,Producto incompleto
+Pagamos por tres productos y solo llegaron dos.,Producto incompleto
+El combo llegó incompleto.,Producto incompleto
+No recibí todos los artículos solicitados.,Producto incompleto
+Falta un producto en la bolsa.,Producto incompleto
+El delivery llegó pero no trajo todo el pedido.,Producto incompleto
+Mi comida llegó sin los acompañamientos.,Producto incompleto
+No incluyeron la salsa ni la bebida.,Producto incompleto
+Faltó una hamburguesa en el pedido.,Producto incompleto
+El pedido está incompleto y necesito solución.,Producto incompleto
+Recibí menos productos de los que pagué.,Producto incompleto
+No puedo pagar con mi tarjeta aunque tiene saldo.,Problema con tarjeta
+La app rechaza mi tarjeta de crédito.,Problema con tarjeta
+Tengo problemas para registrar mi tarjeta.,Problema con tarjeta
+El pago con tarjeta no se procesa.,Problema con tarjeta
+Mi tarjeta aparece inválida en la aplicación.,Problema con tarjeta
+No puedo agregar un nuevo método de pago.,Problema con tarjeta
+La transacción con tarjeta fue rechazada sin motivo.,Problema con tarjeta
+El sistema no acepta mi tarjeta Visa.,Problema con tarjeta
+No funciona el pago con Mastercard.,Problema con tarjeta
+Tengo error al validar mi tarjeta.,Problema con tarjeta
+La app no me deja pagar con tarjeta.,Problema con tarjeta
+Mi método de pago fue rechazado.,Problema con tarjeta
+El pago se queda cargando y no termina.,Problema con tarjeta
+No puedo confirmar el pedido por problema con tarjeta.,Problema con tarjeta
+La plataforma no reconoce mi tarjeta guardada.,Problema con tarjeta
+Alguien hizo un pedido desde mi cuenta sin permiso.,Fraude o seguridad
+No reconozco una compra realizada con mi usuario.,Fraude o seguridad
+Creo que mi cuenta fue hackeada.,Fraude o seguridad
+Detecté actividad sospechosa en mi cuenta.,Fraude o seguridad
+Hay pedidos que yo no realicé.,Fraude o seguridad
+Mi cuenta fue usada por otra persona.,Fraude o seguridad
+Solicito bloqueo por posible fraude.,Fraude o seguridad
+Recibí notificaciones de pedidos que no hice.,Fraude o seguridad
+Alguien ingresó a mi cuenta sin autorización.,Fraude o seguridad
+Mi usuario tiene movimientos desconocidos.,Fraude o seguridad
+Quiero reportar un acceso no reconocido.,Fraude o seguridad
+Hay un cargo y pedido sospechoso en mi cuenta.,Fraude o seguridad
+Necesito ayuda porque creo que robaron mi cuenta.,Fraude o seguridad
+El sistema muestra actividad extraña en mi perfil.,Fraude o seguridad
+Quiero denunciar un posible fraude.,Fraude o seguridad
+Quiero cambiar mi dirección de entrega.,Soporte general
+Necesito ayuda para actualizar mis datos.,Soporte general
+Deseo saber cómo cancelar una orden.,Soporte general
+Tengo una consulta sobre promociones.,Soporte general
+Quiero cambiar mi correo registrado.,Soporte general
+Necesito información sobre el uso de la aplicación.,Soporte general
+Cómo puedo contactar al repartidor.,Soporte general
+Deseo actualizar mi número de teléfono.,Soporte general
+Necesito soporte para configurar mi perfil.,Soporte general
+Quiero saber cómo usar un cupón.,Soporte general
+Tengo una duda general sobre el servicio.,Soporte general
+Cómo puedo revisar mis pedidos anteriores.,Soporte general
+Necesito orientación para usar la plataforma.,Soporte general
+Quiero cambiar la dirección guardada.,Soporte general
+Deseo consultar las condiciones del servicio.,Soporte general

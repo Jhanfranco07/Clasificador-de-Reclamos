@@ -1,0 +1,19 @@
+SmartClaim AI - Reporte de entrenamiento del clasificador ML
+======================================================================
+Registros del dataset: 105
+Categorias: Cobro indebido, Fraude o seguridad, Problema con tarjeta, Producto incompleto, Producto incorrecto, Retraso de pedido, Soporte general
+Accuracy de validacion: 0.7407
+
+                      precision    recall  f1-score   support
+
+      Cobro indebido       0.67      0.67      0.67         3
+  Fraude o seguridad       1.00      0.50      0.67         4
+Problema con tarjeta       0.57      1.00      0.73         4
+ Producto incompleto       0.67      0.50      0.57         4
+ Producto incorrecto       0.75      0.75      0.75         4
+   Retraso de pedido       0.75      0.75      0.75         4
+     Soporte general       1.00      1.00      1.00         4
+
+            accuracy                           0.74        27
+           macro avg       0.77      0.74      0.73        27
+        weighted avg       0.78      0.74      0.74        27
