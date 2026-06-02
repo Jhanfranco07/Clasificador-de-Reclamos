@@ -94,12 +94,14 @@ export default function KnowledgeBasePage() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Fragmentos RAG</CardTitle>
+              <CardTitle className="text-sm font-medium">Base vectorial</CardTitle>
               <RefreshCw className="size-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{data?.index.fragmentos || 0}</div>
-              <p className="text-xs text-gray-500 mt-1">Vectorizados con TF-IDF</p>
+              <div className="text-2xl font-bold text-blue-600">{data?.index.embeddings || data?.index.fragmentos || 0}</div>
+              <p className="text-xs text-gray-500 mt-1">
+                {data?.index.provider === 'supabase_pgvector' ? 'Supabase pgvector' : 'TF-IDF local'}
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -156,7 +158,8 @@ export default function KnowledgeBasePage() {
           <CardContent className="pt-6">
             <h3 className="font-semibold text-blue-900 mb-2">Sobre el sistema RAG</h3>
             <p className="text-sm text-blue-800">
-              La recuperación documental usa un índice local TF-IDF para encontrar políticas y procedimientos relevantes.
+              La recuperación documental usa Supabase pgvector con embeddings neuronales cuando PostgreSQL está activo.
+              En modo local conserva TF-IDF como respaldo para que la demo funcione sin servicios externos.
               La carga de nuevos documentos todavía no está implementada desde la interfaz.
             </p>
           </CardContent>

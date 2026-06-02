@@ -476,6 +476,57 @@ def actualizar_estado_indexacion_documento(id_documento, estado):
     """, (estado, id_documento))
 
 
+def eliminar_embeddings_rag():
+    execute("DELETE FROM rag_embeddings")
+
+
+def crear_embedding_rag(fragmento, modelo_embedding, dimension, embedding):
+    vector_literal = "[" + ",".join(str(float(value)) for value in embedding) + "]"
+    return execute("""
+        INSERT INTO rag_embeddings (
+            id_fragmento, id_documento, modelo_embedding, dimension, embedding,
+            texto_fragmento, titulo, tipo_documento, categoria_asociada
+        )
+        VALUES (?, ?, ?, ?, ?::vector, ?, ?, ?, ?)
+    """, (
+        fragmento["id_fragmento"],
+        fragmento["id_documento"],
+        modelo_embedding,
+        int(dimension),
+        vector_literal,
+        fragmento["texto_fragmento"],
+        fragmento["titulo"],
+        fragmento["tipo_documento"],
+        fragmento["categoria_asociada"],
+    ))
+
+
+def buscar_embeddings_rag(embedding, max_docs=3):
+    vector_literal = "[" + ",".join(str(float(value)) for value in embedding) + "]"
+    return fetch_all("""
+        SELECT
+            id_documento,
+            id_fragmento,
+            titulo,
+            tipo_documento,
+            categoria_asociada,
+            texto_fragmento,
+            modelo_embedding,
+            1 - (embedding <=> ?::vector) AS score
+        FROM rag_embeddings
+        ORDER BY embedding <=> ?::vector
+        LIMIT ?
+    """, (vector_literal, vector_literal, int(max_docs)))
+
+
+def contar_embeddings_rag():
+    try:
+        row = fetch_one("SELECT COUNT(*) AS total FROM rag_embeddings")
+        return row["total"] if row else 0
+    except Exception:
+        return 0
+
+
 def calcular_tiempo_atencion_minutos(id_reclamo):
     row = fetch_one("""
         SELECT

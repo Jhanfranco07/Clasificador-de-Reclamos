@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import re
 import joblib
 import pandas as pd
@@ -13,14 +14,22 @@ from database.repositories import (
     eliminar_fragmentos_documento,
     crear_fragmento_documento,
     contar_fragmentos_documento,
-    actualizar_estado_indexacion_documento
+    actualizar_estado_indexacion_documento,
+    eliminar_embeddings_rag,
+    crear_embedding_rag,
+    buscar_embeddings_rag,
+    contar_embeddings_rag,
 )
+from database.db_connection import using_postgres
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 VECTOR_DIR = BASE_DIR / "vector_store"
 VECTORIZER_PATH = VECTOR_DIR / "rag_tfidf_vectorizer.joblib"
 MATRIX_PATH = VECTOR_DIR / "rag_tfidf_matrix.joblib"
 METADATA_PATH = VECTOR_DIR / "rag_metadata.joblib"
+LOCAL_EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+_embedding_model = None
 
 def dividir_en_fragmentos(texto, max_palabras=70, solapamiento=15):
     """
@@ -95,7 +104,59 @@ def _obtener_textos_fragmentos():
 
     return textos, metadata
 
-def construir_indice_vectorial(forzar=False):
+def _cargar_modelo_embeddings():
+    global _embedding_model
+    if _embedding_model is None:
+        from sentence_transformers import SentenceTransformer
+
+        _embedding_model = SentenceTransformer(LOCAL_EMBEDDING_MODEL)
+    return _embedding_model
+
+def generar_embedding_local(texto):
+    modelo = _cargar_modelo_embeddings()
+    vector = modelo.encode(str(texto or ""), normalize_embeddings=True)
+    return [float(value) for value in vector.tolist()]
+
+def construir_indice_pgvector(forzar=False):
+    """
+    Construye una base vectorial real en PostgreSQL/Supabase usando pgvector.
+    Requiere la extension vector y embeddings locales de sentence-transformers.
+    """
+    if not using_postgres():
+        return construir_indice_tfidf(forzar=forzar)
+
+    if not forzar and contar_embeddings_rag() > 0:
+        return {
+            "status": "existente",
+            "provider": "pgvector",
+            "modelo_embedding": LOCAL_EMBEDDING_MODEL,
+            "fragmentos": contar_embeddings_rag(),
+        }
+
+    if contar_fragmentos_documento() == 0:
+        reconstruir_fragmentos_desde_documentos()
+
+    fragmentos = listar_fragmentos_documento()
+    eliminar_embeddings_rag()
+
+    for frag in fragmentos:
+        texto_enriquecido = " ".join([
+            str(frag.get("titulo") or ""),
+            str(frag.get("categoria_asociada") or ""),
+            str(frag.get("tipo_documento") or ""),
+            str(frag.get("texto_fragmento") or ""),
+        ])
+        embedding = generar_embedding_local(texto_enriquecido)
+        crear_embedding_rag(frag, LOCAL_EMBEDDING_MODEL, len(embedding), embedding)
+
+    return {
+        "status": "reconstruido",
+        "provider": "pgvector",
+        "modelo_embedding": LOCAL_EMBEDDING_MODEL,
+        "fragmentos": len(fragmentos),
+    }
+
+def construir_indice_tfidf(forzar=False):
     """
     Construye un índice vectorial local usando TF-IDF como representación vectorial.
     Para el prototipo académico funciona como una base vectorial ligera, sin depender de servicios externos.
@@ -127,15 +188,26 @@ def construir_indice_vectorial(forzar=False):
 
     return {
         "status": "reconstruido",
+        "provider": "tfidf",
         "fragmentos": len(metadata),
         "vectorizer_path": str(VECTORIZER_PATH),
         "matrix_path": str(MATRIX_PATH),
         "metadata_path": str(METADATA_PATH)
     }
 
+def construir_indice_vectorial(forzar=False):
+    if using_postgres():
+        try:
+            return construir_indice_pgvector(forzar=forzar)
+        except Exception as exc:
+            fallback = construir_indice_tfidf(forzar=forzar)
+            fallback["fallback_reason"] = str(exc)
+            return fallback
+    return construir_indice_tfidf(forzar=forzar)
+
 def cargar_indice_vectorial():
     if not (VECTORIZER_PATH.exists() and MATRIX_PATH.exists() and METADATA_PATH.exists()):
-        construir_indice_vectorial(forzar=True)
+        construir_indice_tfidf(forzar=True)
 
     vectorizer = joblib.load(VECTORIZER_PATH)
     matrix = joblib.load(MATRIX_PATH)
@@ -145,9 +217,40 @@ def cargar_indice_vectorial():
 
 def recuperar_documentos(texto_reclamo, categoria, max_docs=3):
     """
-    Recupera fragmentos relevantes usando similitud coseno sobre vectores TF-IDF.
+    Recupera fragmentos relevantes.
+    En PostgreSQL usa pgvector con embeddings neuronales; en SQLite usa TF-IDF.
     Devuelve una estructura compatible con el resto del sistema.
     """
+    if using_postgres():
+        try:
+            if contar_embeddings_rag() == 0:
+                construir_indice_pgvector(forzar=True)
+
+            consulta = " ".join([str(categoria or ""), str(texto_reclamo or "")])
+            embedding = generar_embedding_local(consulta)
+            filas = buscar_embeddings_rag(embedding, max_docs=max_docs)
+
+            resultados = []
+            for fila in filas:
+                score = float(fila.get("score") or 0)
+                resultados.append({
+                    "id_documento": fila["id_documento"],
+                    "id_fragmento": fila["id_fragmento"],
+                    "titulo": fila["titulo"],
+                    "tipo_documento": fila["tipo_documento"],
+                    "categoria_asociada": fila["categoria_asociada"],
+                    "contenido": fila["texto_fragmento"],
+                    "fragmento": fila["texto_fragmento"],
+                    "score": round(score, 4),
+                    "embedding_id": f"pgvector_{fila['id_fragmento']}",
+                    "modelo_embedding": fila.get("modelo_embedding"),
+                    "vector_store": "supabase_pgvector",
+                })
+            if resultados:
+                return resultados
+        except Exception:
+            pass
+
     vectorizer, matrix, metadata = cargar_indice_vectorial()
 
     consulta = " ".join([
@@ -207,11 +310,54 @@ def recuperar_documentos(texto_reclamo, categoria, max_docs=3):
 
     return resultados
 
+def _generar_respuesta_openai(nombre_cliente, codigo_pedido, descripcion, analisis, documentos):
+    if not os.getenv("OPENAI_API_KEY"):
+        return None
+
+    try:
+        from openai import OpenAI
+
+        contexto = "\n\n".join(
+            f"Documento: {doc.get('titulo')}\n"
+            f"Categoria: {doc.get('categoria_asociada')}\n"
+            f"Fragmento: {doc.get('fragmento') or doc.get('contenido')}"
+            for doc in documentos[:5]
+        ) or "No hay documentos recuperados."
+
+        client = OpenAI()
+        response = client.responses.create(
+            model=OPENAI_MODEL,
+            instructions=(
+                "Eres un asistente de soporte para una empresa digital de delivery. "
+                "Genera una respuesta inicial breve, cordial y profesional para que un agente humano la revise. "
+                "No prometas reembolsos ni compensaciones definitivas. "
+                "No solicites datos sensibles completos de tarjetas. "
+                "Usa solo el contexto documental entregado cuando exista."
+            ),
+            input=(
+                f"Cliente: {nombre_cliente}\n"
+                f"Pedido: {codigo_pedido}\n"
+                f"Reclamo: {descripcion}\n"
+                f"Categoria detectada: {analisis.get('categoria')}\n"
+                f"Prioridad: {analisis.get('prioridad')}\n\n"
+                f"Contexto documental recuperado:\n{contexto}\n\n"
+                "Redacta la respuesta sugerida en español, lista para revisión humana."
+            ),
+        )
+        texto = getattr(response, "output_text", None)
+        return texto.strip() if texto else None
+    except Exception:
+        return None
+
 def generar_respuesta_sugerida(nombre_cliente, codigo_pedido, descripcion, analisis, documentos):
     """
     Genera una respuesta sugerida fundamentada en fragmentos recuperados.
     No envía automáticamente la respuesta; queda para revisión del agente.
     """
+    respuesta_llm = _generar_respuesta_openai(nombre_cliente, codigo_pedido, descripcion, analisis, documentos)
+    if respuesta_llm:
+        return respuesta_llm
+
     categoria = analisis.get("categoria", "Soporte general")
     prioridad = analisis.get("prioridad", "Media")
 
@@ -279,6 +425,20 @@ def generar_respuesta_basica(nombre_cliente, codigo_pedido, descripcion, analisi
 
 def obtener_resumen_indice():
     construir_indice_vectorial(forzar=False)
+    if using_postgres():
+        embeddings = contar_embeddings_rag()
+        fragmentos = listar_fragmentos_documento()
+        documentos = set(f["id_documento"] for f in fragmentos)
+        return {
+            "fragmentos": len(fragmentos),
+            "documentos": len(documentos),
+            "vectorizador": embeddings > 0,
+            "matriz": embeddings > 0,
+            "provider": "supabase_pgvector" if embeddings > 0 else "tfidf_fallback",
+            "modelo_embedding": LOCAL_EMBEDDING_MODEL if embeddings > 0 else None,
+            "embeddings": embeddings,
+        }
+
     fragmentos = listar_fragmentos_documento()
 
     if not fragmentos:
@@ -286,7 +446,9 @@ def obtener_resumen_indice():
             "fragmentos": 0,
             "documentos": 0,
             "vectorizador": VECTORIZER_PATH.exists(),
-            "matriz": MATRIX_PATH.exists()
+            "matriz": MATRIX_PATH.exists(),
+            "provider": "tfidf",
+            "embeddings": 0,
         }
 
     documentos = set(f["id_documento"] for f in fragmentos)
@@ -295,5 +457,7 @@ def obtener_resumen_indice():
         "fragmentos": len(fragmentos),
         "documentos": len(documentos),
         "vectorizador": VECTORIZER_PATH.exists(),
-        "matriz": MATRIX_PATH.exists()
+        "matriz": MATRIX_PATH.exists(),
+        "provider": "tfidf",
+        "embeddings": 0,
     }

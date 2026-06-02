@@ -27,6 +27,7 @@ POSTGRES_PK = {
     "analisis_ia": "id_analisis",
     "documentos_base": "id_documento",
     "fragmentos_documento": "id_fragmento",
+    "rag_embeddings": "id_embedding",
     "respuestas_sugeridas": "id_respuesta",
     "documentos_consultados": "id_documento_consultado",
     "configuracion_modelo_ia": "id_configuracion",

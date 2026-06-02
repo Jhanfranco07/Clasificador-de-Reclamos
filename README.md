@@ -223,6 +223,10 @@ DATABASE_URL=postgresql://...
 USE_RAG=true
 MODEL_PROVIDER=local
 AUTH_SECRET=change-this-secret-in-production
+EMBEDDING_PROVIDER=local
+EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4.1-mini
 ```
 
 No subas `.env` al repositorio. La cadena real de `DATABASE_URL` debe quedar solo como variable secreta en Render o en tu entorno local.
@@ -310,7 +314,9 @@ Lista documentos internos usados como base de conocimiento. Incluye politicas, p
 
 ### Motor RAG
 
-Permite reconstruir fragmentos, generar el indice vectorial local y probar recuperacion documental por similitud.
+Permite reconstruir fragmentos, generar el indice vectorial y probar recuperacion documental por similitud.
+En modo PostgreSQL/Supabase usa `pgvector` con embeddings neuronales locales de `sentence-transformers`.
+En modo SQLite conserva TF-IDF como respaldo local.
 
 ### Reportes
 
@@ -322,23 +328,23 @@ Permite ajustar parametros basicos del prototipo: umbral de confianza, revision 
 
 ## Aclaracion Academica Sobre IA Y RAG
 
-Este prototipo usa TF-IDF como aproximacion local para recuperacion documental y RAG academico. No utiliza embeddings neuronales ni un LLM real para generar texto. La respuesta sugerida se construye con una plantilla apoyada en los documentos recuperados.
+Este prototipo usa dos modos de RAG. En SQLite local usa TF-IDF como aproximacion academica. En PostgreSQL/Supabase usa `pgvector` con embeddings neuronales open source (`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`) para recuperacion semantica.
 
-Esta decision permite ejecutar el sistema sin claves API ni servicios externos, lo cual es adecuado para una presentacion academica local. En una version productiva se podria integrar un proveedor externo como OpenAI, modelos de embeddings neuronales, FAISS, ChromaDB u otra base vectorial.
+Si `OPENAI_API_KEY` esta configurada, la respuesta sugerida se genera con OpenAI mediante la Responses API usando los documentos recuperados como contexto. Si no hay clave, el sistema usa una plantilla local para mantener la demo operativa.
 
 ## Limitaciones Actuales
 
 - No hay envio real de respuestas al cliente.
-- El RAG usa TF-IDF, no embeddings semanticos neuronales.
-- La generacion de respuesta es basada en plantilla.
+- En modo SQLite, el RAG usa TF-IDF; el modo vectorial real requiere PostgreSQL/Supabase con `pgvector`.
+- La generacion de respuesta usa OpenAI si hay API key; si no, usa plantilla local.
 - La version full stack tiene API FastAPI; para produccion se recomienda usar PostgreSQL/Supabase en lugar de SQLite local.
 - El checkout registra pedidos reales en base de datos, pero no integra una pasarela de pago externa.
 - No incluye Dockerfile ni docker-compose en esta fase.
 
 ## Mejoras Futuras
 
-- Integrar un LLM real para generacion de respuestas.
-- Usar embeddings neuronales y una base vectorial dedicada.
+- Evaluar calidad de respuestas generadas por OpenAI con metricas y feedback del agente.
+- Optimizar indices `pgvector` si la base documental crece.
 - Integrar OAuth/Supabase Auth si se requiere autenticacion administrada por terceros.
 - Agregar pruebas automatizadas para endpoints FastAPI y componentes React.
 - Agregar Dockerfile y docker-compose.

@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS vector;
+
 CREATE TABLE IF NOT EXISTS categorias_reclamo (
     id_categoria SERIAL PRIMARY KEY,
     nombre TEXT NOT NULL UNIQUE,
@@ -130,6 +132,23 @@ CREATE TABLE IF NOT EXISTS fragmentos_documento (
     embedding_id TEXT,
     fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS rag_embeddings (
+    id_embedding SERIAL PRIMARY KEY,
+    id_fragmento INTEGER NOT NULL UNIQUE REFERENCES fragmentos_documento(id_fragmento) ON DELETE CASCADE,
+    id_documento INTEGER NOT NULL REFERENCES documentos_base(id_documento) ON DELETE CASCADE,
+    modelo_embedding TEXT NOT NULL,
+    dimension INTEGER NOT NULL,
+    embedding vector(384) NOT NULL,
+    texto_fragmento TEXT NOT NULL,
+    titulo TEXT,
+    tipo_documento TEXT,
+    categoria_asociada TEXT,
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_rag_embeddings_vector
+ON rag_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 
 CREATE TABLE IF NOT EXISTS respuestas_sugeridas (
     id_respuesta SERIAL PRIMARY KEY,

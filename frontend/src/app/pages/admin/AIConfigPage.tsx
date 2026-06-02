@@ -70,7 +70,7 @@ export default function AIConfigPage() {
         <Alert>
           <Brain className="size-4" />
           <AlertDescription>
-            El modelo actual usa TF-IDF, regresión logística y reglas de negocio para apoyar el flujo de soporte.
+            El sistema usa clasificación local, recuperación documental con RAG y generación con OpenAI si `OPENAI_API_KEY` está configurada.
           </AlertDescription>
         </Alert>
 

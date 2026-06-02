@@ -166,6 +166,9 @@ export interface DocumentsResponse {
     documentos: number;
     vectorizador: boolean;
     matriz: boolean;
+    provider?: string;
+    modelo_embedding?: string;
+    embeddings?: number;
   };
 }
 
