@@ -23,7 +23,10 @@ export default function DashboardPage() {
       .catch(() => setClaims([]));
   }, []);
 
-  const openClaims = claims.filter(c => c.statusKey !== 'CLOSED');
+  const userClaims = currentUser
+    ? claims.filter((claim) => claim.customerEmail?.toLowerCase() === currentUser.email.toLowerCase())
+    : [];
+  const openClaims = userClaims.filter((claim) => claim.statusKey !== 'CLOSED');
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -37,7 +40,7 @@ export default function DashboardPage() {
       IN_REVIEW: 'bg-amber-100 text-amber-800',
       RESPONDED: 'bg-green-100 text-green-800',
       ESCALATED: 'bg-red-100 text-red-800',
-      CLOSED: 'bg-gray-100 text-gray-800'
+      CLOSED: 'bg-gray-100 text-gray-800',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
@@ -50,20 +53,20 @@ export default function DashboardPage() {
             Hola, {currentUser?.name?.split(' ')[0]}
           </h1>
           <p className="text-gray-600">
-            Gestiona tus pedidos demo y revisa reclamos guardados en el backend.
+            Revisa tus pedidos, consulta reclamos y solicita ayuda cuando tengas un inconveniente.
           </p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total de pedidos</CardTitle>
+              <CardTitle className="text-sm font-medium">Pedidos registrados</CardTitle>
               <ShoppingBag className="size-4 text-gray-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{userOrders.length}</div>
               <p className="text-xs text-gray-500 mt-1">
-                Pedidos demo del frontend
+                Historial disponible en tu cuenta
               </p>
             </CardContent>
           </Card>
@@ -75,20 +78,20 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{openClaims.length}</div>
-              <p className="text-xs text-gray-500 mt-1">{claims.length} total</p>
+              <p className="text-xs text-gray-500 mt-1">{userClaims.length} reclamos registrados</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Pedido en camino</CardTitle>
+              <CardTitle className="text-sm font-medium">Pedidos en camino</CardTitle>
               <Clock className="size-4 text-gray-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {userOrders.filter(o => o.status === 'IN_TRANSIT').length}
+                {userOrders.filter((order) => order.status === 'IN_TRANSIT').length}
               </div>
-              <p className="text-xs text-gray-500 mt-1">Datos de demostracion</p>
+              <p className="text-xs text-gray-500 mt-1">Seguimiento activo</p>
             </CardContent>
           </Card>
         </div>
@@ -100,10 +103,12 @@ export default function DashboardPage() {
                 <Plus className="size-5" />
                 Nuevo pedido
               </CardTitle>
-              <CardDescription>Modulo simulado para contexto de delivery</CardDescription>
+              <CardDescription>Explora restaurantes y arma tu carrito.</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full">Explorar restaurantes</Button>
+              <Link to="/">
+                <Button className="w-full">Explorar restaurantes</Button>
+              </Link>
             </CardContent>
           </Card>
 
@@ -111,9 +116,9 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <AlertCircle className="size-5" />
-                Algun problema?
+                ¿Algún problema?
               </CardTitle>
-              <CardDescription>Registra un reclamo y activa IA + RAG</CardDescription>
+              <CardDescription>Reporta un inconveniente con tu pedido.</CardDescription>
             </CardHeader>
             <CardContent>
               <Link to="/claims/new">
@@ -203,7 +208,7 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <HelpCircle className="size-5" />
-              Necesitas ayuda?
+              ¿Necesitas ayuda?
             </CardTitle>
             <CardDescription>Consulta el centro de ayuda o crea un reclamo</CardDescription>
           </CardHeader>

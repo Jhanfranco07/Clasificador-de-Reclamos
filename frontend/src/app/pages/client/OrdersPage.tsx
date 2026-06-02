@@ -2,7 +2,7 @@ import { Link } from 'react-router';
 import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
-import { ArrowRight, ShoppingBag } from 'lucide-react';
+import { ShoppingBag } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getOrdersByUserId } from '../../lib/mockData';
 import { ORDER_STATUS_LABELS } from '../../types';
@@ -19,7 +19,7 @@ export default function OrdersPage() {
       IN_TRANSIT: 'bg-blue-100 text-blue-800',
       DELAYED: 'bg-amber-100 text-amber-800',
       CANCELLED: 'bg-gray-100 text-gray-800',
-      PREPARING: 'bg-purple-100 text-purple-800'
+      PREPARING: 'bg-purple-100 text-purple-800',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
@@ -42,7 +42,9 @@ export default function OrdersPage() {
               <p className="text-gray-600 mb-6">
                 Empieza a explorar restaurantes y haz tu primer pedido
               </p>
-              <Button>Explorar restaurantes</Button>
+              <Link to="/">
+                <Button>Explorar restaurantes</Button>
+              </Link>
             </CardContent>
           </Card>
         ) : (
@@ -69,7 +71,7 @@ export default function OrdersPage() {
                           {formatDateTime(order.createdAt)}
                         </p>
                         <p className="text-sm text-gray-600 mt-2">
-                          {order.items.length} productos • {order.paymentMethod}
+                          {order.items.length} productos · {order.paymentMethod}
                         </p>
                       </div>
                     </div>

@@ -52,7 +52,17 @@ export default function NewClaimPage() {
 
     const order = orders.find((item) => item.id === orderId);
     if (!currentUser || !order) {
-      setError('Selecciona un pedido valido para registrar el reclamo.');
+      setError('Selecciona un pedido válido para registrar el reclamo.');
+      return;
+    }
+
+    if (!category) {
+      setError('Selecciona el tipo de problema.');
+      return;
+    }
+
+    if (description.trim().length < 10) {
+      setError('Cuéntanos un poco más para poder revisar tu caso.');
       return;
     }
 
@@ -65,13 +75,13 @@ export default function NewClaimPage() {
         order_code: order.code,
         channel: 'WEB',
         order_date: order.createdAt.toISOString(),
-        description: `${CLAIM_CATEGORY_LABELS[category as ClaimCategory]}: ${description}`,
+        description: `${CLAIM_CATEGORY_LABELS[category]}: ${description.trim()}`,
         analyze: true,
       });
       setClaimCode(result.claim.code);
       setShowSuccess(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo registrar el reclamo.');
+      setError(err instanceof Error ? err.message : 'No se pudo registrar el reclamo. Inténtalo nuevamente.');
     } finally {
       setIsSubmitting(false);
     }
@@ -95,17 +105,17 @@ export default function NewClaimPage() {
         </div>
 
         <div>
-          <h1 className="text-3xl font-bold mb-2">Crear nuevo reclamo</h1>
+          <h1 className="text-3xl font-bold mb-2">Reportar problema con un pedido</h1>
           <p className="text-gray-600">
-            Describe tu problema y SmartClaim AI lo clasificara automaticamente.
+            Cuéntanos qué pasó para revisar tu caso y darte una respuesta lo antes posible.
           </p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Informacion del reclamo</CardTitle>
+            <CardTitle>Información del reclamo</CardTitle>
             <CardDescription>
-              Estos datos se guardaran en la base real y pasaran por el flujo IA + RAG.
+              Selecciona el pedido relacionado y describe el inconveniente con el mayor detalle posible.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -125,7 +135,7 @@ export default function NewClaimPage() {
                   </SelectContent>
                 </Select>
                 <p className="text-sm text-gray-500">
-                  Los pedidos son datos demo del frontend; el reclamo se guarda en SQLite.
+                  Elige el pedido donde ocurrió el problema.
                 </p>
               </div>
 
@@ -133,7 +143,7 @@ export default function NewClaimPage() {
                 <Label htmlFor="category">Tipo de problema *</Label>
                 <Select value={category} onValueChange={(value) => setCategory(value as ClaimCategory)} required>
                   <SelectTrigger>
-                    <SelectValue placeholder="Que tipo de problema tienes?" />
+                    <SelectValue placeholder="¿Qué tipo de problema tienes?" />
                   </SelectTrigger>
                   <SelectContent>
                     {Object.entries(CLAIM_CATEGORY_LABELS).map(([key, label]) => (
@@ -146,10 +156,10 @@ export default function NewClaimPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="description">Descripcion del problema *</Label>
+                <Label htmlFor="description">Descripción del problema *</Label>
                 <Textarea
                   id="description"
-                  placeholder="Describe con detalle que sucedio..."
+                  placeholder="Describe qué sucedió, cuándo ocurrió y qué esperas como solución..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   required
@@ -157,17 +167,17 @@ export default function NewClaimPage() {
                   className="resize-none"
                 />
                 <p className="text-sm text-gray-500">
-                  Minimo 10 caracteres. Mientras mas especifico seas, mejor funcionara la clasificacion.
+                  Incluye productos afectados, cobros, tiempos de espera o cualquier detalle útil.
                 </p>
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-semibold text-blue-900 mb-2">Que sucede despues?</h4>
+                <h4 className="font-semibold text-blue-900 mb-2">¿Qué sucede después?</h4>
                 <ul className="text-sm text-blue-800 space-y-1">
-                  <li>Tu reclamo se guarda en la base de datos.</li>
-                  <li>El backend ejecuta clasificacion automatica.</li>
-                  <li>Si RAG esta activo, consulta documentos internos.</li>
-                  <li>Se genera una respuesta sugerida para revision humana.</li>
+                  <li>Recibirás un código para hacer seguimiento del reclamo.</li>
+                  <li>El equipo de soporte revisará el caso y preparará una respuesta.</li>
+                  <li>Si se requiere más validación, un agente continuará la atención.</li>
+                  <li>Podrás ver el avance desde la sección Mis reclamos.</li>
                 </ul>
               </div>
 
@@ -181,9 +191,9 @@ export default function NewClaimPage() {
                 <Button
                   type="submit"
                   className="flex-1"
-                  disabled={!orderId || !category || description.length < 10 || isSubmitting}
+                  disabled={!orderId || !category || description.trim().length < 10 || isSubmitting}
                 >
-                  {isSubmitting ? 'Procesando...' : 'Enviar reclamo'}
+                  {isSubmitting ? 'Enviando...' : 'Enviar reclamo'}
                 </Button>
                 <Link to="/dashboard">
                   <Button type="button" variant="outline">
@@ -204,13 +214,13 @@ export default function NewClaimPage() {
                 </div>
                 <DialogTitle className="text-2xl">Reclamo recibido</DialogTitle>
                 <DialogDescription className="mt-2">
-                  El reclamo fue registrado, analizado y enviado a revision.
+                  Tu caso fue registrado correctamente y queda en revisión por soporte.
                 </DialogDescription>
               </div>
             </DialogHeader>
             <div className="space-y-4">
               <div className="bg-gray-50 p-4 rounded-lg text-center">
-                <p className="text-sm text-gray-600 mb-1">Codigo de reclamo</p>
+                <p className="text-sm text-gray-600 mb-1">Código de reclamo</p>
                 <p className="text-2xl font-bold text-orange-600">{claimCode}</p>
               </div>
               <div className="flex gap-3">

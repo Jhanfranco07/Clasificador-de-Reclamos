@@ -13,19 +13,18 @@ export default function RegisterPage() {
     email: '',
     phone: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulación de registro
     navigate('/login');
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     }));
   };
 
@@ -43,7 +42,7 @@ export default function RegisterPage() {
           <CardHeader>
             <CardTitle className="text-2xl">Crear cuenta</CardTitle>
             <CardDescription>
-              Regístrate para empezar a usar SmartClaim AI
+              Regístrate para gestionar tus pedidos y reclamos
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -79,7 +78,7 @@ export default function RegisterPage() {
                   id="phone"
                   name="phone"
                   type="tel"
-                  placeholder="+34 600 000 000"
+                  placeholder="+51 900 000 000"
                   value={formData.phone}
                   onChange={handleChange}
                   required
@@ -126,8 +125,8 @@ export default function RegisterPage() {
 
             <div className="mt-6 p-4 bg-amber-50 rounded-lg border border-amber-200">
               <p className="text-xs text-amber-900">
-                <strong>Nota:</strong> Este es un prototipo académico. Para la demo,
-                usa uno de los usuarios de prueba en la página de login.
+                El registro queda preparado para esta versión de prueba. Para ingresar de inmediato,
+                usa los accesos de prueba de la pantalla de login.
               </p>
             </div>
           </CardContent>

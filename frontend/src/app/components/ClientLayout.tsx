@@ -38,7 +38,6 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white border-b sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/dashboard" className="flex items-center gap-2">
@@ -46,10 +45,14 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
             <span className="font-bold text-xl">SmartClaim AI</span>
           </Link>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <span className="text-sm text-gray-600 hidden md:block">
               Hola, {currentUser?.name?.split(' ')[0]}
             </span>
+            <Button variant="outline" size="sm" className="hidden sm:flex gap-2" onClick={handleLogout}>
+              <LogOut className="size-4" />
+              Salir
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative size-10 rounded-full">
@@ -77,7 +80,6 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
         </div>
       </header>
 
-      {/* Navigation */}
       <nav className="bg-white border-b">
         <div className="container mx-auto px-4">
           <div className="flex gap-1 overflow-x-auto">
@@ -96,7 +98,6 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
         </div>
       </nav>
 
-      {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         {children}
       </main>

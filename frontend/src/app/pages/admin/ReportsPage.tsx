@@ -64,7 +64,7 @@ export default function ReportsPage() {
           <div>
             <h1 className="text-3xl font-bold mb-2">Reportes y Analytics</h1>
             <p className="text-gray-600">
-              Metricas calculadas desde reclamos, analisis y respuestas reales.
+              Métricas calculadas desde reclamos, análisis y respuestas registradas.
             </p>
           </div>
           <Button onClick={handleExport} className="gap-2">
@@ -98,7 +98,7 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-600">{metrics.tiempo_promedio_atencion || 0} min</div>
-              <p className="text-xs text-gray-500 mt-1">Creacion a cierre</p>
+              <p className="text-xs text-gray-500 mt-1">Creación a cierre</p>
             </CardContent>
           </Card>
 
@@ -128,7 +128,7 @@ export default function ReportsPage() {
         <div className="grid md:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>Reclamos por categoria</CardTitle>
+              <CardTitle>Reclamos por categoría</CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
@@ -165,7 +165,7 @@ export default function ReportsPage() {
         <div className="grid md:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>Tiempo promedio por categoria</CardTitle>
+              <CardTitle>Tiempo promedio por categoría</CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
@@ -190,7 +190,7 @@ export default function ReportsPage() {
                   <div className="text-6xl font-bold text-green-600 mb-4">
                     {metrics.confianza_promedio || 0}%
                   </div>
-                  <p className="text-gray-600 mb-2">Confianza promedio de clasificacion</p>
+                  <p className="text-gray-600 mb-2">Confianza promedio de clasificación</p>
                   <div className="w-64 bg-gray-200 rounded-full h-4 overflow-hidden">
                     <div
                       className="bg-green-500 h-full rounded-full"
@@ -206,10 +206,10 @@ export default function ReportsPage() {
         <Card className="bg-purple-50 border-purple-200">
           <CardContent className="pt-6">
             <div className="text-center">
-              <h3 className="font-semibold text-purple-900 mb-2">Nota academica</h3>
+              <h3 className="font-semibold text-purple-900 mb-2">Observación de despliegue</h3>
               <p className="text-sm text-purple-800">
-                Estos reportes ya usan datos reales del backend. Para produccion faltaria autenticacion,
-                base de datos externa y trazabilidad de envio al cliente.
+                Los reportes consumen datos registrados por la aplicación. Para producción conviene reforzar
+                autenticación, permisos por rol y trazabilidad del envío al cliente.
               </p>
             </div>
           </CardContent>

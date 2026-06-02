@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Separator } from '../../components/ui/separator';
 import { ArrowLeft, CheckCircle, Clock, Eye, MessageSquare, AlertCircle } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 import { getClaim, ClaimDetailResponse } from '../../lib/api';
 import { CLAIM_STATUS_LABELS } from '../../types';
 import { formatDateTime } from '../../lib/utils';
@@ -12,6 +13,7 @@ import ClientLayout from '../../components/ClientLayout';
 
 export default function ClaimDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { currentUser } = useAuth();
   const [detail, setDetail] = useState<ClaimDetailResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -34,7 +36,9 @@ export default function ClaimDetailPage() {
     );
   }
 
-  if (!detail || error) {
+  const belongsToCurrentUser = detail?.claim.customerEmail?.toLowerCase() === currentUser?.email.toLowerCase();
+
+  if (!detail || error || !belongsToCurrentUser) {
     return (
       <ClientLayout>
         <div className="text-center py-12">
@@ -57,14 +61,14 @@ export default function ClaimDetailPage() {
       IN_REVIEW: 'bg-amber-100 text-amber-800',
       RESPONDED: 'bg-green-100 text-green-800',
       ESCALATED: 'bg-red-100 text-red-800',
-      CLOSED: 'bg-gray-100 text-gray-800'
+      CLOSED: 'bg-gray-100 text-gray-800',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
 
   const getStatusIcon = (action: string) => {
     if (action.includes('Registro')) return <CheckCircle className="size-5 text-green-600" />;
-    if (action.includes('IA')) return <Eye className="size-5 text-purple-600" />;
+    if (action.includes('Análisis') || action.includes('Analisis') || action.includes('IA')) return <Eye className="size-5 text-purple-600" />;
     if (action.includes('respuesta') || action.includes('Respuesta')) return <MessageSquare className="size-5 text-blue-600" />;
     if (action.includes('revisión') || action.includes('revision')) return <Clock className="size-5 text-amber-600" />;
     return <AlertCircle className="size-5 text-gray-600" />;
@@ -94,22 +98,22 @@ export default function ClaimDetailPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Informacion del reclamo</CardTitle>
+            <CardTitle>Información del reclamo</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <p className="text-sm text-gray-600 mb-1">Categoria detectada</p>
+              <p className="text-sm text-gray-600 mb-1">Tipo de problema</p>
               <p className="font-semibold">{claim.category}</p>
             </div>
             <Separator />
             <div>
-              <p className="text-sm text-gray-600 mb-1">Descripcion</p>
+              <p className="text-sm text-gray-600 mb-1">Descripción</p>
               <p className="text-gray-800 whitespace-pre-line">{claim.description}</p>
             </div>
             <Separator />
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <p className="text-sm text-gray-600 mb-1">Fecha de creacion</p>
+                <p className="text-sm text-gray-600 mb-1">Fecha de creación</p>
                 <p className="font-semibold">{formatDateTime(claim.createdAt)}</p>
               </div>
               <div>
@@ -122,7 +126,7 @@ export default function ClaimDetailPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Linea de tiempo</CardTitle>
+            <CardTitle>Línea de tiempo</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
@@ -165,9 +169,9 @@ export default function ClaimDetailPage() {
               <div className="flex items-center gap-3">
                 <Clock className="size-8 text-blue-600" />
                 <div>
-                  <h3 className="font-semibold">Tu reclamo esta en revision</h3>
+                  <h3 className="font-semibold">Tu reclamo está en revisión</h3>
                   <p className="text-sm text-gray-600 mt-1">
-                    SmartClaim AI ya genero una respuesta sugerida. Un agente debe revisarla antes de enviarla.
+                    El equipo de soporte está preparando una respuesta para tu caso.
                   </p>
                 </div>
               </div>

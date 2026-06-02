@@ -68,7 +68,7 @@ export default function ClaimsBandejaPage() {
           <div>
             <h1 className="text-3xl font-bold mb-2">Bandeja de reclamos</h1>
             <p className="text-gray-600">
-              Gestion centralizada conectada al backend FastAPI.
+              Gestión centralizada para revisar, priorizar y resolver reclamos.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -81,7 +81,7 @@ export default function ClaimsBandejaPage() {
                 <SelectItem value="ALL">Todos los estados</SelectItem>
                 <SelectItem value="RECEIVED">Recibidos</SelectItem>
                 <SelectItem value="ANALYZING">Analizados por IA</SelectItem>
-                <SelectItem value="IN_REVIEW">En revision</SelectItem>
+                <SelectItem value="IN_REVIEW">En revisión</SelectItem>
                 <SelectItem value="RESPONDED">Respondidos</SelectItem>
                 <SelectItem value="ESCALATED">Escalados</SelectItem>
                 <SelectItem value="CLOSED">Cerrados</SelectItem>
@@ -100,8 +100,8 @@ export default function ClaimsBandejaPage() {
           {[
             ['Nuevos', 'RECEIVED', 'text-blue-600'],
             ['Analizados', 'ANALYZING', 'text-purple-600'],
-            ['En revision', 'IN_REVIEW', 'text-amber-600'],
-            ['Requieren revision', 'REVIEW', 'text-red-600'],
+            ['En revisión', 'IN_REVIEW', 'text-amber-600'],
+            ['Requieren revisión', 'REVIEW', 'text-red-600'],
           ].map(([label, key, color]) => (
             <Card key={key}>
               <CardContent className="pt-6">
@@ -127,14 +127,14 @@ export default function ClaimsBandejaPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Codigo</TableHead>
+                    <TableHead>Código</TableHead>
                     <TableHead>Cliente</TableHead>
                     <TableHead>Pedido</TableHead>
-                    <TableHead>Categoria</TableHead>
+                    <TableHead>Categoría</TableHead>
                     <TableHead>Prioridad</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead>Fecha</TableHead>
-                    <TableHead className="text-right">Accion</TableHead>
+                    <TableHead className="text-right">Acción</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

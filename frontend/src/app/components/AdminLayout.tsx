@@ -17,7 +17,7 @@ import {
   BarChart3,
   LogOut,
   User,
-  Package
+  Package,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { ReactNode } from 'react';
@@ -53,7 +53,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-gray-900 text-white border-b border-gray-800 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/admin" className="flex items-center gap-2">
@@ -64,10 +63,19 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             </div>
           </Link>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <span className="text-sm text-gray-300 hidden md:block">
-              {currentUser?.role === 'ADMIN' ? 'Administrador' : 'Agente'} • {currentUser?.name}
+              {currentUser?.role === 'ADMIN' ? 'Administrador' : 'Agente'} · {currentUser?.name}
             </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden sm:flex gap-2 bg-transparent text-white border-gray-700 hover:bg-gray-800 hover:text-white"
+              onClick={handleLogout}
+            >
+              <LogOut className="size-4" />
+              Salir
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative size-10 rounded-full">
@@ -95,7 +103,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         </div>
       </header>
 
-      {/* Navigation */}
       <nav className="bg-white border-b">
         <div className="container mx-auto px-4">
           <div className="flex gap-1 overflow-x-auto">
@@ -114,7 +121,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         </div>
       </nav>
 
-      {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         {children}
       </main>

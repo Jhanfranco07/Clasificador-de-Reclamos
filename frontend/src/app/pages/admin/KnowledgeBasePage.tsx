@@ -44,7 +44,7 @@ export default function KnowledgeBasePage() {
   const filteredDocs = docs.filter((doc) =>
     `${doc.title} ${doc.category} ${doc.content}`.toLowerCase().includes(query.toLowerCase())
   );
-  const indexedDocs = docs.filter(d => d.indexStatus === 'INDEXADO').length;
+  const indexedDocs = docs.filter((doc) => doc.indexStatus === 'INDEXADO').length;
   const totalDocs = docs.length;
 
   return (
@@ -54,7 +54,7 @@ export default function KnowledgeBasePage() {
           <div>
             <h1 className="text-3xl font-bold mb-2">Base documental</h1>
             <p className="text-gray-600">
-              Documentos reales usados por el RAG academico con TF-IDF.
+              Documentos internos usados para fundamentar respuestas y procedimientos de soporte.
             </p>
           </div>
           <Button variant="outline" onClick={handleReindex} disabled={isWorking}>
@@ -88,7 +88,7 @@ export default function KnowledgeBasePage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">{indexedDocs}</div>
-              <p className="text-xs text-gray-500 mt-1">Disponibles para RAG</p>
+              <p className="text-xs text-gray-500 mt-1">Disponibles para recuperación</p>
             </CardContent>
           </Card>
 
@@ -140,8 +140,8 @@ export default function KnowledgeBasePage() {
                       </div>
                       <p className="text-gray-700 mb-3">{doc.content}</p>
                       <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <span>Categoria: {doc.category}</span>
-                        <span>•</span>
+                        <span>Categoría: {doc.category}</span>
+                        <span>·</span>
                         <span>Actualizado: {formatDateTime(doc.updatedAt)}</span>
                       </div>
                     </div>
@@ -156,8 +156,8 @@ export default function KnowledgeBasePage() {
           <CardContent className="pt-6">
             <h3 className="font-semibold text-blue-900 mb-2">Sobre el sistema RAG</h3>
             <p className="text-sm text-blue-800">
-              Este prototipo usa recuperacion TF-IDF local como aproximacion academica a una base vectorial.
-              La carga de nuevos documentos todavia no esta implementada desde la interfaz.
+              La recuperación documental usa un índice local TF-IDF para encontrar políticas y procedimientos relevantes.
+              La carga de nuevos documentos todavía no está implementada desde la interfaz.
             </p>
           </CardContent>
         </Card>

@@ -9,7 +9,20 @@ interface AuthContextType {
   isAuthenticated: boolean;
 }
 
+const SESSION_KEY = 'smartclaim_user';
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const getStoredUser = (): User | null => {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const saved = window.localStorage.getItem(SESSION_KEY);
+    return saved ? (JSON.parse(saved) as User) : null;
+  } catch {
+    window.localStorage.removeItem(SESSION_KEY);
+    return null;
+  }
+};
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -20,19 +33,19 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(getStoredUser);
 
   const login = async (email: string, _password: string): Promise<boolean> => {
-    // Simulación de login - en producción verificaría contraseña
-    const user = mockUsers.find(u => u.email === email);
-    if (user) {
-      setCurrentUser(user);
-      return true;
-    }
-    return false;
+    const user = mockUsers.find((item) => item.email === email);
+    if (!user) return false;
+
+    setCurrentUser(user);
+    window.localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    return true;
   };
 
   const logout = () => {
+    window.localStorage.removeItem(SESSION_KEY);
     setCurrentUser(null);
   };
 
@@ -42,7 +55,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         currentUser,
         login,
         logout,
-        isAuthenticated: !!currentUser
+        isAuthenticated: !!currentUser,
       }}
     >
       {children}

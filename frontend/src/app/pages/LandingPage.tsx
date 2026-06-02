@@ -219,7 +219,7 @@ export default function LandingPage() {
               </Button>
             </a>
             <Link to="/login">
-              <Button variant="ghost">Iniciar sesion</Button>
+              <Button variant="ghost">Iniciar sesión</Button>
             </Link>
             <Link to="/register">
               <Button>Registrarse</Button>
@@ -233,22 +233,22 @@ export default function LandingPage() {
           <div className="container mx-auto px-4 py-10 grid lg:grid-cols-[1.05fr_0.95fr] gap-8 items-center">
             <div className="space-y-6">
               <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">
-                Catalogo publico de delivery
+                Catálogo público de delivery
               </Badge>
               <div>
                 <h1 className="text-4xl md:text-5xl font-bold tracking-normal mb-4">
-                  Elige tus productos, arma tu carrito y paga al iniciar sesion
+                  Elige tus productos, arma tu carrito y paga al iniciar sesión
                 </h1>
                 <p className="text-lg text-gray-600 max-w-2xl">
-                  Puedes explorar restaurantes y simular tu pedido sin cuenta. Al confirmar el pago,
-                  el sistema solicita login y luego permite registrar reclamos si algo sale mal.
+                  Puedes explorar restaurantes y armar tu pedido sin cuenta. Al confirmar el pago,
+                  inicia sesión para guardar tu historial y recibir soporte si algo sale mal.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
                 <a href="#catalogo">
                   <Button size="lg" className="gap-2">
                     <ShoppingCart className="size-5" />
-                    Ver catalogo
+                    Ver catálogo
                   </Button>
                 </a>
                 <a href="#carrito">
@@ -267,8 +267,8 @@ export default function LandingPage() {
                   <p className="text-sm text-gray-500">Productos</p>
                 </div>
                 <div className="rounded-lg border bg-white p-3">
-                  <p className="text-2xl font-bold">IA</p>
-                  <p className="text-sm text-gray-500">Soporte asistido</p>
+                  <p className="text-2xl font-bold">24/7</p>
+                  <p className="text-sm text-gray-500">Soporte disponible</p>
                 </div>
               </div>
             </div>
@@ -303,7 +303,7 @@ export default function LandingPage() {
             <div>
               <h2 className="text-3xl font-bold">Restaurantes y productos</h2>
               <p className="text-gray-600 mt-2">
-                Catalogo simulado para contextualizar pedidos antes del flujo real de reclamos.
+                Elige una categoría y agrega productos al carrito.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -374,7 +374,7 @@ export default function LandingPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-2xl font-bold">Tu carrito</h2>
-                  <p className="text-sm text-gray-500">Checkout simulado</p>
+                  <p className="text-sm text-gray-500">Resumen del pedido</p>
                 </div>
                 <ShoppingCart className="size-6 text-orange-500" />
               </div>
@@ -435,11 +435,11 @@ export default function LandingPage() {
 
                   <Link to="/login">
                     <Button className="w-full" size="lg">
-                      Iniciar sesion y pagar
+                      Iniciar sesión y pagar
                     </Button>
                   </Link>
                   <p className="text-xs text-gray-500 text-center">
-                    La compra es simulada. El sistema real se centra en reclamos, IA y RAG.
+                    Al continuar, inicia sesión para confirmar el pedido y guardar tu historial.
                   </p>
                 </div>
               )}
@@ -456,8 +456,8 @@ export default function LandingPage() {
             </div>
             <div className="bg-white p-5 rounded-lg border">
               <HeadphonesIcon className="size-6 text-blue-600 mb-3" />
-              <h3 className="font-bold text-lg">Reclamos con IA</h3>
-              <p className="text-gray-600 text-sm mt-2">Clasificacion, prioridad, RAG y respuesta sugerida para revision.</p>
+              <h3 className="font-bold text-lg">Atención inteligente</h3>
+              <p className="text-gray-600 text-sm mt-2">Tus reclamos se ordenan por tipo, prioridad y estado de atención.</p>
             </div>
             <div className="bg-white p-5 rounded-lg border">
               <Shield className="size-6 text-green-600 mb-3" />

@@ -32,7 +32,7 @@ export default function OrderDetailPage() {
       IN_TRANSIT: 'bg-blue-100 text-blue-800',
       DELAYED: 'bg-amber-100 text-amber-800',
       CANCELLED: 'bg-gray-100 text-gray-800',
-      PREPARING: 'bg-purple-100 text-purple-800'
+      PREPARING: 'bg-purple-100 text-purple-800',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
@@ -59,7 +59,6 @@ export default function OrderDetailPage() {
           </Badge>
         </div>
 
-        {/* Order Summary */}
         <Card>
           <CardHeader>
             <CardTitle>Información del pedido</CardTitle>
@@ -84,7 +83,6 @@ export default function OrderDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Products */}
         <Card>
           <CardHeader>
             <CardTitle>Productos</CardTitle>
@@ -109,7 +107,6 @@ export default function OrderDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Delivery Info */}
         <div className="grid md:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
@@ -139,7 +136,6 @@ export default function OrderDetailPage() {
           </Card>
         </div>
 
-        {/* Delivery Driver */}
         {order.deliveryDriver && (
           <Card>
             <CardHeader>
@@ -155,17 +151,16 @@ export default function OrderDetailPage() {
           </Card>
         )}
 
-        {/* Report Problem */}
         {(order.status === 'DELIVERED' || order.status === 'DELAYED') && (
           <Card className="bg-orange-50 border-orange-200">
             <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <AlertCircle className="size-8 text-orange-600" />
                   <div>
                     <h3 className="font-semibold">¿Tuviste algún problema con este pedido?</h3>
                     <p className="text-sm text-gray-600">
-                      Crea un reclamo y te ayudaremos a resolverlo
+                      Crea un reclamo y te ayudaremos a resolverlo.
                     </p>
                   </div>
                 </div>

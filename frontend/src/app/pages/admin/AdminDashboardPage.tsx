@@ -8,7 +8,7 @@ import {
   TrendingUp,
   Brain,
   Users,
-  AlertTriangle
+  AlertTriangle,
 } from 'lucide-react';
 import { getDashboard, DashboardResponse } from '../../lib/api';
 import { CLAIM_STATUS_LABELS } from '../../types';
@@ -54,7 +54,7 @@ export default function AdminDashboardPage() {
         <div>
           <h1 className="text-3xl font-bold mb-2">Dashboard Administrativo</h1>
           <p className="text-gray-600">
-            Vision general calculada desde SQLite y el motor IA local.
+            Visión general de reclamos, prioridades, respuestas y carga operativa.
           </p>
         </div>
 
@@ -83,7 +83,7 @@ export default function AdminDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-600">{newClaims}</div>
-              <p className="text-xs text-gray-500 mt-1">Requieren analisis inicial</p>
+              <p className="text-xs text-gray-500 mt-1">Requieren análisis inicial</p>
             </CardContent>
           </Card>
 
@@ -94,18 +94,18 @@ export default function AdminDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-purple-600">{metrics.analizados || 0}</div>
-              <p className="text-xs text-gray-500 mt-1">Clasificacion generada</p>
+              <p className="text-xs text-gray-500 mt-1">Clasificación generada</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Criticos pendientes</CardTitle>
+              <CardTitle className="text-sm font-medium">Críticos pendientes</CardTitle>
               <AlertTriangle className="size-4 text-red-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-600">{critical}</div>
-              <p className="text-xs text-gray-500 mt-1">Prioridad critica abierta</p>
+              <p className="text-xs text-gray-500 mt-1">Prioridad crítica abierta</p>
             </CardContent>
           </Card>
         </div>
@@ -113,12 +113,12 @@ export default function AdminDashboardPage() {
         <div className="grid md:grid-cols-3 gap-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">En revision</CardTitle>
+              <CardTitle className="text-sm font-medium">En revisión</CardTitle>
               <Users className="size-4 text-amber-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-amber-600">{inReview}</div>
-              <p className="text-xs text-gray-500 mt-1">Revision humana</p>
+              <p className="text-xs text-gray-500 mt-1">Revisión humana</p>
             </CardContent>
           </Card>
 
@@ -129,7 +129,7 @@ export default function AdminDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">{responded}</div>
-              <p className="text-xs text-gray-500 mt-1">Gestion completada o enviada</p>
+              <p className="text-xs text-gray-500 mt-1">Gestión completada o enviada</p>
             </CardContent>
           </Card>
 
@@ -142,7 +142,7 @@ export default function AdminDashboardPage() {
               <div className="text-2xl font-bold text-blue-600">
                 {metrics.confianza_promedio || 0}%
               </div>
-              <p className="text-xs text-gray-500 mt-1">Promedio de clasificacion</p>
+              <p className="text-xs text-gray-500 mt-1">Promedio de clasificación</p>
             </CardContent>
           </Card>
         </div>
@@ -150,7 +150,7 @@ export default function AdminDashboardPage() {
         <div className="grid md:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>Reclamos por categoria</CardTitle>
+              <CardTitle>Reclamos por categoría</CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
@@ -194,7 +194,7 @@ export default function AdminDashboardPage() {
                 <div key={claim.id} className="flex items-center justify-between p-4 border rounded-lg">
                   <div>
                     <p className="font-semibold">{claim.code}</p>
-                    <p className="text-sm text-gray-600">{claim.customerName} • {claim.category}</p>
+                    <p className="text-sm text-gray-600">{claim.customerName} · {claim.category}</p>
                     <p className="text-xs text-gray-500 mt-1">Pedido: {claim.orderCode}</p>
                   </div>
                   <Badge className={getStatusColor(claim.statusKey)}>
@@ -203,7 +203,7 @@ export default function AdminDashboardPage() {
                 </div>
               ))}
               {!data?.recentClaims.length && (
-                <p className="text-sm text-gray-500">Aun no hay actividad registrada.</p>
+                <p className="text-sm text-gray-500">Aún no hay actividad registrada.</p>
               )}
             </div>
           </CardContent>
