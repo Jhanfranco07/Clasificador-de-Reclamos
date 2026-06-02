@@ -125,7 +125,7 @@ export default function AdminClaimDetailPage() {
         <div className="flex items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold mb-2">Reclamo {claim.code}</h1>
-            <p className="text-gray-600">Revision administrativa con analisis IA</p>
+            <p className="text-gray-600">Revisión de soporte con clasificación, contexto documental y respuesta sugerida.</p>
           </div>
           <Badge className={`${getStatusColor(claim.statusKey)} text-lg px-4 py-2`}>
             {CLAIM_STATUS_LABELS[claim.statusKey as keyof typeof CLAIM_STATUS_LABELS] || claim.status}
@@ -143,10 +143,39 @@ export default function AdminClaimDetailPage() {
           <Alert variant="destructive">
             <AlertTriangle className="size-4" />
             <AlertDescription>
-              <strong>Revision humana obligatoria:</strong> este caso requiere validacion antes de enviar una respuesta final.
+              <strong>Revisión humana obligatoria:</strong> valida datos del pedido, pago o seguridad antes de aprobar una respuesta final.
             </AlertDescription>
           </Alert>
         )}
+
+        <div className="grid md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="pt-5">
+              <p className="text-xs text-gray-500">Cliente</p>
+              <p className="font-semibold truncate">{claim.customerName}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-5">
+              <p className="text-xs text-gray-500">Pedido</p>
+              <p className="font-semibold">{claim.orderCode}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-5">
+              <p className="text-xs text-gray-500">Prioridad</p>
+              <p className="font-semibold">{claim.priority}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-5">
+              <p className="text-xs text-gray-500">Acción sugerida</p>
+              <p className="font-semibold">
+                {claim.requiresHumanReview ? 'Revisar antes de responder' : 'Aprobar si el texto es correcto'}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
 
         <div className="grid md:grid-cols-3 gap-6">
           <div className="md:col-span-2 space-y-6">
@@ -154,7 +183,7 @@ export default function AdminClaimDetailPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <MessageSquare className="size-5" />
-                  Texto original del reclamo
+                  Mensaje del cliente
                 </CardTitle>
               </CardHeader>
               <CardContent>

@@ -112,7 +112,7 @@ export default function NewClaimPage() {
         <div>
           <h1 className="text-3xl font-bold mb-2">Reportar problema con un pedido</h1>
           <p className="text-gray-600">
-            Cuéntanos qué pasó para revisar tu caso y darte una respuesta lo antes posible.
+            Selecciona el pedido afectado y cuéntanos qué ocurrió. Usaremos esa información para darte seguimiento desde tu cuenta.
           </p>
         </div>
 
@@ -177,12 +177,12 @@ export default function NewClaimPage() {
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-semibold text-blue-900 mb-2">¿Qué sucede después?</h4>
+                <h4 className="font-semibold text-blue-900 mb-2">Seguimiento del caso</h4>
                 <ul className="text-sm text-blue-800 space-y-1">
-                  <li>Recibirás un código para hacer seguimiento del reclamo.</li>
-                  <li>El equipo de soporte revisará el caso y preparará una respuesta.</li>
-                  <li>Si se requiere más validación, un agente continuará la atención.</li>
-                  <li>Podrás ver el avance desde la sección Mis reclamos.</li>
+                  <li>Recibirás un código de reclamo para consultar el avance.</li>
+                  <li>Soporte revisará el pedido, el tipo de problema y los detalles enviados.</li>
+                  <li>Los casos de pago, seguridad o prioridad alta pasan a revisión de un agente.</li>
+                  <li>Podrás ver la respuesta desde Mis reclamos cuando el caso sea atendido.</li>
                 </ul>
               </div>
 

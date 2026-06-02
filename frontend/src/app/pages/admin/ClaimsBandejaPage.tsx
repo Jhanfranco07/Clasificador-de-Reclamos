@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
+import { Input } from '../../components/ui/input';
 import {
   Table,
   TableBody,
@@ -18,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui/select';
-import { Eye, Filter } from 'lucide-react';
+import { AlertTriangle, Eye, Filter, Search } from 'lucide-react';
 import { listClaims, ClaimSummary } from '../../lib/api';
 import { CLAIM_STATUS_LABELS, ClaimStatus } from '../../types';
 import { formatDateTime } from '../../lib/utils';
@@ -27,6 +28,7 @@ import AdminLayout from '../../components/AdminLayout';
 export default function ClaimsBandejaPage() {
   const [claims, setClaims] = useState<ClaimSummary[]>([]);
   const [statusFilter, setStatusFilter] = useState<ClaimStatus | 'ALL'>('ALL');
+  const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -35,9 +37,22 @@ export default function ClaimsBandejaPage() {
       .catch((err) => setError(err instanceof Error ? err.message : 'No se pudieron cargar los reclamos.'));
   }, []);
 
-  const filteredClaims = claims.filter(claim =>
-    statusFilter === 'ALL' || claim.statusKey === statusFilter
-  );
+  const filteredClaims = claims.filter((claim) => {
+    const matchesStatus = statusFilter === 'ALL' || claim.statusKey === statusFilter;
+    const query = searchTerm.trim().toLowerCase();
+    const matchesSearch = !query || [
+      claim.code,
+      claim.customerName,
+      claim.customerEmail,
+      claim.orderCode,
+      claim.category,
+      claim.priority,
+    ].some((value) => value?.toLowerCase().includes(query));
+    return matchesStatus && matchesSearch;
+  });
+
+  const urgentClaims = claims.filter((claim) => claim.priorityKey === 'CRITICAL' || claim.statusKey === 'ESCALATED');
+  const activeClaims = claims.filter((claim) => !['RESPONDED', 'CLOSED'].includes(claim.statusKey));
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -64,17 +79,26 @@ export default function ClaimsBandejaPage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold mb-2">Bandeja de reclamos</h1>
             <p className="text-gray-600">
-              Gestión centralizada para revisar, priorizar y resolver reclamos.
+              Prioriza casos sensibles, revisa respuestas sugeridas y cierra la atención del cliente.
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <Filter className="size-4 text-gray-500" />
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative">
+              <Search className="size-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Buscar código, cliente o pedido"
+                className="pl-9 sm:w-72"
+              />
+            </div>
             <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as ClaimStatus | 'ALL')}>
               <SelectTrigger className="w-48">
+                <Filter className="size-4 text-gray-500 mr-2" />
                 <SelectValue placeholder="Filtrar por estado" />
               </SelectTrigger>
               <SelectContent>
@@ -98,10 +122,10 @@ export default function ClaimsBandejaPage() {
 
         <div className="grid md:grid-cols-4 gap-4">
           {[
-            ['Nuevos', 'RECEIVED', 'text-blue-600'],
-            ['Analizados', 'ANALYZING', 'text-purple-600'],
+            ['Activos', 'ACTIVE', 'text-slate-900'],
+            ['Urgentes', 'URGENT', 'text-red-600'],
             ['En revisión', 'IN_REVIEW', 'text-amber-600'],
-            ['Requieren revisión', 'REVIEW', 'text-red-600'],
+            ['Requieren agente', 'REVIEW', 'text-purple-600'],
           ].map(([label, key, color]) => (
             <Card key={key}>
               <CardContent className="pt-6">
@@ -109,6 +133,10 @@ export default function ClaimsBandejaPage() {
                   <p className={`text-2xl font-bold ${color}`}>
                     {key === 'REVIEW'
                       ? claims.filter(c => c.requiresHumanReview).length
+                      : key === 'URGENT'
+                        ? urgentClaims.length
+                      : key === 'ACTIVE'
+                        ? activeClaims.length
                       : claims.filter(c => c.statusKey === key).length}
                   </p>
                   <p className="text-sm text-gray-600 mt-1">{label}</p>
@@ -120,7 +148,15 @@ export default function ClaimsBandejaPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Reclamos ({filteredClaims.length})</CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle>Reclamos ({filteredClaims.length})</CardTitle>
+              {urgentClaims.length > 0 && (
+                <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
+                  <AlertTriangle className="size-3 mr-1" />
+                  {urgentClaims.length} urgente(s)
+                </Badge>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="border rounded-lg">

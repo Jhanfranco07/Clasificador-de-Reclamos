@@ -28,9 +28,10 @@ export default function AdminDashboardPage() {
   const metrics = data?.metrics || {};
   const totalClaims = metrics.total || 0;
   const newClaims = data?.byStatus.find((item) => item.estado === 'Nuevo')?.total || 0;
-  const inReview = data?.byStatus.find((item) => item.estado === 'En revisión')?.total || 0;
+  const inReview = data?.byStatus.find((item) => item.estado === 'En revisión' || item.estado === 'En revision')?.total || 0;
   const responded = metrics.respondidos || 0;
   const critical = metrics.casos_criticos_pendientes || 0;
+  const pending = newClaims + inReview + critical;
 
   const statusData = (data?.byStatus || []).map((item) => ({ name: item.estado, value: item.total }));
   const categoryData = (data?.byCategory || []).map((item) => ({ name: item.categoria, value: item.total }));
@@ -52,11 +53,30 @@ export default function AdminDashboardPage() {
     <AdminLayout>
       <div className="space-y-8">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Dashboard Administrativo</h1>
+          <h1 className="text-3xl font-bold mb-2">Centro de soporte operativo</h1>
           <p className="text-gray-600">
-            Visión general de reclamos, prioridades, respuestas y carga operativa.
+            Monitorea reclamos, carga de atención, casos críticos y respuestas pendientes.
           </p>
         </div>
+
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="py-5">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-orange-700">Prioridad del turno</p>
+                <h2 className="text-2xl font-bold mt-1">
+                  {pending > 0 ? `${pending} caso(s) requieren seguimiento` : 'No hay reclamos pendientes'}
+                </h2>
+                <p className="text-sm text-orange-900/80 mt-1">
+                  Revisa primero los reclamos críticos, escalados o marcados para revisión humana.
+                </p>
+              </div>
+              <Badge className={pending > 0 ? 'bg-orange-600' : 'bg-green-600'}>
+                {pending > 0 ? 'Atención requerida' : 'Operación estable'}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
 
         {error && (
           <Card className="border-red-200 bg-red-50">

@@ -307,27 +307,27 @@ export default function LandingPage() {
           <div className="container mx-auto px-4 py-10 grid lg:grid-cols-[1.05fr_0.95fr] gap-8 items-center">
             <div className="space-y-6">
               <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">
-                Catálogo público de delivery
+                Delivery urbano en Lima
               </Badge>
               <div>
                 <h1 className="text-4xl md:text-5xl font-bold tracking-normal mb-4">
-                  Elige tus productos, arma tu carrito y paga al iniciar sesión
+                  Comida peruana, chifa, sushi y más en un solo lugar
                 </h1>
                 <p className="text-lg text-gray-600 max-w-2xl">
-                  Puedes explorar restaurantes y armar tu pedido sin cuenta. Al confirmar el pago,
-                  inicia sesión para guardar tu historial y recibir soporte si algo sale mal.
+                  Explora restaurantes, agrega tus favoritos al carrito y confirma tu pedido
+                  cuando estés listo. Si algo sale mal, soporte puede revisar tu caso desde tu historial.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
                 <a href="#catalogo">
                   <Button size="lg" className="gap-2">
                     <ShoppingCart className="size-5" />
-                    Ver catálogo
+                    Ver restaurantes
                   </Button>
                 </a>
                 <a href="#carrito">
                   <Button size="lg" variant="outline">
-                    Revisar carrito
+                    Ver carrito
                   </Button>
                 </a>
               </div>
@@ -356,8 +356,8 @@ export default function LandingPage() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
               <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
                 <p className="text-sm uppercase tracking-wide text-orange-200">Combo destacado</p>
-                <h2 className="text-3xl font-bold">Combo urbano SmartClaim</h2>
-                <p className="mt-2 text-white/85">Hamburguesa, papas y bebida con seguimiento en tiempo real.</p>
+                <h2 className="text-3xl font-bold">Combo urbano</h2>
+                <p className="mt-2 text-white/85">Un pedido destacado para probar la experiencia de compra.</p>
                 <div className="mt-4 flex items-center justify-between">
                   <span className="text-2xl font-bold">{formatCurrency(32.9)}</span>
                   <Button
@@ -375,9 +375,9 @@ export default function LandingPage() {
         <section id="catalogo" className="container mx-auto px-4 py-10">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
             <div>
-              <h2 className="text-3xl font-bold">Restaurantes y productos</h2>
+              <h2 className="text-3xl font-bold">Restaurantes disponibles</h2>
               <p className="text-gray-600 mt-2">
-                Elige una categoría y agrega productos al carrito.
+                Filtra por categoría, revisa precios en soles y arma tu pedido.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">

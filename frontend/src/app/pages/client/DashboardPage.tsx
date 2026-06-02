@@ -55,7 +55,7 @@ export default function DashboardPage() {
             Hola, {currentUser?.name?.split(' ')[0]}
           </h1>
           <p className="text-gray-600">
-            Revisa tus pedidos, consulta reclamos y solicita ayuda cuando tengas un inconveniente.
+            Revisa tus pedidos, compra nuevamente y solicita ayuda si tuviste un inconveniente.
           </p>
         </div>
 
@@ -118,9 +118,9 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <AlertCircle className="size-5" />
-                ¿Algún problema?
+                ¿Tuviste un problema?
               </CardTitle>
-              <CardDescription>Reporta un inconveniente con tu pedido.</CardDescription>
+              <CardDescription>Cuéntanos qué pasó y soporte revisará tu caso.</CardDescription>
             </CardHeader>
             <CardContent>
               <Link to="/claims/new">
@@ -143,6 +143,16 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
+              {recentOrders.length === 0 && (
+                <div className="rounded-lg border border-dashed p-8 text-center">
+                  <ShoppingBag className="size-10 text-orange-500 mx-auto mb-3" />
+                  <h2 className="text-xl font-bold">Aún no tienes pedidos</h2>
+                  <p className="text-gray-600 mt-2">Explora restaurantes y confirma tu primer pedido para activar tu historial.</p>
+                  <Link to="/">
+                    <Button className="mt-4">Ver restaurantes</Button>
+                  </Link>
+                </div>
+              )}
               {recentOrders.map((order) => (
                 <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
                   <div className="flex items-center gap-4">
@@ -212,7 +222,7 @@ export default function DashboardPage() {
               <HelpCircle className="size-5" />
               ¿Necesitas ayuda?
             </CardTitle>
-            <CardDescription>Consulta el centro de ayuda o crea un reclamo</CardDescription>
+            <CardDescription>Encuentra respuestas rápidas o reporta un pedido específico.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex gap-3">
