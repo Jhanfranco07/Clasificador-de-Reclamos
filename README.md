@@ -310,7 +310,8 @@ Muestra la clasificacion automatica, prioridad, confianza, sentimiento, palabras
 
 ### Base Documental
 
-Lista documentos internos usados como base de conocimiento. Incluye politicas, procedimientos, FAQ y manuales asociados a categorias de reclamos.
+Lista documentos internos usados como base de conocimiento. Incluye politicas, procedimientos, FAQ, manuales, SLA, reglas de escalamiento, criterios de cierre, reglas de privacidad, evidencia permitida y plantillas de respuesta por categoria.
+El seed inicial carga 18 documentos detallados para alimentar el RAG y el LLM con informacion operativa del negocio.
 
 ### Motor RAG
 

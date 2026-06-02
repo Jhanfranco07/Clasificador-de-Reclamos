@@ -208,13 +208,19 @@ def guardar_analisis(id_reclamo, analisis):
     estado_anterior = reclamo_actual["estado"] if reclamo_actual else None
 
     config = get_configuracion_activa() or {"umbral_confianza": 0.85, "revision_humana_obligatoria": 1}
+    prioridad = analisis["prioridad"]
     requiere = int(
         analisis["confianza"] < float(config["umbral_confianza"])
         or analisis["prioridad"] in ["Alta", "Crítica"]
         or int(config["revision_humana_obligatoria"]) == 1
     )
+    if prioridad in ["Critica", "Crítica"]:
+        requiere = 1
     estado_nuevo = "En revisión" if requiere else "Analizado por IA"
     estado_id = get_estado_id(estado_nuevo)
+    if estado_id is None and requiere:
+        estado_nuevo = "En revision"
+        estado_id = get_estado_id(estado_nuevo)
 
     with get_connection() as conn:
         conn.execute("""

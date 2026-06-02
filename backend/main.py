@@ -561,6 +561,8 @@ def analyze_claim(claim_id: int, user: dict[str, Any] = Depends(require_staff)) 
 @app.patch("/api/claims/{claim_id}/state")
 def update_claim_state(claim_id: int, payload: StateUpdate, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
     state = UI_TO_STATUS.get(payload.state, payload.state)
+    if state == "En revisión":
+        state = "En revision"
     try:
         if state == "Respondido":
             marcar_respondido(claim_id, payload.comment)
