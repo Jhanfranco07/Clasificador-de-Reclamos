@@ -1,0 +1,123 @@
+import { Link, useNavigate, useLocation } from 'react-router';
+import { Button } from './ui/button';
+import { Avatar, AvatarFallback } from './ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
+import {
+  LayoutDashboard,
+  Inbox,
+  FileText,
+  Settings,
+  BarChart3,
+  LogOut,
+  User,
+  Package
+} from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { ReactNode } from 'react';
+
+interface AdminLayoutProps {
+  children: ReactNode;
+}
+
+export default function AdminLayout({ children }: AdminLayoutProps) {
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
+
+  const navItems = [
+    { path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/admin/claims', label: 'Bandeja de reclamos', icon: Inbox },
+    { path: '/admin/knowledge', label: 'Base documental', icon: FileText },
+    { path: '/admin/ai-config', label: 'Configuración IA', icon: Settings },
+    { path: '/admin/reports', label: 'Reportes', icon: BarChart3 },
+  ];
+
+  const isActive = (path: string) => {
+    if (path === '/admin') {
+      return location.pathname === '/admin';
+    }
+    return location.pathname.startsWith(path);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-gray-900 text-white border-b border-gray-800 sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <Link to="/admin" className="flex items-center gap-2">
+            <Package className="size-8 text-orange-500" />
+            <div>
+              <span className="font-bold text-xl">SmartClaim AI</span>
+              <span className="text-xs text-gray-400 block">Panel Administrativo</span>
+            </div>
+          </Link>
+
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-300 hidden md:block">
+              {currentUser?.role === 'ADMIN' ? 'Administrador' : 'Agente'} • {currentUser?.name}
+            </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="relative size-10 rounded-full">
+                  <Avatar>
+                    <AvatarFallback className="bg-orange-600">
+                      {currentUser?.name?.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Mi cuenta</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  <User className="mr-2 size-4" />
+                  Perfil
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleLogout}>
+                  <LogOut className="mr-2 size-4" />
+                  Cerrar sesión
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </header>
+
+      {/* Navigation */}
+      <nav className="bg-white border-b">
+        <div className="container mx-auto px-4">
+          <div className="flex gap-1 overflow-x-auto">
+            {navItems.map((item) => (
+              <Link key={item.path} to={item.path}>
+                <Button
+                  variant={isActive(item.path) ? 'default' : 'ghost'}
+                  className="gap-2"
+                >
+                  <item.icon className="size-4" />
+                  {item.label}
+                </Button>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-8">
+        {children}
+      </main>
+    </div>
+  );
+}

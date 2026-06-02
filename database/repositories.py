@@ -88,8 +88,9 @@ def guardar_analisis(id_reclamo, analisis):
             WHERE id_reclamo = ?
         """, (get_categoria_id(analisis["categoria"]), get_prioridad_id(analisis["prioridad"]), estado_id, requiere, id_reclamo))
 
+        conn.execute("DELETE FROM analisis_ia WHERE id_reclamo = ?", (id_reclamo,))
         conn.execute("""
-            INSERT OR REPLACE INTO analisis_ia (
+            INSERT INTO analisis_ia (
                 id_reclamo, categoria_detectada, confianza, sentimiento, palabras_clave,
                 entidades_detectadas, recomendacion, modelo_usado
             )

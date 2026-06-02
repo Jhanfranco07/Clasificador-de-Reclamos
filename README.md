@@ -20,6 +20,8 @@ En operaciones de delivery, los reclamos llegan por multiples canales y suelen r
 
 - Python 3.12 o superior.
 - Streamlit para la interfaz web.
+- FastAPI para la API backend full stack.
+- React + Vite para la interfaz web adaptada desde Figma.
 - SQLite para persistencia local.
 - Pandas para manejo de datos.
 - scikit-learn para clasificacion y recuperacion TF-IDF.
@@ -31,6 +33,8 @@ En operaciones de delivery, los reclamos llegan por multiples canales y suelen r
 ```text
 smartclaim_ai/
 |-- app.py                         # Dashboard principal de Streamlit
+|-- backend/                       # API FastAPI para la version full stack
+|-- frontend/                      # Interfaz React/Vite adaptada desde Figma
 |-- requirements.txt               # Dependencias del proyecto
 |-- README.md                      # Documentacion de instalacion y uso
 |-- .env.example                   # Variables de entorno de ejemplo
@@ -51,6 +55,7 @@ smartclaim_ai/
 - Windows 10/11.
 - PowerShell.
 - Python instalado y disponible como `python` o `py`.
+- Node.js 20 o superior para ejecutar la version React/Vite.
 - Conexion a internet para instalar dependencias la primera vez.
 
 Verificar Python:
@@ -143,6 +148,83 @@ http://localhost:8501
 
 Si el puerto 8501 esta ocupado, Streamlit puede usar otro puerto y lo mostrara en consola.
 
+## Ejecucion Full Stack React + FastAPI
+
+La version full stack conserva la logica Python existente, pero la expone por API y usa la interfaz React adaptada desde la demo de Figma.
+
+Terminal 1 - backend:
+
+```powershell
+cd smartclaim_ai
+.\.venv\Scripts\activate
+python scripts/prepare_database.py
+python scripts/train_model.py
+python scripts/build_rag_index.py
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Terminal 2 - frontend:
+
+```powershell
+cd smartclaim_ai\frontend
+npm install
+Copy-Item .env.example .env
+npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+URLs locales:
+
+```text
+Frontend React: http://127.0.0.1:5173
+Backend API:    http://127.0.0.1:8000
+Docs API:       http://127.0.0.1:8000/docs
+```
+
+Usuarios demo del frontend:
+
+```text
+Cliente: maria.gonzalez@email.com
+Agente:  laura.martinez@smartclaim.com
+Admin:   admin@smartclaim.com
+```
+
+Cualquier contrasena funciona en esta demo. La autenticacion real queda como mejora futura.
+
+## PostgreSQL En Supabase
+
+El proyecto puede trabajar en dos modos:
+
+```text
+DB_PROVIDER=sqlite    # modo local por defecto
+DB_PROVIDER=postgres  # modo produccion con Supabase/PostgreSQL
+```
+
+Para crear tablas y migrar datos desde SQLite hacia Supabase:
+
+```powershell
+cd smartclaim_ai
+.\.venv\Scripts\activate
+python scripts/migrate_sqlite_to_postgres.py
+```
+
+El script ejecuta:
+
+- `database/postgres_schema.sql`
+- `database/postgres_seed_data.sql`
+- migracion de registros desde `data/smartclaim.db`
+
+Variables necesarias en Render para usar Supabase:
+
+```text
+APP_ENV=production
+DB_PROVIDER=postgres
+DATABASE_URL=postgresql://...
+USE_RAG=true
+MODEL_PROVIDER=local
+```
+
+No subas `.env` al repositorio. La cadena real de `DATABASE_URL` debe quedar solo como variable secreta en Render o en tu entorno local.
+
 ## Pruebas Funcionales
 
 Si `pytest` no esta instalado, puedes instalarlo junto con las dependencias del proyecto:
@@ -233,21 +315,21 @@ Esta decision permite ejecutar el sistema sin claves API ni servicios externos, 
 
 ## Limitaciones Actuales
 
-- No hay autenticacion real de usuarios.
+- No hay autenticacion real de usuarios; el login React sigue siendo demo.
 - No hay envio real de respuestas al cliente.
 - El RAG usa TF-IDF, no embeddings semanticos neuronales.
 - La generacion de respuesta es basada en plantilla.
-- No hay API backend separada; la logica vive dentro de Streamlit, modulos y repositorios.
-- No hay pruebas automatizadas completas.
+- La version full stack tiene API FastAPI, pero SQLite local no es ideal para produccion.
+- Los pedidos del cliente en React son datos demo; los reclamos si se guardan en SQLite.
 - No incluye Dockerfile ni docker-compose en esta fase.
 
 ## Mejoras Futuras
 
 - Integrar un LLM real para generacion de respuestas.
 - Usar embeddings neuronales y una base vectorial dedicada.
-- Implementar autenticacion y roles.
-- Separar backend, frontend y capa de servicios.
-- Agregar pruebas unitarias e integracion.
+- Implementar autenticacion real, sesiones y roles conectados al backend.
+- Migrar SQLite a PostgreSQL/Supabase para despliegue productivo.
+- Agregar pruebas automatizadas para endpoints FastAPI y componentes React.
 - Agregar Dockerfile y docker-compose.
 - Incorporar auditoria avanzada de prompts, respuestas y decisiones del modelo.
 - Crear un flujo real de envio de respuesta al cliente.
