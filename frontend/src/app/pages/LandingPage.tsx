@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
+import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 
 type Product = {
   id: string;
@@ -73,7 +74,7 @@ const restaurants: Restaurant[] = [
       { id: 'se-1', name: 'Roll California', description: '8 piezas con palta y kanikama.', price: 32.9, image: 'https://images.unsplash.com/photo-1617196034796-73dfa7b1fd56?w=600' },
       { id: 'se-2', name: 'Combo makis', description: '24 piezas surtidas.', price: 45.8, image: 'https://images.unsplash.com/photo-1553621042-f6e147245754?w=600' },
       { id: 'se-3', name: 'Tempura roll', description: 'Roll crocante con salsa acevichada.', price: 36.5, image: 'https://images.unsplash.com/photo-1611143669185-af224c5e3252?w=600' },
-      { id: 'se-4', name: 'Sashimi salmon', description: 'Cortes frescos de salmon.', price: 39.9, image: 'https://images.unsplash.com/photo-1625938145744-e38051539987?w=600' },
+      { id: 'se-4', name: 'Sashimi salmon', description: 'Cortes frescos de salmon.', price: 39.9, image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600' },
     ],
   },
   {
@@ -163,9 +164,70 @@ const restaurants: Restaurant[] = [
       { id: 'fm-4', name: 'Ensalada cesar', description: 'Pollo, parmesano y croutones.', price: 24.9, image: 'https://images.unsplash.com/photo-1550304943-4f24f54ddde9?w=600' },
     ],
   },
+  {
+    id: 'cevicheria-la-marina',
+    name: 'Cevicheria La Marina',
+    category: 'Peruana',
+    rating: 4.9,
+    time: '30-45 min',
+    delivery: 5.9,
+    image: 'https://images.unsplash.com/photo-1615141982883-c7ad0e69fd62?w=900',
+    products: [
+      { id: 'clm-1', name: 'Ceviche clasico', description: 'Pescado fresco, limon, camote y choclo.', price: 34.9, image: 'https://images.unsplash.com/photo-1625944230945-1b7dd3b949ab?w=600' },
+      { id: 'clm-2', name: 'Arroz con mariscos', description: 'Arroz norteño con mixtura marina.', price: 38.5, image: 'https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600' },
+      { id: 'clm-3', name: 'Jalea mixta', description: 'Pescado y mariscos crocantes con yuca.', price: 42.9, image: 'https://images.unsplash.com/photo-1562967914-608f82629710?w=600' },
+      { id: 'clm-4', name: 'Leche de tigre', description: 'Concentrado marino con cancha y choclo.', price: 18.9, image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600' },
+    ],
+  },
+  {
+    id: 'criollo-peruano',
+    name: 'Criollo Peruano',
+    category: 'Peruana',
+    rating: 4.8,
+    time: '25-40 min',
+    delivery: 4.9,
+    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=900',
+    products: [
+      { id: 'cp-1', name: 'Lomo saltado', description: 'Carne salteada, papas fritas y arroz.', price: 32.9, image: 'https://images.unsplash.com/photo-1632778149955-e80f8ceca2e8?w=600' },
+      { id: 'cp-2', name: 'Aji de gallina', description: 'Crema de aji amarillo, pollo y arroz.', price: 27.9, image: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=600' },
+      { id: 'cp-3', name: 'Seco con frejoles', description: 'Guiso criollo con arroz y frejoles.', price: 30.5, image: 'https://images.unsplash.com/photo-1600891964599-f61ba0e24092?w=600' },
+      { id: 'cp-4', name: 'Causa limeña', description: 'Papa amarilla, pollo, palta y mayonesa.', price: 22.9, image: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600' },
+    ],
+  },
+  {
+    id: 'chifa-oriental',
+    name: 'Chifa Oriental',
+    category: 'Chifa',
+    rating: 4.7,
+    time: '25-35 min',
+    delivery: 4.5,
+    image: 'https://images.unsplash.com/photo-1526318896980-cf78c088247c?w=900',
+    products: [
+      { id: 'cho-1', name: 'Arroz chaufa especial', description: 'Chaufa con pollo, chancho y tortilla.', price: 28.9, image: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600' },
+      { id: 'cho-2', name: 'Tallarin saltado', description: 'Fideos salteados con verduras y pollo.', price: 26.9, image: 'https://images.unsplash.com/photo-1585032226651-759b368d7246?w=600' },
+      { id: 'cho-3', name: 'Wantanes fritos', description: 'Porcion crocante con salsa tamarindo.', price: 14.9, image: 'https://images.unsplash.com/photo-1625398407796-82650a8c135f?w=600' },
+      { id: 'cho-4', name: 'Kam lu wantan', description: 'Wantan, carnes y verduras en salsa dulce.', price: 36.9, image: 'https://images.unsplash.com/photo-1596797038530-2c107229654b?w=600' },
+    ],
+  },
+  {
+    id: 'sanguche-criollo',
+    name: 'Sanguche Criollo',
+    category: 'Sanguches',
+    rating: 4.6,
+    time: '15-25 min',
+    delivery: 3.9,
+    image: 'https://images.unsplash.com/photo-1553909489-cd47e0907980?w=900',
+    products: [
+      { id: 'sc-1', name: 'Pan con chicharron', description: 'Chicharron, camote y salsa criolla.', price: 18.9, image: 'https://images.unsplash.com/photo-1553909489-cd47e0907980?w=600' },
+      { id: 'sc-2', name: 'Butifarra criolla', description: 'Jamon del pais y salsa criolla.', price: 17.5, image: 'https://images.unsplash.com/photo-1528736235302-52922df5c122?w=600' },
+      { id: 'sc-3', name: 'Triple clasico', description: 'Palta, huevo, tomate y mayonesa.', price: 13.9, image: 'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=600' },
+      { id: 'sc-4', name: 'Emoliente frio', description: 'Bebida herbal con limon y hierbas.', price: 7.9, image: 'https://images.unsplash.com/photo-1622597467836-f3285f2131b8?w=600' },
+    ],
+  },
 ];
 
 const categories = ['Todos', ...Array.from(new Set(restaurants.map((restaurant) => restaurant.category)))];
+const totalProducts = restaurants.reduce((total, restaurant) => total + restaurant.products.length, 0);
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -271,11 +333,11 @@ export default function LandingPage() {
               </div>
               <div className="grid grid-cols-3 gap-3 max-w-xl">
                 <div className="rounded-lg border bg-white p-3">
-                  <p className="text-2xl font-bold">8</p>
+                  <p className="text-2xl font-bold">{restaurants.length}</p>
                   <p className="text-sm text-gray-500">Restaurantes</p>
                 </div>
                 <div className="rounded-lg border bg-white p-3">
-                  <p className="text-2xl font-bold">30+</p>
+                  <p className="text-2xl font-bold">{totalProducts}</p>
                   <p className="text-sm text-gray-500">Productos</p>
                 </div>
                 <div className="rounded-lg border bg-white p-3">
@@ -286,7 +348,7 @@ export default function LandingPage() {
             </div>
 
             <div className="relative min-h-[360px] overflow-hidden rounded-lg">
-              <img
+              <ImageWithFallback
                 src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1200"
                 alt="Mesa con comida de delivery"
                 className="absolute inset-0 h-full w-full object-cover"
@@ -337,7 +399,7 @@ export default function LandingPage() {
               {visibleRestaurants.map((restaurant) => (
                 <article key={restaurant.id} className="bg-white border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                   <div className="aspect-[4/3] overflow-hidden">
-                    <img src={restaurant.image} alt={restaurant.name} className="h-full w-full object-cover" />
+                    <ImageWithFallback src={restaurant.image} alt={restaurant.name} className="h-full w-full object-cover" />
                   </div>
                   <div className="p-5 space-y-4">
                     <div className="flex items-start justify-between gap-3">
@@ -365,7 +427,7 @@ export default function LandingPage() {
                     <div className="space-y-3">
                       {restaurant.products.map((product) => (
                         <div key={product.id} className="grid grid-cols-[64px_1fr_auto] gap-3 items-center rounded-lg bg-gray-50 p-3">
-                          <img src={product.image} alt={product.name} className="size-16 rounded-lg object-cover" />
+                          <ImageWithFallback src={product.image} alt={product.name} className="size-16 rounded-lg object-cover" />
                           <div>
                             <p className="font-semibold leading-tight">{product.name}</p>
                             <p className="text-xs text-gray-500 line-clamp-2">{product.description}</p>
@@ -401,7 +463,7 @@ export default function LandingPage() {
                     {cart.map((item) => (
                       <div key={item.id} className="rounded-lg border p-3">
                         <div className="flex gap-3">
-                          <img src={item.image} alt={item.name} className="size-14 rounded-lg object-cover" />
+                          <ImageWithFallback src={item.image} alt={item.name} className="size-14 rounded-lg object-cover" />
                           <div className="flex-1">
                             <div className="flex justify-between gap-2">
                               <div>
