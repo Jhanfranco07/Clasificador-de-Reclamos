@@ -120,7 +120,7 @@ export const mockClaims: Claim[] = [
     code: 'CLM-2024-001',
     userId: 'user-1',
     orderId: 'order-1',
-    description: 'Me cobraron dos veces el mismo pedido en mi tarjeta de crédito. Vi dos cargos de 24.50€ en mi cuenta.',
+    description: 'Me cobraron dos veces el mismo pedido en mi tarjeta de crédito. Vi dos cargos de S/ 24.50 en mi cuenta.',
     customerSelectedType: 'INCORRECT_CHARGE',
     detectedCategory: 'INCORRECT_CHARGE',
     confidence: 0.95,
@@ -227,8 +227,8 @@ export const mockClaimResponses: ClaimResponse[] = [
   {
     id: 'response-1',
     claimId: 'claim-1',
-    suggestedResponse: 'Estimada María, lamentamos mucho el inconveniente. Hemos verificado el cargo duplicado en su cuenta. Procederemos a realizar el reembolso de 24.50€ inmediatamente. El dinero estará disponible en su cuenta en 3-5 días hábiles. Como compensación, le hemos agregado un cupón de 10€ para su próximo pedido.',
-    finalResponse: 'Estimada María, lamentamos mucho el inconveniente causado por el cargo duplicado. Hemos verificado la incidencia y confirmo que procederemos inmediatamente con el reembolso de 24.50€. El importe estará disponible en su cuenta en un plazo de 3-5 días hábiles. Adicionalmente, como gesto de disculpa, hemos añadido un cupón de 10€ a su cuenta para su próximo pedido. Gracias por su paciencia y comprensión.',
+    suggestedResponse: 'Estimada María, lamentamos mucho el inconveniente. Hemos verificado el cargo duplicado en su cuenta. Procederemos a realizar el reembolso de S/ 24.50 inmediatamente. El dinero estará disponible en su cuenta en 3-5 días hábiles. Como compensación, le hemos agregado un cupón de S/ 10.00 para su próximo pedido.',
+    finalResponse: 'Estimada María, lamentamos mucho el inconveniente causado por el cargo duplicado. Hemos verificado la incidencia y confirmo que procederemos inmediatamente con el reembolso de S/ 24.50. El importe estará disponible en su cuenta en un plazo de 3-5 días hábiles. Adicionalmente, como gesto de disculpa, hemos añadido un cupón de S/ 10.00 a su cuenta para su próximo pedido. Gracias por su paciencia y comprensión.',
     status: 'EDITED',
     reviewedBy: 'agent-1',
     createdAt: new Date('2024-06-01T19:35:00'),
@@ -325,7 +325,7 @@ export const mockKnowledgeDocuments: KnowledgeDocument[] = [
     id: 'doc-4',
     title: 'Política de Alergias y Productos Incorrectos',
     type: 'POLICY',
-    content: 'Los casos de alergias son PRIORIDAD CRÍTICA. Ofrecer reembolso completo + cupón de 15€. Reportar al restaurante inmediatamente.',
+    content: 'Los casos de alergias son PRIORIDAD CRÍTICA. Ofrecer reembolso completo + cupón de S/ 15.00. Reportar al restaurante inmediatamente.',
     category: 'Calidad',
     indexed: true,
     updatedAt: new Date('2024-01-20')
