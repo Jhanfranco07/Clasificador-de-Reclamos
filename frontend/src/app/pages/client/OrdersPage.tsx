@@ -1,17 +1,25 @@
 import { Link } from 'react-router';
+import { useEffect, useState } from 'react';
 import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { ShoppingBag } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
-import { getOrdersByUserId } from '../../lib/mockData';
 import { ORDER_STATUS_LABELS } from '../../types';
 import { formatCurrency, formatDateTime } from '../../lib/utils';
+import { ApiOrder, listOrders } from '../../lib/api';
 import ClientLayout from '../../components/ClientLayout';
 
 export default function OrdersPage() {
-  const { currentUser } = useAuth();
-  const orders = currentUser ? getOrdersByUserId(currentUser.id) : [];
+  const [orders, setOrders] = useState<ApiOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    listOrders()
+      .then((result) => setOrders(result.items))
+      .catch((err) => setError(err instanceof Error ? err.message : 'No se pudieron cargar los pedidos.'))
+      .finally(() => setIsLoading(false));
+  }, []);
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -29,12 +37,22 @@ export default function OrdersPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold mb-2">Mis pedidos</h1>
-          <p className="text-gray-600">
-            Historial completo de tus pedidos
-          </p>
+          <p className="text-gray-600">Historial completo de tus pedidos</p>
         </div>
 
-        {orders.length === 0 ? (
+        {error && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="py-4 text-red-700">{error}</CardContent>
+          </Card>
+        )}
+
+        {isLoading ? (
+          <Card>
+            <CardContent className="text-center py-12 text-gray-500">
+              Cargando pedidos...
+            </CardContent>
+          </Card>
+        ) : orders.length === 0 ? (
           <Card>
             <CardContent className="text-center py-12">
               <ShoppingBag className="size-16 mx-auto mb-4 text-gray-300" />
@@ -54,11 +72,13 @@ export default function OrdersPage() {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4 flex-1">
-                      <img
-                        src={order.storeImage}
-                        alt={order.storeName}
-                        className="size-16 rounded-lg object-cover"
-                      />
+                      {order.storeImage && (
+                        <img
+                          src={order.storeImage}
+                          alt={order.storeName}
+                          className="size-16 rounded-lg object-cover"
+                        />
+                      )}
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-1">
                           <h3 className="font-semibold text-lg">{order.storeName}</h3>
@@ -68,7 +88,7 @@ export default function OrdersPage() {
                         </div>
                         <p className="text-sm text-gray-500">{order.code}</p>
                         <p className="text-xs text-gray-400 mt-1">
-                          {formatDateTime(order.createdAt)}
+                          {formatDateTime(new Date(order.createdAt))}
                         </p>
                         <p className="text-sm text-gray-600 mt-2">
                           {order.items.length} productos · {order.paymentMethod}

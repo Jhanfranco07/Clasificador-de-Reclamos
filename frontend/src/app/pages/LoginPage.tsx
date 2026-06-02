@@ -8,6 +8,8 @@ import { Package, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Alert, AlertDescription } from '../components/ui/alert';
 
+const CART_KEY = 'smartclaim_pending_cart';
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -24,7 +26,10 @@ export default function LoginPage() {
     const success = await login(email, password);
 
     if (success) {
-      if (email.includes('@smartclaim.com')) {
+      const hasPendingCart = Boolean(window.localStorage.getItem(CART_KEY));
+      if (hasPendingCart && !email.includes('@smartclaim.com')) {
+        navigate('/checkout');
+      } else if (email.includes('@smartclaim.com')) {
         navigate('/admin');
       } else {
         navigate('/dashboard');

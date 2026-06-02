@@ -1,30 +1,28 @@
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Separator } from '../../components/ui/separator';
 import { ArrowLeft, MapPin, CreditCard, User, AlertCircle } from 'lucide-react';
-import { getOrderById } from '../../lib/mockData';
 import { ORDER_STATUS_LABELS } from '../../types';
 import { formatCurrency, formatDateTime } from '../../lib/utils';
+import { ApiOrder, getOrder } from '../../lib/api';
 import ClientLayout from '../../components/ClientLayout';
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const order = id ? getOrderById(id) : undefined;
+  const [order, setOrder] = useState<ApiOrder | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  if (!order) {
-    return (
-      <ClientLayout>
-        <div className="text-center py-12">
-          <h2 className="text-2xl font-bold mb-4">Pedido no encontrado</h2>
-          <Link to="/orders">
-            <Button>Volver a pedidos</Button>
-          </Link>
-        </div>
-      </ClientLayout>
-    );
-  }
+  useEffect(() => {
+    if (!id) return;
+    getOrder(id)
+      .then((result) => setOrder(result.order))
+      .catch((err) => setError(err instanceof Error ? err.message : 'No se pudo cargar el pedido.'))
+      .finally(() => setIsLoading(false));
+  }, [id]);
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -36,6 +34,30 @@ export default function OrderDetailPage() {
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
+
+  if (isLoading) {
+    return (
+      <ClientLayout>
+        <Card>
+          <CardContent className="text-center py-12 text-gray-500">Cargando pedido...</CardContent>
+        </Card>
+      </ClientLayout>
+    );
+  }
+
+  if (!order || error) {
+    return (
+      <ClientLayout>
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-bold mb-4">Pedido no encontrado</h2>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <Link to="/orders">
+            <Button>Volver a pedidos</Button>
+          </Link>
+        </div>
+      </ClientLayout>
+    );
+  }
 
   return (
     <ClientLayout>

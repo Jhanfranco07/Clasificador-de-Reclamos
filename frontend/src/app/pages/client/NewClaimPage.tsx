@@ -13,9 +13,8 @@ import {
 } from '../../components/ui/select';
 import { ArrowLeft, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getOrdersByUserId } from '../../lib/mockData';
 import { ClaimCategory, CLAIM_CATEGORY_LABELS } from '../../types';
-import { createClaim } from '../../lib/api';
+import { ApiOrder, createClaim, listOrders } from '../../lib/api';
 import ClientLayout from '../../components/ClientLayout';
 import {
   Dialog,
@@ -29,7 +28,7 @@ export default function NewClaimPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { currentUser } = useAuth();
-  const orders = currentUser ? getOrdersByUserId(currentUser.id) : [];
+  const [orders, setOrders] = useState<ApiOrder[]>([]);
 
   const [orderId, setOrderId] = useState(searchParams.get('orderId') || '');
   const [category, setCategory] = useState<ClaimCategory | ''>('');
@@ -45,6 +44,12 @@ export default function NewClaimPage() {
       setOrderId(orderIdFromParams);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    listOrders()
+      .then((data) => setOrders(data.items))
+      .catch(() => setOrders([]));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,7 +79,7 @@ export default function NewClaimPage() {
         customer_phone: currentUser.phone,
         order_code: order.code,
         channel: 'WEB',
-        order_date: order.createdAt.toISOString(),
+        order_date: order.createdAt,
         description: `${CLAIM_CATEGORY_LABELS[category]}: ${description.trim()}`,
         analyze: true,
       });

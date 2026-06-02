@@ -41,6 +41,42 @@ CREATE TABLE IF NOT EXISTS clientes (
     fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS auth_users (
+    id_auth_user SERIAL PRIMARY KEY,
+    nombre TEXT NOT NULL,
+    correo TEXT NOT NULL UNIQUE,
+    telefono TEXT,
+    password_hash TEXT NOT NULL,
+    rol TEXT NOT NULL CHECK (rol IN ('CLIENT', 'AGENT', 'ADMIN')),
+    estado TEXT NOT NULL DEFAULT 'ACTIVO' CHECK (estado IN ('ACTIVO', 'INACTIVO')),
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS pedidos (
+    id_pedido SERIAL PRIMARY KEY,
+    codigo_pedido TEXT NOT NULL UNIQUE,
+    id_cliente INTEGER NOT NULL REFERENCES clientes(id_cliente),
+    tienda_nombre TEXT NOT NULL,
+    tienda_imagen TEXT,
+    estado TEXT NOT NULL DEFAULT 'PREPARING'
+        CHECK (estado IN ('DELIVERED', 'IN_TRANSIT', 'CANCELLED', 'DELAYED', 'PREPARING')),
+    total REAL NOT NULL DEFAULT 0,
+    metodo_pago TEXT NOT NULL DEFAULT 'Tarjeta',
+    direccion_entrega TEXT NOT NULL,
+    repartidor TEXT,
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_entrega_estimada TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS pedido_items (
+    id_item SERIAL PRIMARY KEY,
+    id_pedido INTEGER NOT NULL REFERENCES pedidos(id_pedido) ON DELETE CASCADE,
+    nombre_producto TEXT NOT NULL,
+    cantidad INTEGER NOT NULL DEFAULT 1,
+    precio REAL NOT NULL DEFAULT 0,
+    imagen TEXT
+);
+
 CREATE TABLE IF NOT EXISTS reclamos (
     id_reclamo SERIAL PRIMARY KEY,
     codigo_reclamo TEXT NOT NULL UNIQUE,
@@ -189,3 +225,6 @@ CREATE INDEX IF NOT EXISTS idx_evaluacion_respuesta ON evaluacion_respuesta(id_r
 CREATE INDEX IF NOT EXISTS idx_dataset_categoria ON dataset_entrenamiento(categoria);
 CREATE INDEX IF NOT EXISTS idx_logs_modulo ON logs_sistema(modulo);
 CREATE INDEX IF NOT EXISTS idx_logs_reclamo ON logs_sistema(id_reclamo);
+CREATE INDEX IF NOT EXISTS idx_auth_users_correo ON auth_users(correo);
+CREATE INDEX IF NOT EXISTS idx_pedidos_cliente ON pedidos(id_cliente);
+CREATE INDEX IF NOT EXISTS idx_pedido_items_pedido ON pedido_items(id_pedido);

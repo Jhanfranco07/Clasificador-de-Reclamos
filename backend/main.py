@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 
@@ -17,18 +17,27 @@ from database.repositories import (
     actualizar_configuracion,
     actualizar_estado_reclamo,
     actualizar_respuesta_final,
+    asegurar_pedidos_demo_base,
+    asegurar_usuarios_auth_base,
     aprobar_respuesta,
     cerrar_reclamo,
     crear_cliente,
+    crear_pedido_cliente,
     crear_reclamo,
+    crear_usuario_auth,
     escalar_reclamo,
     get_configuracion_activa,
     guardar_analisis,
     guardar_respuesta,
+    listar_pedidos_por_correo,
     listar_documentos,
     listar_reclamos,
+    listar_reclamos_por_correo,
     marcar_respondido,
+    obtener_pedido,
     obtener_detalle_reclamo,
+    obtener_usuario_auth_por_correo,
+    obtener_usuario_auth_por_id,
 )
 from modules.classifier import clasificar_reclamo
 from modules.metrics import (
@@ -47,6 +56,7 @@ from modules.rag_engine import (
     obtener_resumen_indice,
     recuperar_documentos,
 )
+from modules.security import create_token, decode_token, hash_password, verify_password
 
 
 app = FastAPI(
@@ -63,10 +73,38 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=1)
+
+
+class RegisterRequest(BaseModel):
+    name: str = Field(..., min_length=2)
+    email: EmailStr
+    phone: str | None = None
+    password: str = Field(..., min_length=6)
+
+
+class OrderItemCreate(BaseModel):
+    name: str = Field(..., min_length=1)
+    quantity: int = Field(..., ge=1)
+    price: float = Field(..., ge=0)
+    image: str | None = None
+
+
+class OrderCreate(BaseModel):
+    store_name: str = Field(..., min_length=2)
+    store_image: str | None = None
+    payment_method: str = Field(..., min_length=2)
+    delivery_address: str = Field(..., min_length=5)
+    items: list[OrderItemCreate] = Field(..., min_length=1)
 
 
 class ClaimCreate(BaseModel):
@@ -146,6 +184,48 @@ SENTIMENT_TO_UI = {
 @app.on_event("startup")
 def startup() -> None:
     init_db()
+    asegurar_usuarios_auth_base()
+    asegurar_pedidos_demo_base()
+
+
+def _to_user(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": str(row["id_auth_user"]),
+        "name": row["nombre"],
+        "email": row["correo"],
+        "phone": row.get("telefono"),
+        "role": row["rol"],
+        "createdAt": row.get("fecha_creacion"),
+    }
+
+
+def _auth_response(row: dict[str, Any]) -> dict[str, Any]:
+    user = _to_user(row)
+    token = create_token({
+        "sub": user["id"],
+        "email": user["email"],
+        "role": user["role"],
+        "name": user["name"],
+    })
+    return {"user": user, "token": token}
+
+
+def get_current_user(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Sesión requerida")
+    payload = decode_token(authorization.split(" ", 1)[1].strip())
+    if not payload:
+        raise HTTPException(status_code=401, detail="Sesión inválida o expirada")
+    user = obtener_usuario_auth_por_id(payload.get("sub"))
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuario no encontrado")
+    return user
+
+
+def require_staff(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    if user["rol"] not in {"AGENT", "ADMIN"}:
+        raise HTTPException(status_code=403, detail="No tienes permisos para esta acción")
+    return user
 
 
 def _config() -> dict[str, Any]:
@@ -265,6 +345,48 @@ def _to_history_event(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _to_order(row: dict[str, Any], items: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "id": str(row["id_pedido"]),
+        "code": row["codigo_pedido"],
+        "userId": str(row["id_cliente"]),
+        "storeName": row["tienda_nombre"],
+        "storeImage": row.get("tienda_imagen"),
+        "status": row["estado"],
+        "total": float(row.get("total") or 0),
+        "paymentMethod": row.get("metodo_pago"),
+        "deliveryAddress": row.get("direccion_entrega"),
+        "deliveryDriver": row.get("repartidor"),
+        "items": [
+            {
+                "id": str(item["id_item"]),
+                "name": item["nombre_producto"],
+                "quantity": int(item["cantidad"]),
+                "price": float(item["precio"]),
+                "image": item.get("imagen"),
+            }
+            for item in items
+        ],
+        "createdAt": row.get("fecha_creacion"),
+        "estimatedDelivery": row.get("fecha_entrega_estimada"),
+    }
+
+
+def _order_detail_or_404(order_id: int, user: dict[str, Any]) -> dict[str, Any]:
+    row, items = obtener_pedido(order_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    if user["rol"] == "CLIENT" and row["correo_cliente"].lower() != user["correo"].lower():
+        raise HTTPException(status_code=403, detail="No tienes acceso a este pedido")
+    return _to_order(row, items)
+
+
+def _pydantic_data(model: BaseModel) -> dict[str, Any]:
+    if hasattr(model, "model_dump"):
+        return model.model_dump()
+    return model.dict()
+
+
 def _analyze_and_generate(id_reclamo: int) -> dict[str, Any]:
     reclamo = fetch_one(
         """
@@ -316,8 +438,72 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.post("/api/auth/login")
+def login(payload: LoginRequest) -> dict[str, Any]:
+    user = obtener_usuario_auth_por_correo(payload.email)
+    if not user or not verify_password(payload.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
+    return _auth_response(user)
+
+
+@app.post("/api/auth/register", status_code=201)
+def register(payload: RegisterRequest) -> dict[str, Any]:
+    if obtener_usuario_auth_por_correo(payload.email):
+        raise HTTPException(status_code=409, detail="Ya existe una cuenta con este correo")
+    user_id = crear_usuario_auth(
+        payload.name,
+        payload.email,
+        hash_password(payload.password),
+        "CLIENT",
+        payload.phone,
+    )
+    crear_cliente(payload.name, payload.email, payload.phone)
+    user = obtener_usuario_auth_por_id(user_id)
+    return _auth_response(user)
+
+
+@app.get("/api/auth/me")
+def me(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    return {"user": _to_user(user)}
+
+
+@app.get("/api/orders")
+def orders(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    if user["rol"] != "CLIENT":
+        return {"items": []}
+    rows = listar_pedidos_por_correo(user["correo"])
+    items = []
+    for row in rows:
+        order, order_items = obtener_pedido(row["id_pedido"])
+        items.append(_to_order(order, order_items))
+    return {"items": items}
+
+
+@app.post("/api/orders", status_code=201)
+def create_order(payload: OrderCreate, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    if user["rol"] != "CLIENT":
+        raise HTTPException(status_code=403, detail="Solo una cuenta cliente puede crear pedidos")
+    order_id = crear_pedido_cliente(
+        user["correo"],
+        user["nombre"],
+        user.get("telefono"),
+        payload.store_name,
+        payload.store_image,
+        payload.payment_method,
+        payload.delivery_address,
+        [_pydantic_data(item) for item in payload.items],
+        "PREPARING",
+    )
+    return {"order": _order_detail_or_404(order_id, user)}
+
+
+@app.get("/api/orders/{order_id}")
+def order_detail(order_id: int, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    return {"order": _order_detail_or_404(order_id, user)}
+
+
 @app.get("/api/dashboard")
-def dashboard() -> dict[str, Any]:
+def dashboard(user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
     metrics = obtener_metricas_dashboard()
     return {
         "metrics": metrics,
@@ -329,12 +515,15 @@ def dashboard() -> dict[str, Any]:
 
 
 @app.get("/api/claims")
-def claims() -> dict[str, Any]:
-    return {"items": [_to_claim_summary(row) for row in listar_reclamos()]}
+def claims(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    rows = listar_reclamos_por_correo(user["correo"]) if user["rol"] == "CLIENT" else listar_reclamos()
+    return {"items": [_to_claim_summary(row) for row in rows]}
 
 
 @app.post("/api/claims", status_code=201)
-def create_claim(payload: ClaimCreate) -> dict[str, Any]:
+def create_claim(payload: ClaimCreate, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    if user["rol"] == "CLIENT" and payload.customer_email.lower() != user["correo"].lower():
+        raise HTTPException(status_code=403, detail="No puedes registrar reclamos para otro cliente")
     try:
         id_cliente = crear_cliente(
             payload.customer_name,
@@ -357,17 +546,20 @@ def create_claim(payload: ClaimCreate) -> dict[str, Any]:
 
 
 @app.get("/api/claims/{claim_id}")
-def claim_detail(claim_id: int) -> dict[str, Any]:
-    return _to_claim_detail(claim_id)
+def claim_detail(claim_id: int, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    detail = _to_claim_detail(claim_id)
+    if user["rol"] == "CLIENT" and detail["claim"]["customerEmail"].lower() != user["correo"].lower():
+        raise HTTPException(status_code=403, detail="No tienes acceso a este reclamo")
+    return detail
 
 
 @app.post("/api/claims/{claim_id}/analyze")
-def analyze_claim(claim_id: int) -> dict[str, Any]:
+def analyze_claim(claim_id: int, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
     return _analyze_and_generate(claim_id)
 
 
 @app.patch("/api/claims/{claim_id}/state")
-def update_claim_state(claim_id: int, payload: StateUpdate) -> dict[str, Any]:
+def update_claim_state(claim_id: int, payload: StateUpdate, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
     state = UI_TO_STATUS.get(payload.state, payload.state)
     try:
         if state == "Respondido":
@@ -384,7 +576,7 @@ def update_claim_state(claim_id: int, payload: StateUpdate) -> dict[str, Any]:
 
 
 @app.patch("/api/responses/{response_id}")
-def update_response(response_id: int, payload: ResponseUpdate) -> dict[str, Any]:
+def update_response(response_id: int, payload: ResponseUpdate, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
     actualizar_respuesta_final(response_id, payload.response_text, "EDITADA")
     row = fetch_one("SELECT id_reclamo FROM respuestas_sugeridas WHERE id_respuesta = ?", (response_id,))
     if not row:
@@ -393,7 +585,7 @@ def update_response(response_id: int, payload: ResponseUpdate) -> dict[str, Any]
 
 
 @app.post("/api/responses/{response_id}/approve")
-def approve_response(response_id: int, payload: ResponseUpdate | None = None) -> dict[str, Any]:
+def approve_response(response_id: int, payload: ResponseUpdate | None = None, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
     aprobar_respuesta(response_id, payload.response_text if payload else None)
     row = fetch_one("SELECT id_reclamo FROM respuestas_sugeridas WHERE id_respuesta = ?", (response_id,))
     if not row:
@@ -403,7 +595,7 @@ def approve_response(response_id: int, payload: ResponseUpdate | None = None) ->
 
 
 @app.get("/api/documents")
-def documents() -> dict[str, Any]:
+def documents(user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
     docs = [
         {
             "id": str(doc["id_documento"]),
@@ -420,12 +612,12 @@ def documents() -> dict[str, Any]:
 
 
 @app.post("/api/documents/reindex")
-def reindex_documents() -> dict[str, Any]:
+def reindex_documents(user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
     return construir_indice_vectorial(forzar=True)
 
 
 @app.get("/api/config")
-def get_config() -> dict[str, Any]:
+def get_config(user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
     config = _config()
     return {
         "model": config.get("modelo_base"),
@@ -438,7 +630,7 @@ def get_config() -> dict[str, Any]:
 
 
 @app.put("/api/config")
-def put_config(payload: ConfigUpdate) -> dict[str, Any]:
+def put_config(payload: ConfigUpdate, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
     actualizar_configuracion(
         payload.confidence_threshold,
         payload.human_review_required,
@@ -449,7 +641,7 @@ def put_config(payload: ConfigUpdate) -> dict[str, Any]:
 
 
 @app.get("/api/reports")
-def reports() -> dict[str, Any]:
+def reports(user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
     return {
         "metrics": obtener_metricas_dashboard(),
         "byCategory": reclamos_por_categoria(),

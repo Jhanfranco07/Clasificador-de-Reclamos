@@ -5,9 +5,15 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Package } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+
+const CART_KEY = 'smartclaim_pending_cart';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const { register } = useAuth();
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -16,9 +22,28 @@ export default function RegisterPage() {
     confirmPassword: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate('/login');
+    setError('');
+    if (formData.password !== formData.confirmPassword) {
+      setError('Las contraseñas no coinciden.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const ok = await register({
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      password: formData.password,
+    });
+    setIsSubmitting(false);
+
+    if (!ok) {
+      setError('No se pudo crear la cuenta. Revisa si el correo ya existe.');
+      return;
+    }
+    navigate(window.localStorage.getItem(CART_KEY) ? '/checkout' : '/dashboard');
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -111,8 +136,14 @@ export default function RegisterPage() {
                 />
               </div>
 
-              <Button type="submit" className="w-full">
-                Crear cuenta
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
+                  {error}
+                </div>
+              )}
+
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? 'Creando cuenta...' : 'Crear cuenta'}
               </Button>
 
               <div className="text-center text-sm text-gray-600">
@@ -125,8 +156,7 @@ export default function RegisterPage() {
 
             <div className="mt-6 p-4 bg-amber-50 rounded-lg border border-amber-200">
               <p className="text-xs text-amber-900">
-                El registro queda preparado para esta versión de prueba. Para ingresar de inmediato,
-                usa los accesos de prueba de la pantalla de login.
+                Tu cuenta se crea en la base de datos y queda lista para registrar pedidos y reclamos.
               </p>
             </div>
           </CardContent>

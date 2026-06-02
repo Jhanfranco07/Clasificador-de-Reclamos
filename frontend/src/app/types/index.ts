@@ -1,5 +1,3 @@
-// Types for SmartClaim AI System
-
 export type UserRole = 'CLIENT' | 'AGENT' | 'ADMIN';
 
 export interface User {
@@ -108,7 +106,7 @@ export const CLAIM_CATEGORY_LABELS: Record<ClaimCategory, string> = {
   WRONG_PRODUCT: 'Producto incorrecto',
   CARD_ISSUE: 'Problema con tarjeta',
   FRAUD: 'Fraude o seguridad',
-  GENERAL_SUPPORT: 'Soporte general'
+  GENERAL_SUPPORT: 'Soporte general',
 };
 
 export const CLAIM_STATUS_LABELS: Record<ClaimStatus, string> = {
@@ -117,7 +115,7 @@ export const CLAIM_STATUS_LABELS: Record<ClaimStatus, string> = {
   IN_REVIEW: 'En revisión',
   RESPONDED: 'Respondido',
   ESCALATED: 'Escalado',
-  CLOSED: 'Cerrado'
+  CLOSED: 'Cerrado',
 };
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
@@ -125,5 +123,5 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   IN_TRANSIT: 'En camino',
   CANCELLED: 'Cancelado',
   DELAYED: 'Con demora',
-  PREPARING: 'Preparando'
+  PREPARING: 'Preparando',
 };

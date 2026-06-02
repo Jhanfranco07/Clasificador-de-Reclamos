@@ -180,15 +180,16 @@ Backend API:    http://127.0.0.1:8000
 Docs API:       http://127.0.0.1:8000/docs
 ```
 
-Usuarios demo del frontend:
+Usuarios base creados por el backend:
 
 ```text
-Cliente: maria.gonzalez@email.com
-Agente:  laura.martinez@smartclaim.com
-Admin:   admin@smartclaim.com
+Cliente: maria.gonzalez@email.com        Password: 123456
+Agente:  laura.martinez@smartclaim.com   Password: 123456
+Admin:   admin@smartclaim.com            Password: 123456
 ```
 
-Cualquier contrasena funciona en esta demo. La autenticacion real queda como mejora futura.
+La autenticacion full stack usa usuarios en base de datos, hash PBKDF2 y token Bearer firmado con `AUTH_SECRET`.
+El registro de cliente crea una cuenta real y tambien registra el cliente para pedidos y reclamos.
 
 ## PostgreSQL En Supabase
 
@@ -221,6 +222,7 @@ DB_PROVIDER=postgres
 DATABASE_URL=postgresql://...
 USE_RAG=true
 MODEL_PROVIDER=local
+AUTH_SECRET=change-this-secret-in-production
 ```
 
 No subas `.env` al repositorio. La cadena real de `DATABASE_URL` debe quedar solo como variable secreta en Render o en tu entorno local.
@@ -273,6 +275,17 @@ Flujo recomendado para prueba manual en la interfaz:
 11. Ir a Configuracion, desactivar Usar contexto RAG y regenerar una respuesta desde Historial.
 12. Verificar que la respuesta indique que fue generada sin RAG y que no registra documentos consultados.
 
+Flujo recomendado para prueba manual full stack:
+
+1. Abrir el frontend React.
+2. Agregar productos al carrito desde el catalogo.
+3. Seleccionar Iniciar sesion y pagar.
+4. Iniciar sesion como cliente o registrar una cuenta nueva.
+5. Confirmar direccion y metodo de pago en Checkout.
+6. Verificar el pedido en Mis pedidos.
+7. Reportar un problema desde el detalle del pedido.
+8. Iniciar sesion como agente o admin y revisar el reclamo en la bandeja administrativa.
+
 ## Modulos Del Sistema
 
 ### Dashboard
@@ -315,20 +328,18 @@ Esta decision permite ejecutar el sistema sin claves API ni servicios externos, 
 
 ## Limitaciones Actuales
 
-- No hay autenticacion real de usuarios; el login React sigue siendo demo.
 - No hay envio real de respuestas al cliente.
 - El RAG usa TF-IDF, no embeddings semanticos neuronales.
 - La generacion de respuesta es basada en plantilla.
-- La version full stack tiene API FastAPI, pero SQLite local no es ideal para produccion.
-- Los pedidos del cliente en React son datos demo; los reclamos si se guardan en SQLite.
+- La version full stack tiene API FastAPI; para produccion se recomienda usar PostgreSQL/Supabase en lugar de SQLite local.
+- El checkout registra pedidos reales en base de datos, pero no integra una pasarela de pago externa.
 - No incluye Dockerfile ni docker-compose en esta fase.
 
 ## Mejoras Futuras
 
 - Integrar un LLM real para generacion de respuestas.
 - Usar embeddings neuronales y una base vectorial dedicada.
-- Implementar autenticacion real, sesiones y roles conectados al backend.
-- Migrar SQLite a PostgreSQL/Supabase para despliegue productivo.
+- Integrar OAuth/Supabase Auth si se requiere autenticacion administrada por terceros.
 - Agregar pruebas automatizadas para endpoints FastAPI y componentes React.
 - Agregar Dockerfile y docker-compose.
 - Incorporar auditoria avanzada de prompts, respuestas y decisiones del modelo.

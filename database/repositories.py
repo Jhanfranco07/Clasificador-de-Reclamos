@@ -1,5 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from database.db_connection import execute, fetch_all, fetch_one, get_connection
+from modules.security import hash_password
 
 def get_estado_id(nombre):
     row = fetch_one("SELECT id_estado FROM estados_reclamo WHERE nombre = ?", (nombre,))
@@ -35,6 +36,141 @@ def crear_cliente(nombre, correo, telefono=None):
     return execute(
         "INSERT INTO clientes (nombre, correo, telefono) VALUES (?, ?, ?)",
         (nombre.strip(), correo.strip(), telefono.strip() if telefono else None)
+    )
+
+def crear_usuario_auth(nombre, correo, password_hash, rol="CLIENT", telefono=None):
+    return execute("""
+        INSERT INTO auth_users (nombre, correo, telefono, password_hash, rol)
+        VALUES (?, ?, ?, ?, ?)
+    """, (nombre.strip(), correo.strip().lower(), telefono.strip() if telefono else None, password_hash, rol))
+
+def obtener_usuario_auth_por_correo(correo):
+    return fetch_one("""
+        SELECT *
+        FROM auth_users
+        WHERE lower(correo) = lower(?) AND estado = 'ACTIVO'
+        LIMIT 1
+    """, (correo.strip(),))
+
+def obtener_usuario_auth_por_id(id_auth_user):
+    return fetch_one("""
+        SELECT *
+        FROM auth_users
+        WHERE id_auth_user = ? AND estado = 'ACTIVO'
+        LIMIT 1
+    """, (id_auth_user,))
+
+def asegurar_usuarios_auth_base():
+    usuarios = [
+        ("Maria Gonzalez", "maria.gonzalez@email.com", "CLIENT", "+51 900 111 222"),
+        ("Laura Martinez", "laura.martinez@smartclaim.com", "AGENT", None),
+        ("Admin System", "admin@smartclaim.com", "ADMIN", None),
+    ]
+    for nombre, correo, rol, telefono in usuarios:
+        if not obtener_usuario_auth_por_correo(correo):
+            crear_usuario_auth(nombre, correo, hash_password("123456"), rol, telefono)
+
+def generar_codigo_pedido():
+    total = fetch_one("SELECT COUNT(*) AS total FROM pedidos")["total"] + 1
+    return f"ORD-{datetime.now().strftime('%Y%m%d')}-{total:04d}"
+
+def crear_pedido_cliente(correo_cliente, nombre_cliente, telefono, tienda_nombre, tienda_imagen, metodo_pago, direccion_entrega, items, estado="PREPARING"):
+    id_cliente = crear_cliente(nombre_cliente, correo_cliente, telefono)
+    codigo = generar_codigo_pedido()
+    total = sum(float(item["price"]) * int(item["quantity"]) for item in items)
+    fecha_estimada = (datetime.now() + timedelta(minutes=35)).isoformat(timespec="seconds")
+    id_pedido = execute("""
+        INSERT INTO pedidos (
+            codigo_pedido, id_cliente, tienda_nombre, tienda_imagen, estado, total,
+            metodo_pago, direccion_entrega, repartidor, fecha_entrega_estimada
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        codigo,
+        id_cliente,
+        tienda_nombre.strip(),
+        tienda_imagen,
+        estado,
+        total,
+        metodo_pago.strip(),
+        direccion_entrega.strip(),
+        "Repartidor por asignar",
+        fecha_estimada,
+    ))
+
+    for item in items:
+        execute("""
+            INSERT INTO pedido_items (id_pedido, nombre_producto, cantidad, precio, imagen)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            id_pedido,
+            item["name"].strip(),
+            int(item["quantity"]),
+            float(item["price"]),
+            item.get("image"),
+        ))
+
+    return id_pedido
+
+def listar_pedidos_por_correo(correo_cliente):
+    return fetch_all("""
+        SELECT p.*, c.nombre AS cliente, c.correo AS correo_cliente
+        FROM pedidos p
+        INNER JOIN clientes c ON c.id_cliente = p.id_cliente
+        WHERE lower(c.correo) = lower(?)
+        ORDER BY p.id_pedido DESC
+    """, (correo_cliente.strip(),))
+
+def obtener_pedido(id_pedido):
+    pedido = fetch_one("""
+        SELECT p.*, c.nombre AS cliente, c.correo AS correo_cliente
+        FROM pedidos p
+        INNER JOIN clientes c ON c.id_cliente = p.id_cliente
+        WHERE p.id_pedido = ?
+    """, (id_pedido,))
+    if not pedido:
+        return None, []
+    items = fetch_all("""
+        SELECT *
+        FROM pedido_items
+        WHERE id_pedido = ?
+        ORDER BY id_item
+    """, (id_pedido,))
+    return pedido, items
+
+def asegurar_pedidos_demo_base():
+    usuario = obtener_usuario_auth_por_correo("maria.gonzalez@email.com")
+    if not usuario:
+        return
+    existentes = listar_pedidos_por_correo(usuario["correo"])
+    if existentes:
+        return
+    crear_pedido_cliente(
+        usuario["correo"],
+        usuario["nombre"],
+        usuario.get("telefono"),
+        "Burger Palace",
+        "https://images.unsplash.com/photo-1586190848861-99aa4a171e90?w=400",
+        "Tarjeta de credito",
+        "Av. Primavera 123, Lima",
+        [
+            {"name": "Combo clasico", "quantity": 1, "price": 24.5, "image": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400"},
+            {"name": "Papas bacon cheddar", "quantity": 1, "price": 15.9, "image": "https://images.unsplash.com/photo-1630384060421-cb20d0e0649d?w=400"},
+        ],
+        "DELIVERED",
+    )
+    crear_pedido_cliente(
+        usuario["correo"],
+        usuario["nombre"],
+        usuario.get("telefono"),
+        "Sushi Express",
+        "https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?w=400",
+        "Yape",
+        "Av. Primavera 123, Lima",
+        [
+            {"name": "Combo makis", "quantity": 1, "price": 45.8, "image": "https://images.unsplash.com/photo-1553621042-f6e147245754?w=400"},
+        ],
+        "DELAYED",
     )
 
 def generar_codigo_reclamo():
@@ -161,6 +297,21 @@ def listar_reclamos():
         INNER JOIN estados_reclamo e ON e.id_estado = r.id_estado
         ORDER BY r.id_reclamo DESC
     """)
+
+def listar_reclamos_por_correo(correo_cliente):
+    return fetch_all("""
+        SELECT r.id_reclamo, r.codigo_reclamo, c.nombre AS cliente, c.correo, r.codigo_pedido, r.canal_venta,
+               COALESCE(cat.nombre, 'Sin clasificar') AS categoria,
+               COALESCE(p.nombre, 'Sin prioridad') AS prioridad,
+               e.nombre AS estado, r.requiere_revision_humana, r.fecha_creacion, r.fecha_actualizacion
+        FROM reclamos r
+        INNER JOIN clientes c ON c.id_cliente = r.id_cliente
+        LEFT JOIN categorias_reclamo cat ON cat.id_categoria = r.id_categoria
+        LEFT JOIN prioridades p ON p.id_prioridad = r.id_prioridad
+        INNER JOIN estados_reclamo e ON e.id_estado = r.id_estado
+        WHERE lower(c.correo) = lower(?)
+        ORDER BY r.id_reclamo DESC
+    """, (correo_cliente.strip(),))
 
 def obtener_detalle_reclamo(id_reclamo):
     reclamo = fetch_one("""
@@ -503,6 +654,8 @@ def limpiar_datos_prueba():
         conn.execute("DELETE FROM historial_estados;")
         conn.execute("DELETE FROM logs_sistema WHERE modulo IN ('Datos de prueba', 'Generador');")
         conn.execute("DELETE FROM reclamos;")
+        conn.execute("DELETE FROM pedido_items;")
+        conn.execute("DELETE FROM pedidos;")
         conn.execute("DELETE FROM clientes;")
         conn.commit()
 

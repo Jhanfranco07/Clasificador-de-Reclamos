@@ -5,15 +5,14 @@ import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { ShoppingBag, AlertCircle, Clock, Plus, ArrowRight, HelpCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getOrdersByUserId } from '../../lib/mockData';
-import { listClaims, ClaimSummary } from '../../lib/api';
+import { listClaims, ClaimSummary, ApiOrder, listOrders } from '../../lib/api';
 import { ORDER_STATUS_LABELS, CLAIM_STATUS_LABELS } from '../../types';
 import { formatCurrency, formatDateTime } from '../../lib/utils';
 import ClientLayout from '../../components/ClientLayout';
 
 export default function DashboardPage() {
   const { currentUser } = useAuth();
-  const userOrders = currentUser ? getOrdersByUserId(currentUser.id) : [];
+  const [userOrders, setUserOrders] = useState<ApiOrder[]>([]);
   const recentOrders = userOrders.slice(0, 3);
   const [claims, setClaims] = useState<ClaimSummary[]>([]);
 
@@ -21,6 +20,9 @@ export default function DashboardPage() {
     listClaims()
       .then((data) => setClaims(data.items))
       .catch(() => setClaims([]));
+    listOrders()
+      .then((data) => setUserOrders(data.items))
+      .catch(() => setUserOrders([]));
   }, []);
 
   const userClaims = currentUser

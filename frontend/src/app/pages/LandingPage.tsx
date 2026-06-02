@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import {
@@ -16,6 +16,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
+import { useAuth } from '../contexts/AuthContext';
 
 type Product = {
   id: string;
@@ -38,8 +39,11 @@ type Restaurant = {
 
 type CartItem = Product & {
   restaurantName: string;
+  restaurantImage?: string;
   quantity: number;
 };
+
+const CART_KEY = 'smartclaim_pending_cart';
 
 const restaurants: Restaurant[] = [
   {
@@ -164,6 +168,8 @@ const restaurants: Restaurant[] = [
 const categories = ['Todos', ...Array.from(new Set(restaurants.map((restaurant) => restaurant.category)))];
 
 export default function LandingPage() {
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [cart, setCart] = useState<CartItem[]>([]);
 
@@ -187,7 +193,7 @@ export default function LandingPage() {
           item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
-      return [...items, { ...product, restaurantName: restaurant.name, quantity: 1 }];
+      return [...items, { ...product, restaurantName: restaurant.name, restaurantImage: restaurant.image, quantity: 1 }];
     });
   };
 
@@ -201,6 +207,12 @@ export default function LandingPage() {
 
   const removeItem = (id: string) => {
     setCart((items) => items.filter((item) => item.id !== id));
+  };
+
+  const handleCheckout = () => {
+    if (!cart.length) return;
+    window.localStorage.setItem(CART_KEY, JSON.stringify(cart));
+    navigate(isAuthenticated ? '/checkout' : '/login');
   };
 
   return (
@@ -433,11 +445,9 @@ export default function LandingPage() {
                     </div>
                   </div>
 
-                  <Link to="/login">
-                    <Button className="w-full" size="lg">
-                      Iniciar sesión y pagar
-                    </Button>
-                  </Link>
+                  <Button className="w-full" size="lg" onClick={handleCheckout}>
+                    {isAuthenticated ? 'Continuar al pago' : 'Iniciar sesión y pagar'}
+                  </Button>
                   <p className="text-xs text-gray-500 text-center">
                     Al continuar, inicia sesión para confirmar el pedido y guardar tu historial.
                   </p>

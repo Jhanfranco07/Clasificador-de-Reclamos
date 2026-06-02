@@ -11,6 +11,7 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/client/DashboardPage';
 import OrdersPage from './pages/client/OrdersPage';
 import OrderDetailPage from './pages/client/OrderDetailPage';
+import CheckoutPage from './pages/client/CheckoutPage';
 import NewClaimPage from './pages/client/NewClaimPage';
 import ClaimsListPage from './pages/client/ClaimsListPage';
 import ClaimDetailPage from './pages/client/ClaimDetailPage';
@@ -25,7 +26,15 @@ import AIConfigPage from './pages/admin/AIConfigPage';
 import ReportsPage from './pages/admin/ReportsPage';
 
 function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
-  const { isAuthenticated, currentUser } = useAuth();
+  const { isAuthenticated, currentUser, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-600">
+        Cargando sesión...
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -68,6 +77,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <OrderDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/checkout"
+        element={
+          <ProtectedRoute>
+            <CheckoutPage />
           </ProtectedRoute>
         }
       />

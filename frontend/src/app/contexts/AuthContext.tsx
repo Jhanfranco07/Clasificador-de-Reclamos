@@ -1,28 +1,33 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from '../types';
-import { mockUsers } from '../lib/mockData';
+import { clearStoredToken, getMe, getStoredToken, loginUser, registerUser } from '../lib/api';
 
 interface AuthContextType {
   currentUser: User | null;
   login: (email: string, password: string) => Promise<boolean>;
+  register: (payload: { name: string; email: string; phone?: string; password: string }) => Promise<boolean>;
   logout: () => void;
   isAuthenticated: boolean;
+  isLoading: boolean;
 }
 
-const SESSION_KEY = 'smartclaim_user';
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const getStoredUser = (): User | null => {
-  if (typeof window === 'undefined') return null;
-
-  try {
-    const saved = window.localStorage.getItem(SESSION_KEY);
-    return saved ? (JSON.parse(saved) as User) : null;
-  } catch {
-    window.localStorage.removeItem(SESSION_KEY);
-    return null;
-  }
-};
+const toUser = (user: {
+  id: string;
+  name: string;
+  email: string;
+  role: 'CLIENT' | 'AGENT' | 'ADMIN';
+  phone?: string;
+  createdAt: string;
+}): User => ({
+  id: user.id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+  phone: user.phone,
+  createdAt: new Date(user.createdAt),
+});
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -33,19 +38,47 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(getStoredUser);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const login = async (email: string, _password: string): Promise<boolean> => {
-    const user = mockUsers.find((item) => item.email === email);
-    if (!user) return false;
+  useEffect(() => {
+    const token = getStoredToken();
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
 
-    setCurrentUser(user);
-    window.localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-    return true;
+    getMe()
+      .then((result) => setCurrentUser(toUser(result.user)))
+      .catch(() => {
+        clearStoredToken();
+        setCurrentUser(null);
+      })
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const result = await loginUser(email, password);
+      setCurrentUser(toUser(result.user));
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const register = async (payload: { name: string; email: string; phone?: string; password: string }): Promise<boolean> => {
+    try {
+      const result = await registerUser(payload);
+      setCurrentUser(toUser(result.user));
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   const logout = () => {
-    window.localStorage.removeItem(SESSION_KEY);
+    clearStoredToken();
     setCurrentUser(null);
   };
 
@@ -54,8 +87,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       value={{
         currentUser,
         login,
+        register,
         logout,
         isAuthenticated: !!currentUser,
+        isLoading,
       }}
     >
       {children}
