@@ -74,6 +74,56 @@ export default function ClaimDetailPage() {
     return <AlertCircle className="size-5 text-gray-600" />;
   };
 
+  const getPublicHistoryText = (action: string) => {
+    const normalized = action.toLowerCase();
+    if (normalized.includes('registro')) {
+      return {
+        title: 'Reclamo recibido',
+        description: 'Registramos tu reclamo correctamente.',
+      };
+    }
+    if (normalized.includes('analisis') || normalized.includes('análisis') || normalized.includes('ia')) {
+      return {
+        title: 'Caso revisado por soporte',
+        description: 'Identificamos el tipo de inconveniente para derivarlo al equipo correspondiente.',
+      };
+    }
+    if (normalized.includes('generaci') || normalized.includes('respuesta sugerida')) {
+      return {
+        title: 'Respuesta en preparación',
+        description: 'El equipo de soporte está preparando una respuesta para tu caso.',
+      };
+    }
+    if (normalized.includes('aprobaci') || normalized.includes('envio') || normalized.includes('respuesta')) {
+      return {
+        title: 'Respuesta publicada',
+        description: 'Soporte publicó una respuesta para tu reclamo.',
+      };
+    }
+    if (normalized.includes('respondido')) {
+      return {
+        title: 'Caso respondido',
+        description: 'Tu reclamo ya cuenta con respuesta de soporte.',
+      };
+    }
+    if (normalized.includes('escalamiento') || normalized.includes('escalado')) {
+      return {
+        title: 'Caso derivado',
+        description: 'Tu reclamo fue derivado para una revisión más detallada.',
+      };
+    }
+    if (normalized.includes('cierre') || normalized.includes('cerrado')) {
+      return {
+        title: 'Caso cerrado',
+        description: 'El reclamo fue finalizado por el equipo de soporte.',
+      };
+    }
+    return {
+      title: 'Actualización del caso',
+      description: 'Se registró una actualización en el seguimiento de tu reclamo.',
+    };
+  };
+
   return (
     <ClientLayout>
       <div className="space-y-6 max-w-4xl mx-auto">
@@ -130,23 +180,26 @@ export default function ClaimDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {history.map((event, index) => (
-                <div key={event.id} className="flex gap-4">
-                  <div className="flex flex-col items-center">
-                    <div className="flex items-center justify-center size-10 rounded-full bg-gray-100">
-                      {getStatusIcon(event.action)}
+              {history.map((event, index) => {
+                const publicText = getPublicHistoryText(event.action);
+                return (
+                  <div key={event.id} className="flex gap-4">
+                    <div className="flex flex-col items-center">
+                      <div className="flex items-center justify-center size-10 rounded-full bg-gray-100">
+                        {getStatusIcon(event.action)}
+                      </div>
+                      {index < history.length - 1 && (
+                        <div className="w-0.5 h-12 bg-gray-200 mt-2" />
+                      )}
                     </div>
-                    {index < history.length - 1 && (
-                      <div className="w-0.5 h-12 bg-gray-200 mt-2" />
-                    )}
+                    <div className="flex-1 pt-1">
+                      <p className="font-semibold">{publicText.title}</p>
+                      <p className="text-sm text-gray-700">{publicText.description}</p>
+                      <p className="text-sm text-gray-500 mt-1">{formatDateTime(event.createdAt)}</p>
+                    </div>
                   </div>
-                  <div className="flex-1 pt-1">
-                    <p className="font-semibold">{event.action}</p>
-                    {event.comment && <p className="text-sm text-gray-700">{event.comment}</p>}
-                    <p className="text-sm text-gray-500 mt-1">{formatDateTime(event.createdAt)}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
