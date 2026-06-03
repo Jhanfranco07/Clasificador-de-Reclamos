@@ -161,6 +161,9 @@ export default function ClaimDetailPage() {
             </CardHeader>
             <CardContent>
               <p className="text-gray-800 whitespace-pre-line">{response.finalResponse}</p>
+              <p className="text-xs text-green-700 mt-4">
+                Esta respuesta fue publicada por soporte y queda registrada en tu historial del reclamo.
+              </p>
             </CardContent>
           </Card>
         ) : (

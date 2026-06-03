@@ -272,12 +272,33 @@ export default function AdminClaimDetailPage() {
               </CardContent>
             </Card>
 
+            {!response && (
+              <Card className="border-orange-200 bg-orange-50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquare className="size-5 text-orange-600" />
+                    Respuesta al cliente
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-orange-900">
+                    Todavía no hay una respuesta sugerida para este reclamo. Genera una respuesta con el contexto disponible,
+                    revísala y luego publícala para que el cliente la vea en Mis reclamos.
+                  </p>
+                  <Button disabled={isWorking} onClick={() => id && runAction(() => analyzeClaim(id))}>
+                    <RefreshCw className="size-4 mr-2" />
+                    Generar respuesta sugerida
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
             {response && (
               <Card className="border-green-200">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <TrendingUp className="size-5 text-green-600" />
-                    Respuesta sugerida
+                    Respuesta al cliente
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -295,7 +316,7 @@ export default function AdminClaimDetailPage() {
                           className="flex-1"
                         >
                           <CheckCircle className="size-4 mr-2" />
-                          Aprobar y marcar respondido
+                          Enviar respuesta al cliente
                         </Button>
                         <Button onClick={() => setIsEditing(true)} variant="outline" className="flex-1">
                           <Edit className="size-4 mr-2" />

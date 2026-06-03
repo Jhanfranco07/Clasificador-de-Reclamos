@@ -405,8 +405,8 @@ def aprobar_respuesta(id_respuesta, respuesta_final=None):
         respuesta["id_reclamo"],
         obtener_estado_actual(respuesta["id_reclamo"]),
         obtener_estado_actual(respuesta["id_reclamo"]),
-        "Aprobación de respuesta",
-        "El agente aprobó la respuesta final."
+        "Envio de respuesta",
+        "El agente publico la respuesta final para el cliente."
     )
 
 def marcar_respondido(id_reclamo, comentario=None):

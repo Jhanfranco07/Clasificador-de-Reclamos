@@ -595,7 +595,7 @@ def approve_response(response_id: int, payload: ResponseUpdate | None = None, us
     row = fetch_one("SELECT id_reclamo FROM respuestas_sugeridas WHERE id_respuesta = ?", (response_id,))
     if not row:
         raise HTTPException(status_code=404, detail="Respuesta no encontrada")
-    marcar_respondido(row["id_reclamo"], "Respuesta aprobada desde el panel full stack.")
+    marcar_respondido(row["id_reclamo"], "Respuesta enviada al cliente desde el panel de soporte.")
     return _to_claim_detail(row["id_reclamo"])
 
 
