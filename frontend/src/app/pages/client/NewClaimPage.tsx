@@ -13,7 +13,6 @@ import {
 } from '../../components/ui/select';
 import { ArrowLeft, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { ClaimCategory, CLAIM_CATEGORY_LABELS } from '../../types';
 import { ApiOrder, createClaim, listOrders } from '../../lib/api';
 import ClientLayout from '../../components/ClientLayout';
 import {
@@ -31,7 +30,6 @@ export default function NewClaimPage() {
   const [orders, setOrders] = useState<ApiOrder[]>([]);
 
   const [orderId, setOrderId] = useState(searchParams.get('orderId') || '');
-  const [category, setCategory] = useState<ClaimCategory | ''>('');
   const [description, setDescription] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
   const [claimCode, setClaimCode] = useState('');
@@ -61,11 +59,6 @@ export default function NewClaimPage() {
       return;
     }
 
-    if (!category) {
-      setError('Selecciona el tipo de problema.');
-      return;
-    }
-
     if (description.trim().length < 10) {
       setError('Cuéntanos un poco más para poder revisar tu caso.');
       return;
@@ -80,7 +73,7 @@ export default function NewClaimPage() {
         order_code: order.code,
         channel: 'WEB',
         order_date: order.createdAt,
-        description: `${CLAIM_CATEGORY_LABELS[category]}: ${description.trim()}`,
+        description: description.trim(),
         analyze: true,
       });
       setClaimCode(result.claim.code);
@@ -145,22 +138,6 @@ export default function NewClaimPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="category">Tipo de problema *</Label>
-                <Select value={category} onValueChange={(value) => setCategory(value as ClaimCategory)} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="¿Qué tipo de problema tienes?" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(CLAIM_CATEGORY_LABELS).map(([key, label]) => (
-                      <SelectItem key={key} value={key}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
                 <Label htmlFor="description">Descripción del problema *</Label>
                 <Textarea
                   id="description"
@@ -174,6 +151,10 @@ export default function NewClaimPage() {
                 <p className="text-sm text-gray-500">
                   Incluye productos afectados, cobros, tiempos de espera o cualquier detalle útil.
                 </p>
+              </div>
+
+              <div className="rounded-lg border bg-gray-50 p-4 text-sm text-gray-700">
+                No necesitas elegir el tipo de reclamo. El sistema analizará tu descripción y clasificará el caso automáticamente para soporte.
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -196,7 +177,7 @@ export default function NewClaimPage() {
                 <Button
                   type="submit"
                   className="flex-1"
-                  disabled={!orderId || !category || description.trim().length < 10 || isSubmitting}
+                  disabled={!orderId || description.trim().length < 10 || isSubmitting}
                 >
                   {isSubmitting ? 'Enviando...' : 'Enviar reclamo'}
                 </Button>
