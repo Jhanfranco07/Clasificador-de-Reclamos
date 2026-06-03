@@ -34,6 +34,7 @@ import {
 import { CLAIM_STATUS_LABELS } from '../../types';
 import { formatDateTime } from '../../lib/utils';
 import AdminLayout from '../../components/AdminLayout';
+import { toast } from 'sonner';
 
 export default function AdminClaimDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -73,8 +74,10 @@ export default function AdminClaimDetailPage() {
       setDetail(data);
       setEditedResponse(data.response?.finalResponse || data.response?.editedResponse || data.response?.suggestedResponse || '');
       setIsEditing(false);
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo completar la accion.');
+      return false;
     } finally {
       setIsWorking(false);
     }
@@ -92,6 +95,14 @@ export default function AdminClaimDetailPage() {
       setError(err instanceof Error ? err.message : 'No se pudo guardar el comentario.');
     } finally {
       setIsWorking(false);
+    }
+  };
+
+  const handleSendResponse = async () => {
+    if (!response) return;
+    const ok = await runAction(() => approveResponse(response.id, editedResponse || response.suggestedResponse));
+    if (ok) {
+      toast.success('Respuesta enviada al cliente correctamente.');
     }
   };
 
@@ -335,7 +346,7 @@ export default function AdminClaimDetailPage() {
                       <div className="flex flex-wrap gap-3">
                         <Button
                           disabled={isWorking}
-                          onClick={() => runAction(() => approveResponse(response.id, editedResponse || response.suggestedResponse))}
+                          onClick={handleSendResponse}
                           className="flex-1"
                         >
                           <CheckCircle className="size-4 mr-2" />

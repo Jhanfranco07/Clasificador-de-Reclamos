@@ -77,13 +77,23 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
                   <DropdownMenuItem disabled>No tienes avisos pendientes</DropdownMenuItem>
                 ) : (
                   notifications.slice(0, 5).map((item) => (
-                    <DropdownMenuItem
-                      key={item.id}
-                      onClick={() => item.claimId && navigate(`/claims/${item.claimId}`)}
-                      className="flex flex-col items-start gap-1"
-                    >
-                      <span className="font-semibold">{item.title}</span>
-                      <span className="text-xs text-gray-500">{item.message}</span>
+                    <DropdownMenuItem key={item.id} asChild>
+                      <Link
+                        to={item.claimId ? `/claims/${item.claimId}` : '/claims'}
+                        onClick={async () => {
+                          try {
+                            const result = await markNotificationsRead();
+                            setNotifications(result.items);
+                          } catch {
+                            // Navigation should still work even if the read flag fails.
+                          }
+                        }}
+                        className="flex cursor-pointer flex-col items-start gap-1"
+                      >
+                        <span className="font-semibold">{item.title}</span>
+                        <span className="text-xs text-gray-500">{item.message}</span>
+                        <span className="text-xs font-medium text-orange-600">Ver reclamo</span>
+                      </Link>
                     </DropdownMenuItem>
                   ))
                 )}
