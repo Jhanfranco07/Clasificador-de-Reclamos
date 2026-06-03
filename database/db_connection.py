@@ -101,7 +101,7 @@ class PostgresConnection:
         for statement in [part.strip() for part in script.split(";") if part.strip()]:
             if statement.upper().startswith("PRAGMA"):
                 continue
-            self.execute(statement)
+            self.conn.execute(statement)
 
     def commit(self):
         self.conn.commit()
