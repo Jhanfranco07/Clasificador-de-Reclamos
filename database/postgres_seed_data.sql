@@ -36,6 +36,36 @@ VALUES
 (1, 'Configuracion principal', 'modelo_simulado_reglas', 0.85, 1, 1, 3)
 ON CONFLICT (id_configuracion) DO NOTHING;
 
+INSERT INTO restaurantes
+(id_restaurante, nombre, categoria, rating, tiempo_entrega, costo_delivery, imagen, activo)
+VALUES
+(1, 'Criollo Peruano', 'Peruana', 4.8, '25-40 min', 4.9, 'https://images.unsplash.com/photo-1544025162-d76694265947?w=900', 1),
+(2, 'Cevicheria La Marina', 'Peruana', 4.9, '30-45 min', 5.9, 'https://images.unsplash.com/photo-1615141982883-c7ad0e69fd62?w=900', 1),
+(3, 'Chifa Oriental', 'Chifa', 4.7, '25-35 min', 4.5, 'https://images.unsplash.com/photo-1526318896980-cf78c088247c?w=900', 1),
+(4, 'Burger Palace', 'Hamburguesas', 4.8, '25-35 min', 4.9, 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=900', 1),
+(5, 'Sushi Express', 'Sushi', 4.7, '35-45 min', 5.9, 'https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?w=900', 1),
+(6, 'Pizza Napoli', 'Pizzas', 4.6, '30-40 min', 4.5, 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=900', 1)
+ON CONFLICT (id_restaurante) DO NOTHING;
+
+INSERT INTO productos
+(id_producto, id_restaurante, nombre, descripcion, precio, imagen, disponible)
+VALUES
+(1, 1, 'Lomo saltado', 'Carne salteada, papas fritas y arroz.', 32.90, 'https://images.unsplash.com/photo-1632778149955-e80f8ceca2e8?w=600', 1),
+(2, 1, 'Aji de gallina', 'Crema de aji amarillo, pollo y arroz.', 27.90, 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=600', 1),
+(3, 1, 'Causa limena', 'Papa amarilla, pollo, palta y mayonesa.', 22.90, 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600', 1),
+(4, 2, 'Ceviche clasico', 'Pescado fresco, limon, camote y choclo.', 34.90, 'https://images.unsplash.com/photo-1625944230945-1b7dd3b949ab?w=600', 1),
+(5, 2, 'Arroz con mariscos', 'Arroz norteno con mixtura marina.', 38.50, 'https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600', 1),
+(6, 2, 'Jalea mixta', 'Pescado y mariscos crocantes con yuca.', 42.90, 'https://images.unsplash.com/photo-1562967914-608f82629710?w=600', 1),
+(7, 3, 'Arroz chaufa especial', 'Chaufa con pollo, chancho y tortilla.', 28.90, 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600', 1),
+(8, 3, 'Tallarin saltado', 'Fideos salteados con verduras y pollo.', 26.90, 'https://images.unsplash.com/photo-1585032226651-759b368d7246?w=600', 1),
+(9, 3, 'Wantanes fritos', 'Porcion crocante con salsa tamarindo.', 14.90, 'https://images.unsplash.com/photo-1625398407796-82650a8c135f?w=600', 1),
+(10, 4, 'Combo clasico', 'Hamburguesa, papas y gaseosa.', 24.50, 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600', 1),
+(11, 4, 'Doble cheese', 'Doble carne, cheddar y salsa especial.', 29.90, 'https://images.unsplash.com/photo-1551782450-a2132b4ba21d?w=600', 1),
+(12, 5, 'Combo makis', '24 piezas surtidas.', 45.80, 'https://images.unsplash.com/photo-1553621042-f6e147245754?w=600', 1),
+(13, 5, 'Sashimi salmon', 'Cortes frescos de salmon.', 39.90, 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600', 1),
+(14, 6, 'Pizza pepperoni', 'Pepperoni, mozzarella y oregano.', 34.00, 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=600', 1)
+ON CONFLICT (id_producto) DO NOTHING;
+
 INSERT INTO documentos_base (id_documento, titulo, tipo_documento, categoria_asociada, contenido, estado_indexacion) VALUES
 (1, 'Politica de reembolsos por retraso de pedido', 'POLITICA', 'Retraso de pedido',
 'Aplica cuando el pedido supera de forma significativa la hora estimada de entrega. El agente debe validar hora de creacion, hora prometida, estado logistico, intentos de contacto y evidencia del repartidor. La compensacion no debe prometerse automaticamente. Si la demora es menor a 15 minutos, se informa seguimiento y disculpa. Si la demora esta entre 15 y 45 minutos, se puede ofrecer prioridad de revision y cupon sujeto a politica vigente. Si la demora supera 45 minutos o el pedido llega frio, incompleto o en mal estado, se debe revisar compensacion o reembolso parcial. Todo reembolso requiere validacion humana antes de confirmarse al cliente.',

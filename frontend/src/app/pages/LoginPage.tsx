@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Package, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Alert, AlertDescription } from '../components/ui/alert';
+import { requestPasswordReset } from '../lib/api';
 
 const CART_KEY = 'smartclaim_pending_cart';
 
@@ -16,11 +17,13 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setInfo('');
     setLoading(true);
 
     const success = await login(email, password);
@@ -45,6 +48,22 @@ export default function LoginPage() {
     setEmail(accessEmail);
     setPassword('123456');
     setError('');
+    setInfo('');
+  };
+
+  const handlePasswordReset = async () => {
+    setError('');
+    setInfo('');
+    if (!email.trim()) {
+      setError('Ingresa tu correo para simular la recuperacion.');
+      return;
+    }
+    try {
+      const result = await requestPasswordReset(email.trim());
+      setInfo(result.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo solicitar la recuperacion.');
+    }
   };
 
   return (
@@ -59,7 +78,7 @@ export default function LoginPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Iniciar sesión</CardTitle>
+            <CardTitle className="text-2xl">Iniciar sesiÃ³n</CardTitle>
             <CardDescription>
               Accede a tu cuenta para gestionar pedidos y reclamos
             </CardDescription>
@@ -70,6 +89,12 @@ export default function LoginPage() {
                 <Alert variant="destructive">
                   <AlertCircle className="size-4" />
                   <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              {info && (
+                <Alert>
+                  <AlertCircle className="size-4" />
+                  <AlertDescription>{info}</AlertDescription>
                 </Alert>
               )}
 
@@ -86,11 +111,11 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Contraseña</Label>
+                <Label htmlFor="password">ContraseÃ±a</Label>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="••••••••"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -98,19 +123,19 @@ export default function LoginPage() {
               </div>
 
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
+                {loading ? 'Iniciando sesiÃ³n...' : 'Iniciar sesiÃ³n'}
               </Button>
 
               <div className="text-sm text-center">
-                <a href="#" className="text-orange-600 hover:underline">
-                  ¿Olvidaste tu contraseña?
-                </a>
+                <button type="button" onClick={handlePasswordReset} className="text-orange-600 hover:underline">
+                  Â¿Olvidaste tu contraseÃ±a?
+                </button>
               </div>
 
               <div className="text-center text-sm text-gray-600">
-                ¿No tienes cuenta?{' '}
+                Â¿No tienes cuenta?{' '}
                 <Link to="/register" className="text-orange-600 hover:underline font-semibold">
-                  Regístrate
+                  RegÃ­strate
                 </Link>
               </div>
             </form>
@@ -129,7 +154,7 @@ export default function LoginPage() {
                 </Button>
               </div>
               <p className="text-xs text-blue-700 mt-3">
-                En esta versión puedes usar cualquier contraseña.
+                En esta versiÃ³n puedes usar cualquier contraseÃ±a.
               </p>
             </div>
           </CardContent>
@@ -137,10 +162,11 @@ export default function LoginPage() {
 
         <div className="text-center mt-6">
           <Link to="/" className="text-sm text-gray-600 hover:text-gray-900">
-            ← Volver al inicio
+            â† Volver al inicio
           </Link>
         </div>
       </div>
     </div>
   );
 }
+

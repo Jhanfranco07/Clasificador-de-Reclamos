@@ -81,6 +81,30 @@ CREATE TABLE IF NOT EXISTS pedido_items (
     FOREIGN KEY (id_pedido) REFERENCES pedidos(id_pedido) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS restaurantes (
+    id_restaurante INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL,
+    categoria TEXT NOT NULL,
+    rating REAL NOT NULL DEFAULT 4.5,
+    tiempo_entrega TEXT NOT NULL DEFAULT '25-35 min',
+    costo_delivery REAL NOT NULL DEFAULT 4.9,
+    imagen TEXT,
+    activo INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
+    fecha_creacion TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS productos (
+    id_producto INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_restaurante INTEGER NOT NULL,
+    nombre TEXT NOT NULL,
+    descripcion TEXT,
+    precio REAL NOT NULL DEFAULT 0,
+    imagen TEXT,
+    disponible INTEGER NOT NULL DEFAULT 1 CHECK (disponible IN (0, 1)),
+    fecha_creacion TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_restaurante) REFERENCES restaurantes(id_restaurante) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS reclamos (
     id_reclamo INTEGER PRIMARY KEY AUTOINCREMENT,
     codigo_reclamo TEXT NOT NULL UNIQUE,
@@ -104,6 +128,18 @@ CREATE TABLE IF NOT EXISTS reclamos (
     FOREIGN KEY (id_prioridad) REFERENCES prioridades(id_prioridad),
     FOREIGN KEY (id_estado) REFERENCES estados_reclamo(id_estado),
     FOREIGN KEY (id_usuario_asignado) REFERENCES usuarios(id_usuario)
+);
+
+CREATE TABLE IF NOT EXISTS notificaciones (
+    id_notificacion INTEGER PRIMARY KEY AUTOINCREMENT,
+    correo_cliente TEXT NOT NULL,
+    id_reclamo INTEGER,
+    titulo TEXT NOT NULL,
+    mensaje TEXT NOT NULL,
+    tipo TEXT NOT NULL DEFAULT 'INFO' CHECK (tipo IN ('INFO', 'RESPUESTA', 'ALERTA')),
+    leida INTEGER NOT NULL DEFAULT 0 CHECK (leida IN (0, 1)),
+    fecha_creacion TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_reclamo) REFERENCES reclamos(id_reclamo) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS analisis_ia (
@@ -250,3 +286,5 @@ CREATE INDEX IF NOT EXISTS idx_logs_reclamo ON logs_sistema(id_reclamo);
 CREATE INDEX IF NOT EXISTS idx_auth_users_correo ON auth_users(correo);
 CREATE INDEX IF NOT EXISTS idx_pedidos_cliente ON pedidos(id_cliente);
 CREATE INDEX IF NOT EXISTS idx_pedido_items_pedido ON pedido_items(id_pedido);
+CREATE INDEX IF NOT EXISTS idx_productos_restaurante ON productos(id_restaurante);
+CREATE INDEX IF NOT EXISTS idx_notificaciones_correo ON notificaciones(correo_cliente);

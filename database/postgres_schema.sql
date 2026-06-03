@@ -79,6 +79,29 @@ CREATE TABLE IF NOT EXISTS pedido_items (
     imagen TEXT
 );
 
+CREATE TABLE IF NOT EXISTS restaurantes (
+    id_restaurante SERIAL PRIMARY KEY,
+    nombre TEXT NOT NULL,
+    categoria TEXT NOT NULL,
+    rating REAL NOT NULL DEFAULT 4.5,
+    tiempo_entrega TEXT NOT NULL DEFAULT '25-35 min',
+    costo_delivery REAL NOT NULL DEFAULT 4.9,
+    imagen TEXT,
+    activo INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS productos (
+    id_producto SERIAL PRIMARY KEY,
+    id_restaurante INTEGER NOT NULL REFERENCES restaurantes(id_restaurante) ON DELETE CASCADE,
+    nombre TEXT NOT NULL,
+    descripcion TEXT,
+    precio REAL NOT NULL DEFAULT 0,
+    imagen TEXT,
+    disponible INTEGER NOT NULL DEFAULT 1 CHECK (disponible IN (0, 1)),
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS reclamos (
     id_reclamo SERIAL PRIMARY KEY,
     codigo_reclamo TEXT NOT NULL UNIQUE,
@@ -97,6 +120,17 @@ CREATE TABLE IF NOT EXISTS reclamos (
     fecha_actualizacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     fecha_cierre TIMESTAMP,
     tiempo_atencion_minutos INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS notificaciones (
+    id_notificacion SERIAL PRIMARY KEY,
+    correo_cliente TEXT NOT NULL,
+    id_reclamo INTEGER REFERENCES reclamos(id_reclamo) ON DELETE SET NULL,
+    titulo TEXT NOT NULL,
+    mensaje TEXT NOT NULL,
+    tipo TEXT NOT NULL DEFAULT 'INFO' CHECK (tipo IN ('INFO', 'RESPUESTA', 'ALERTA')),
+    leida INTEGER NOT NULL DEFAULT 0 CHECK (leida IN (0, 1)),
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS analisis_ia (
@@ -247,3 +281,5 @@ CREATE INDEX IF NOT EXISTS idx_logs_reclamo ON logs_sistema(id_reclamo);
 CREATE INDEX IF NOT EXISTS idx_auth_users_correo ON auth_users(correo);
 CREATE INDEX IF NOT EXISTS idx_pedidos_cliente ON pedidos(id_cliente);
 CREATE INDEX IF NOT EXISTS idx_pedido_items_pedido ON pedido_items(id_pedido);
+CREATE INDEX IF NOT EXISTS idx_productos_restaurante ON productos(id_restaurante);
+CREATE INDEX IF NOT EXISTS idx_notificaciones_correo ON notificaciones(correo_cliente);

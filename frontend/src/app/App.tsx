@@ -1,29 +1,25 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Toaster } from './components/ui/sonner';
 
-// Public pages
-import LandingPage from './pages/LandingPage';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-
-// Client pages
-import DashboardPage from './pages/client/DashboardPage';
-import OrdersPage from './pages/client/OrdersPage';
-import OrderDetailPage from './pages/client/OrderDetailPage';
-import CheckoutPage from './pages/client/CheckoutPage';
-import NewClaimPage from './pages/client/NewClaimPage';
-import ClaimsListPage from './pages/client/ClaimsListPage';
-import ClaimDetailPage from './pages/client/ClaimDetailPage';
-import HelpCenterPage from './pages/client/HelpCenterPage';
-
-// Admin pages
-import AdminDashboardPage from './pages/admin/AdminDashboardPage';
-import ClaimsBandejaPage from './pages/admin/ClaimsBandejaPage';
-import AdminClaimDetailPage from './pages/admin/AdminClaimDetailPage';
-import KnowledgeBasePage from './pages/admin/KnowledgeBasePage';
-import AIConfigPage from './pages/admin/AIConfigPage';
-import ReportsPage from './pages/admin/ReportsPage';
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const DashboardPage = lazy(() => import('./pages/client/DashboardPage'));
+const OrdersPage = lazy(() => import('./pages/client/OrdersPage'));
+const OrderDetailPage = lazy(() => import('./pages/client/OrderDetailPage'));
+const CheckoutPage = lazy(() => import('./pages/client/CheckoutPage'));
+const NewClaimPage = lazy(() => import('./pages/client/NewClaimPage'));
+const ClaimsListPage = lazy(() => import('./pages/client/ClaimsListPage'));
+const ClaimDetailPage = lazy(() => import('./pages/client/ClaimDetailPage'));
+const HelpCenterPage = lazy(() => import('./pages/client/HelpCenterPage'));
+const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'));
+const ClaimsBandejaPage = lazy(() => import('./pages/admin/ClaimsBandejaPage'));
+const AdminClaimDetailPage = lazy(() => import('./pages/admin/AdminClaimDetailPage'));
+const KnowledgeBasePage = lazy(() => import('./pages/admin/KnowledgeBasePage'));
+const AIConfigPage = lazy(() => import('./pages/admin/AIConfigPage'));
+const ReportsPage = lazy(() => import('./pages/admin/ReportsPage'));
 
 function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
   const { isAuthenticated, currentUser, isLoading } = useAuth();
@@ -49,7 +45,8 @@ function ProtectedRoute({ children, adminOnly = false }: { children: React.React
 
 function AppRoutes() {
   return (
-    <Routes>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-600">Cargando modulo...</div>}>
+      <Routes>
       {/* Public routes */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
@@ -173,7 +170,8 @@ function AppRoutes() {
 
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }
 

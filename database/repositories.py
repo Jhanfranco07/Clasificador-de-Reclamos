@@ -112,6 +112,24 @@ def crear_pedido_cliente(correo_cliente, nombre_cliente, telefono, tienda_nombre
 
     return id_pedido
 
+def listar_catalogo():
+    restaurantes = fetch_all("""
+        SELECT *
+        FROM restaurantes
+        WHERE activo = 1
+        ORDER BY id_restaurante
+    """)
+    productos = fetch_all("""
+        SELECT *
+        FROM productos
+        WHERE disponible = 1
+        ORDER BY id_restaurante, id_producto
+    """)
+    productos_por_restaurante = {}
+    for producto in productos:
+        productos_por_restaurante.setdefault(producto["id_restaurante"], []).append(producto)
+    return restaurantes, productos_por_restaurante
+
 def listar_pedidos_por_correo(correo_cliente):
     return fetch_all("""
         SELECT p.*, c.nombre AS cliente, c.correo AS correo_cliente
@@ -356,8 +374,32 @@ def listar_documentos():
         SELECT id_documento, titulo, tipo_documento, categoria_asociada,
                estado_indexacion, fecha_actualizacion, contenido
         FROM documentos_base
+        WHERE activo = 1
         ORDER BY id_documento
     """)
+
+def crear_documento_base(titulo, tipo_documento, categoria_asociada, contenido):
+    return execute("""
+        INSERT INTO documentos_base (
+            titulo, tipo_documento, categoria_asociada, contenido, estado_indexacion, activo
+        )
+        VALUES (?, ?, ?, ?, 'PENDIENTE', 1)
+    """, (titulo.strip(), tipo_documento.strip(), categoria_asociada.strip(), contenido.strip()))
+
+def actualizar_documento_base(id_documento, titulo, tipo_documento, categoria_asociada, contenido):
+    execute("""
+        UPDATE documentos_base
+        SET titulo = ?, tipo_documento = ?, categoria_asociada = ?, contenido = ?,
+            estado_indexacion = 'PENDIENTE', fecha_actualizacion = CURRENT_TIMESTAMP
+        WHERE id_documento = ?
+    """, (titulo.strip(), tipo_documento.strip(), categoria_asociada.strip(), contenido.strip(), id_documento))
+
+def desactivar_documento_base(id_documento):
+    execute("""
+        UPDATE documentos_base
+        SET activo = 0, estado_indexacion = 'PENDIENTE', fecha_actualizacion = CURRENT_TIMESTAMP
+        WHERE id_documento = ?
+    """, (id_documento,))
 
 def actualizar_estado_reclamo(id_reclamo, estado, accion="Actualización de estado", comentario=None):
     estado_anterior = obtener_estado_actual(id_reclamo)
@@ -408,6 +450,15 @@ def aprobar_respuesta(id_respuesta, respuesta_final=None):
         "Envio de respuesta",
         "El agente publico la respuesta final para el cliente."
     )
+    reclamo = obtener_reclamo_basico(respuesta["id_reclamo"])
+    if reclamo:
+        crear_notificacion(
+            reclamo["correo_cliente"],
+            "Respuesta de soporte disponible",
+            f"Tu reclamo {reclamo['codigo_reclamo']} ya tiene una respuesta del equipo de soporte.",
+            "RESPUESTA",
+            respuesta["id_reclamo"],
+        )
 
 def marcar_respondido(id_reclamo, comentario=None):
     actualizar_estado_reclamo(
@@ -594,6 +645,28 @@ def listar_comentarios_agente(id_reclamo):
         WHERE id_reclamo = ?
         ORDER BY fecha_comentario DESC, id_comentario DESC
     """, (id_reclamo,))
+
+def crear_notificacion(correo_cliente, titulo, mensaje, tipo="INFO", id_reclamo=None):
+    return execute("""
+        INSERT INTO notificaciones (correo_cliente, id_reclamo, titulo, mensaje, tipo)
+        VALUES (?, ?, ?, ?, ?)
+    """, (correo_cliente.strip().lower(), id_reclamo, titulo.strip(), mensaje.strip(), tipo))
+
+def listar_notificaciones(correo_cliente):
+    return fetch_all("""
+        SELECT *
+        FROM notificaciones
+        WHERE lower(correo_cliente) = lower(?)
+        ORDER BY leida ASC, fecha_creacion DESC, id_notificacion DESC
+        LIMIT 20
+    """, (correo_cliente.strip(),))
+
+def marcar_notificaciones_leidas(correo_cliente):
+    execute("""
+        UPDATE notificaciones
+        SET leida = 1
+        WHERE lower(correo_cliente) = lower(?)
+    """, (correo_cliente.strip(),))
 
 def crear_evaluacion_respuesta(id_respuesta, claridad, utilidad, tono, fundamentacion, requiere_mejora=0, observacion=None, usuario="Supervisor de soporte"):
     id_eval = execute("""

@@ -99,6 +99,35 @@ export interface ApiOrder {
   estimatedDelivery?: string;
 }
 
+export interface CatalogProduct {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  image: string;
+}
+
+export interface CatalogRestaurant {
+  id: string;
+  name: string;
+  category: string;
+  rating: number;
+  time: string;
+  delivery: number;
+  image: string;
+  products: CatalogProduct[];
+}
+
+export interface NotificationItem {
+  id: string;
+  claimId?: string;
+  title: string;
+  message: string;
+  type: string;
+  read: boolean;
+  createdAt: string;
+}
+
 export interface ClaimDetailResponse {
   claim: ClaimSummary & {
     description: string;
@@ -144,6 +173,17 @@ export interface ClaimDetailResponse {
     action: string;
     comment?: string;
     user?: string;
+    createdAt: string;
+  }>;
+}
+
+export interface AgentCommentsResponse {
+  items: Array<{
+    id: string;
+    claimId: string;
+    comment: string;
+    type: string;
+    user: string;
     createdAt: string;
   }>;
 }
@@ -210,8 +250,29 @@ export async function registerUser(payload: { name: string; email: string; phone
   return result;
 }
 
+export function requestPasswordReset(email: string) {
+  return request<{ ok: boolean; message: string }>('/api/auth/password-reset/request', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
 export function getMe() {
   return request<{ user: AuthUser }>('/api/auth/me');
+}
+
+export function getCatalog() {
+  return request<{ items: CatalogRestaurant[] }>('/api/catalog');
+}
+
+export function listNotifications() {
+  return request<{ items: NotificationItem[]; unread: number }>('/api/notifications');
+}
+
+export function markNotificationsRead() {
+  return request<{ items: NotificationItem[]; unread: number }>('/api/notifications/read', {
+    method: 'PATCH',
+  });
 }
 
 export function listOrders() {
@@ -263,6 +324,17 @@ export function analyzeClaim(id: string) {
   return request<ClaimDetailResponse>(`/api/claims/${id}/analyze`, { method: 'POST' });
 }
 
+export function listAgentComments(id: string) {
+  return request<AgentCommentsResponse>(`/api/claims/${id}/comments`);
+}
+
+export function createAgentComment(id: string, comment: string, type = 'INTERNO') {
+  return request<AgentCommentsResponse>(`/api/claims/${id}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ comment, type }),
+  });
+}
+
 export function updateClaimState(id: string, state: string, comment?: string) {
   return request<ClaimDetailResponse>(`/api/claims/${id}/state`, {
     method: 'PATCH',
@@ -294,6 +366,26 @@ export function getDocuments() {
 
 export function reindexDocuments() {
   return request<Record<string, unknown>>('/api/documents/reindex', { method: 'POST' });
+}
+
+export function createDocument(payload: { title: string; type: string; category: string; content: string }) {
+  return request<DocumentsResponse>('/api/documents', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateDocument(id: string, payload: { title: string; type: string; category: string; content: string }) {
+  return request<DocumentsResponse>(`/api/documents/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteDocument(id: string) {
+  return request<DocumentsResponse>(`/api/documents/${id}`, {
+    method: 'DELETE',
+  });
 }
 
 export function getConfig() {

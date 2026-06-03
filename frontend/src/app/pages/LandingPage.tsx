@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -18,6 +18,7 @@ import {
 import { formatCurrency } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
+import { getCatalog } from '../lib/api';
 
 type Product = {
   id: string;
@@ -46,7 +47,7 @@ type CartItem = Product & {
 
 const CART_KEY = 'smartclaim_pending_cart';
 
-const restaurants: Restaurant[] = [
+const fallbackRestaurants: Restaurant[] = [
   {
     id: 'burger-palace',
     name: 'Burger Palace',
@@ -226,14 +227,34 @@ const restaurants: Restaurant[] = [
   },
 ];
 
-const categories = ['Todos', ...Array.from(new Set(restaurants.map((restaurant) => restaurant.category)))];
-const totalProducts = restaurants.reduce((total, restaurant) => total + restaurant.products.length, 0);
-
 export default function LandingPage() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
+  const [apiRestaurants, setApiRestaurants] = useState<Restaurant[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [cart, setCart] = useState<CartItem[]>([]);
+
+  useEffect(() => {
+    getCatalog()
+      .then((result) => {
+        if (result.items.length > 0) {
+          setApiRestaurants(result.items as Restaurant[]);
+        }
+      })
+      .catch(() => {
+        setApiRestaurants([]);
+      });
+  }, []);
+
+  const restaurants = apiRestaurants.length > 0 ? apiRestaurants : fallbackRestaurants;
+  const categories = useMemo(
+    () => ['Todos', ...Array.from(new Set(restaurants.map((restaurant) => restaurant.category)))],
+    [restaurants]
+  );
+  const totalProducts = useMemo(
+    () => restaurants.reduce((total, restaurant) => total + restaurant.products.length, 0),
+    [restaurants]
+  );
 
   const visibleRestaurants = useMemo(() => {
     if (selectedCategory === 'Todos') return restaurants;

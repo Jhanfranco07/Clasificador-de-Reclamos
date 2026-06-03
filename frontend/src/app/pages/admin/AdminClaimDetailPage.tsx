@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Textarea } from '../../components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Separator } from '../../components/ui/separator';
 import { Alert, AlertDescription } from '../../components/ui/alert';
 import {
@@ -23,8 +24,10 @@ import {
 import {
   analyzeClaim,
   approveResponse,
+  createAgentComment,
   getClaim,
   ClaimDetailResponse,
+  listAgentComments,
   updateClaimState,
   updateResponse
 } from '../../lib/api';
@@ -39,6 +42,9 @@ export default function AdminClaimDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
   const [error, setError] = useState('');
+  const [comments, setComments] = useState<Array<{ id: string; comment: string; type: string; user: string; createdAt: string }>>([]);
+  const [commentText, setCommentText] = useState('');
+  const [commentType, setCommentType] = useState('INTERNO');
 
   const loadClaim = async () => {
     if (!id) return;
@@ -47,6 +53,8 @@ export default function AdminClaimDetailPage() {
       const data = await getClaim(id);
       setDetail(data);
       setEditedResponse(data.response?.finalResponse || data.response?.editedResponse || data.response?.suggestedResponse || '');
+      const commentData = await listAgentComments(id);
+      setComments(commentData.items);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar el reclamo.');
     }
@@ -67,6 +75,21 @@ export default function AdminClaimDetailPage() {
       setIsEditing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo completar la accion.');
+    } finally {
+      setIsWorking(false);
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!id || commentText.trim().length < 3) return;
+    setIsWorking(true);
+    setError('');
+    try {
+      const result = await createAgentComment(id, commentText.trim(), commentType);
+      setComments(result.items);
+      setCommentText('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo guardar el comentario.');
     } finally {
       setIsWorking(false);
     }
@@ -425,6 +448,50 @@ export default function AdminClaimDetailPage() {
                   <Badge className={getStatusColor(claim.statusKey)}>
                     {CLAIM_STATUS_LABELS[claim.statusKey as keyof typeof CLAIM_STATUS_LABELS] || claim.status}
                   </Badge>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Notas internas</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Select value={commentType} onValueChange={setCommentType}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="INTERNO">Interno</SelectItem>
+                    <SelectItem value="SEGUIMIENTO">Seguimiento</SelectItem>
+                    <SelectItem value="ESCALAMIENTO">Escalamiento</SelectItem>
+                    <SelectItem value="CIERRE">Cierre</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Textarea
+                  value={commentText}
+                  onChange={(event) => setCommentText(event.target.value)}
+                  placeholder="Registra una nota para el equipo"
+                  rows={4}
+                />
+                <Button disabled={isWorking || commentText.trim().length < 3} onClick={handleAddComment} className="w-full">
+                  Guardar nota
+                </Button>
+                <div className="space-y-2">
+                  {comments.length === 0 ? (
+                    <p className="text-sm text-gray-500">Aun no hay notas internas.</p>
+                  ) : (
+                    comments.map((item) => (
+                      <div key={item.id} className="rounded-lg border p-3 text-sm">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <Badge variant="outline">{item.type}</Badge>
+                          <span className="text-xs text-gray-500">{formatDateTime(item.createdAt)}</span>
+                        </div>
+                        <p className="text-gray-800">{item.comment}</p>
+                        <p className="text-xs text-gray-500 mt-1">{item.user}</p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>

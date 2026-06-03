@@ -15,6 +15,7 @@ if str(BASE_DIR) not in sys.path:
 from database.db_connection import fetch_all, fetch_one, init_db
 from database.repositories import (
     actualizar_configuracion,
+    actualizar_documento_base,
     actualizar_estado_reclamo,
     actualizar_respuesta_final,
     asegurar_pedidos_demo_base,
@@ -22,17 +23,24 @@ from database.repositories import (
     aprobar_respuesta,
     cerrar_reclamo,
     crear_cliente,
+    crear_comentario_agente,
+    crear_documento_base,
     crear_pedido_cliente,
     crear_reclamo,
     crear_usuario_auth,
+    desactivar_documento_base,
     escalar_reclamo,
     get_configuracion_activa,
     guardar_analisis,
     guardar_respuesta,
+    listar_catalogo,
+    listar_comentarios_agente,
     listar_pedidos_por_correo,
     listar_documentos,
+    listar_notificaciones,
     listar_reclamos,
     listar_reclamos_por_correo,
+    marcar_notificaciones_leidas,
     marcar_respondido,
     obtener_pedido,
     obtener_detalle_reclamo,
@@ -92,6 +100,10 @@ class RegisterRequest(BaseModel):
     password: str = Field(..., min_length=6)
 
 
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
 class OrderItemCreate(BaseModel):
     name: str = Field(..., min_length=1)
     quantity: int = Field(..., ge=1)
@@ -133,6 +145,18 @@ class ConfigUpdate(BaseModel):
     human_review_required: bool
     use_rag: bool
     max_documents: int = Field(..., ge=1, le=10)
+
+
+class DocumentPayload(BaseModel):
+    title: str = Field(..., min_length=3)
+    type: str = Field(..., pattern="^(POLITICA|FAQ|PROCEDIMIENTO|MANUAL)$")
+    category: str = Field(..., min_length=3)
+    content: str = Field(..., min_length=20)
+
+
+class AgentCommentPayload(BaseModel):
+    comment: str = Field(..., min_length=3)
+    type: str = Field("INTERNO", pattern="^(INTERNO|SEGUIMIENTO|ESCALAMIENTO|CIERRE)$")
 
 
 STATUS_TO_UI = {
@@ -372,6 +396,41 @@ def _to_order(row: dict[str, Any], items: list[dict[str, Any]]) -> dict[str, Any
     }
 
 
+def _to_notification(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": str(row["id_notificacion"]),
+        "claimId": str(row["id_reclamo"]) if row.get("id_reclamo") else None,
+        "title": row["titulo"],
+        "message": row["mensaje"],
+        "type": row["tipo"],
+        "read": bool(row["leida"]),
+        "createdAt": row["fecha_creacion"],
+    }
+
+
+def _to_comment(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": str(row["id_comentario"]),
+        "claimId": str(row["id_reclamo"]),
+        "comment": row["comentario"],
+        "type": row["tipo_comentario"],
+        "user": row["usuario_responsable"],
+        "createdAt": row["fecha_comentario"],
+    }
+
+
+def _to_document(doc: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": str(doc["id_documento"]),
+        "title": doc["titulo"],
+        "type": doc["tipo_documento"],
+        "category": doc["categoria_asociada"],
+        "content": doc["contenido"],
+        "indexStatus": doc["estado_indexacion"],
+        "updatedAt": doc["fecha_actualizacion"],
+    }
+
+
 def _order_detail_or_404(order_id: int, user: dict[str, Any]) -> dict[str, Any]:
     row, items = obtener_pedido(order_id)
     if not row:
@@ -462,9 +521,62 @@ def register(payload: RegisterRequest) -> dict[str, Any]:
     return _auth_response(user)
 
 
+@app.post("/api/auth/password-reset/request")
+def request_password_reset(payload: PasswordResetRequest) -> dict[str, Any]:
+    # Academic prototype: simulated delivery, no real email provider configured.
+    return {
+        "ok": True,
+        "message": f"Si {payload.email} esta registrado, se generaria un enlace de recuperacion.",
+    }
+
+
 @app.get("/api/auth/me")
 def me(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     return {"user": _to_user(user)}
+
+
+@app.get("/api/catalog")
+def catalog() -> dict[str, Any]:
+    restaurantes, productos_por_restaurante = listar_catalogo()
+    return {
+        "items": [
+            {
+                "id": str(restaurant["id_restaurante"]),
+                "name": restaurant["nombre"],
+                "category": restaurant["categoria"],
+                "rating": float(restaurant["rating"] or 0),
+                "time": restaurant["tiempo_entrega"],
+                "delivery": float(restaurant["costo_delivery"] or 0),
+                "image": restaurant.get("imagen"),
+                "products": [
+                    {
+                        "id": str(product["id_producto"]),
+                        "name": product["nombre"],
+                        "description": product.get("descripcion") or "",
+                        "price": float(product["precio"] or 0),
+                        "image": product.get("imagen"),
+                    }
+                    for product in productos_por_restaurante.get(restaurant["id_restaurante"], [])
+                ],
+            }
+            for restaurant in restaurantes
+        ]
+    }
+
+
+@app.get("/api/notifications")
+def notifications(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    if user["rol"] != "CLIENT":
+        return {"items": [], "unread": 0}
+    items = [_to_notification(row) for row in listar_notificaciones(user["correo"])]
+    return {"items": items, "unread": sum(1 for item in items if not item["read"])}
+
+
+@app.patch("/api/notifications/read")
+def read_notifications(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    if user["rol"] == "CLIENT":
+        marcar_notificaciones_leidas(user["correo"])
+    return notifications(user)
 
 
 @app.get("/api/orders")
@@ -556,6 +668,23 @@ def claim_detail(claim_id: int, user: dict[str, Any] = Depends(get_current_user)
     return detail
 
 
+@app.get("/api/claims/{claim_id}/comments")
+def claim_comments(claim_id: int, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
+    _to_claim_detail(claim_id)
+    return {"items": [_to_comment(row) for row in listar_comentarios_agente(claim_id)]}
+
+
+@app.post("/api/claims/{claim_id}/comments", status_code=201)
+def add_claim_comment(
+    claim_id: int,
+    payload: AgentCommentPayload,
+    user: dict[str, Any] = Depends(require_staff),
+) -> dict[str, Any]:
+    _to_claim_detail(claim_id)
+    crear_comentario_agente(claim_id, payload.comment, payload.type, user["nombre"])
+    return {"items": [_to_comment(row) for row in listar_comentarios_agente(claim_id)]}
+
+
 @app.post("/api/claims/{claim_id}/analyze")
 def analyze_claim(claim_id: int, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
     return _analyze_and_generate(claim_id)
@@ -601,19 +730,29 @@ def approve_response(response_id: int, payload: ResponseUpdate | None = None, us
 
 @app.get("/api/documents")
 def documents(user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
-    docs = [
-        {
-            "id": str(doc["id_documento"]),
-            "title": doc["titulo"],
-            "type": doc["tipo_documento"],
-            "category": doc["categoria_asociada"],
-            "content": doc["contenido"],
-            "indexStatus": doc["estado_indexacion"],
-            "updatedAt": doc["fecha_actualizacion"],
-        }
-        for doc in listar_documentos()
-    ]
+    docs = [_to_document(doc) for doc in listar_documentos()]
     return {"items": docs, "index": obtener_resumen_indice()}
+
+
+@app.post("/api/documents", status_code=201)
+def create_document(payload: DocumentPayload, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
+    crear_documento_base(payload.title, payload.type, payload.category, payload.content)
+    construir_indice_vectorial(forzar=True)
+    return documents(user)
+
+
+@app.put("/api/documents/{document_id}")
+def update_document(document_id: int, payload: DocumentPayload, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
+    actualizar_documento_base(document_id, payload.title, payload.type, payload.category, payload.content)
+    construir_indice_vectorial(forzar=True)
+    return documents(user)
+
+
+@app.delete("/api/documents/{document_id}")
+def delete_document(document_id: int, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
+    desactivar_documento_base(document_id)
+    construir_indice_vectorial(forzar=True)
+    return documents(user)
 
 
 @app.post("/api/documents/reindex")

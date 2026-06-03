@@ -9,9 +9,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { Package, Home, ShoppingBag, AlertCircle, HelpCircle, LogOut, User } from 'lucide-react';
+import { Package, Home, ShoppingBag, AlertCircle, HelpCircle, LogOut, User, Bell } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
+import { listNotifications, markNotificationsRead, NotificationItem } from '../lib/api';
 
 interface ClientLayoutProps {
   children: ReactNode;
@@ -21,6 +22,15 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const unread = notifications.filter((item) => !item.read).length;
+
+  useEffect(() => {
+    if (currentUser?.role !== 'CLIENT') return;
+    listNotifications()
+      .then((result) => setNotifications(result.items))
+      .catch(() => setNotifications([]));
+  }, [currentUser?.role]);
 
   const handleLogout = () => {
     logout();
@@ -49,6 +59,49 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
             <span className="text-sm text-gray-600 hidden md:block">
               Hola, {currentUser?.name?.split(' ')[0]}
             </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="relative">
+                  <Bell className="size-4" />
+                  {unread > 0 && (
+                    <span className="absolute -right-1 -top-1 rounded-full bg-orange-500 px-1.5 text-[10px] text-white">
+                      {unread}
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80">
+                <DropdownMenuLabel>Notificaciones</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {notifications.length === 0 ? (
+                  <DropdownMenuItem disabled>No tienes avisos pendientes</DropdownMenuItem>
+                ) : (
+                  notifications.slice(0, 5).map((item) => (
+                    <DropdownMenuItem
+                      key={item.id}
+                      onClick={() => item.claimId && navigate(`/claims/${item.claimId}`)}
+                      className="flex flex-col items-start gap-1"
+                    >
+                      <span className="font-semibold">{item.title}</span>
+                      <span className="text-xs text-gray-500">{item.message}</span>
+                    </DropdownMenuItem>
+                  ))
+                )}
+                {notifications.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={async () => {
+                        const result = await markNotificationsRead();
+                        setNotifications(result.items);
+                      }}
+                    >
+                      Marcar como leidas
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button variant="outline" size="sm" className="hidden sm:flex gap-2" onClick={handleLogout}>
               <LogOut className="size-4" />
               Salir

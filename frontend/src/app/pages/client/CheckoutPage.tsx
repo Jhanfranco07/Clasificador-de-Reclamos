@@ -35,13 +35,18 @@ export default function CheckoutPage() {
   const [cart] = useState<PendingCartItem[]>(readCart);
   const [address, setAddress] = useState('Av. Primavera 123, Lima');
   const [paymentMethod, setPaymentMethod] = useState('Tarjeta');
+  const [paymentReference, setPaymentReference] = useState('');
+  const [deliveryNotes, setDeliveryNotes] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const total = useMemo(
+  const subtotal = useMemo(
     () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
     [cart]
   );
+  const deliveryFee = cart.length ? 5.9 : 0;
+  const serviceFee = cart.length ? 2.0 : 0;
+  const total = subtotal + deliveryFee + serviceFee;
   const restaurantName = cart[0]?.restaurantName || 'SmartClaim Delivery';
   const restaurantImage = cart[0]?.restaurantImage || cart[0]?.image;
 
@@ -55,6 +60,11 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (paymentMethod !== 'Efectivo' && paymentReference.trim().length < 4) {
+      setError('Ingresa una referencia de pago o los ultimos digitos del medio usado.');
+      return;
+    }
+
     setError('');
     setIsSubmitting(true);
     try {
@@ -63,12 +73,16 @@ export default function CheckoutPage() {
         store_image: restaurantImage,
         payment_method: paymentMethod,
         delivery_address: address.trim(),
-        items: cart.map((item) => ({
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-          image: item.image,
-        })),
+        items: [
+          ...cart.map((item) => ({
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            image: item.image,
+          })),
+          { name: 'Delivery', quantity: 1, price: deliveryFee },
+          { name: 'Servicio', quantity: 1, price: serviceFee },
+        ],
       });
       window.localStorage.removeItem(CART_KEY);
       navigate(`/orders/${result.order.id}`);
@@ -140,6 +154,16 @@ export default function CheckoutPage() {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="notes">Referencia de entrega</Label>
+                  <Input
+                    id="notes"
+                    value={deliveryNotes}
+                    onChange={(event) => setDeliveryNotes(event.target.value)}
+                    placeholder="Ej. piso, timbre o referencia"
+                  />
+                </div>
+
+                <div className="space-y-2">
                   <Label>Método de pago</Label>
                   <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                     <SelectTrigger>
@@ -152,6 +176,37 @@ export default function CheckoutPage() {
                       <SelectItem value="Efectivo">Efectivo</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                {paymentMethod !== 'Efectivo' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="paymentReference">Referencia de pago</Label>
+                    <Input
+                      id="paymentReference"
+                      value={paymentReference}
+                      onChange={(event) => setPaymentReference(event.target.value)}
+                      placeholder="Ultimos 4 digitos o codigo de operacion"
+                    />
+                  </div>
+                )}
+
+                <div className="rounded-lg border bg-gray-50 p-3 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Subtotal</span>
+                    <span>{formatCurrency(subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Delivery</span>
+                    <span>{formatCurrency(deliveryFee)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Servicio</span>
+                    <span>{formatCurrency(serviceFee)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-base border-t pt-2">
+                    <span>Total</span>
+                    <span>{formatCurrency(total)}</span>
+                  </div>
                 </div>
 
                 {error && (

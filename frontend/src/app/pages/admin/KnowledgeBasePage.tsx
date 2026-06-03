@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Input } from '../../components/ui/input';
-import { FileText, RefreshCw, CheckCircle, Search } from 'lucide-react';
-import { getDocuments, reindexDocuments, DocumentsResponse } from '../../lib/api';
+import { Textarea } from '../../components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { FileText, RefreshCw, CheckCircle, Search, Plus, Pencil, Trash2 } from 'lucide-react';
+import { createDocument, deleteDocument, getDocuments, reindexDocuments, updateDocument, DocumentsResponse } from '../../lib/api';
 import { formatDateTime } from '../../lib/utils';
 import AdminLayout from '../../components/AdminLayout';
 
@@ -13,6 +15,13 @@ export default function KnowledgeBasePage() {
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
   const [isWorking, setIsWorking] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    title: '',
+    type: 'FAQ',
+    category: 'Soporte general',
+    content: '',
+  });
 
   const loadDocuments = async () => {
     setError('');
@@ -35,6 +44,52 @@ export default function KnowledgeBasePage() {
       await loadDocuments();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo reindexar.');
+    } finally {
+      setIsWorking(false);
+    }
+  };
+
+  const resetForm = () => {
+    setEditingId(null);
+    setForm({ title: '', type: 'FAQ', category: 'Soporte general', content: '' });
+  };
+
+  const handleSaveDocument = async () => {
+    if (form.title.trim().length < 3 || form.content.trim().length < 20) {
+      setError('Completa titulo y contenido del documento antes de guardar.');
+      return;
+    }
+    setIsWorking(true);
+    setError('');
+    try {
+      const payload = {
+        title: form.title.trim(),
+        type: form.type,
+        category: form.category.trim(),
+        content: form.content.trim(),
+      };
+      setData(editingId ? await updateDocument(editingId, payload) : await createDocument(payload));
+      resetForm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo guardar el documento.');
+    } finally {
+      setIsWorking(false);
+    }
+  };
+
+  const handleEditDocument = (doc: DocumentsResponse['items'][number]) => {
+    setEditingId(doc.id);
+    setForm({ title: doc.title, type: doc.type, category: doc.category, content: doc.content });
+  };
+
+  const handleDeleteDocument = async (id: string) => {
+    setIsWorking(true);
+    setError('');
+    try {
+      setData(await deleteDocument(id));
+      if (editingId === id) resetForm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo desactivar el documento.');
     } finally {
       setIsWorking(false);
     }
@@ -88,7 +143,7 @@ export default function KnowledgeBasePage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">{indexedDocs}</div>
-              <p className="text-xs text-gray-500 mt-1">Disponibles para recuperación</p>
+              <p className="text-xs text-gray-500 mt-1">Disponibles para recuperaciÃ³n</p>
             </CardContent>
           </Card>
 
@@ -120,6 +175,54 @@ export default function KnowledgeBasePage() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>{editingId ? 'Editar documento' : 'Agregar documento'}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid md:grid-cols-3 gap-4">
+              <Input
+                value={form.title}
+                onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+                placeholder="Titulo del documento"
+              />
+              <Select value={form.type} onValueChange={(value) => setForm((current) => ({ ...current, type: value }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="FAQ">FAQ</SelectItem>
+                  <SelectItem value="POLITICA">Politica</SelectItem>
+                  <SelectItem value="PROCEDIMIENTO">Procedimiento</SelectItem>
+                  <SelectItem value="MANUAL">Manual</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                value={form.category}
+                onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
+                placeholder="Categoria asociada"
+              />
+            </div>
+            <Textarea
+              value={form.content}
+              onChange={(event) => setForm((current) => ({ ...current, content: event.target.value }))}
+              placeholder="Contenido que alimentara las respuestas del sistema"
+              rows={5}
+            />
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={handleSaveDocument} disabled={isWorking}>
+                <Plus className="size-4 mr-2" />
+                {editingId ? 'Guardar cambios' : 'Agregar documento'}
+              </Button>
+              {editingId && (
+                <Button variant="outline" onClick={resetForm}>
+                  Cancelar edicion
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="space-y-4">
           {filteredDocs.map((doc) => (
             <Card key={doc.id}>
@@ -142,9 +245,19 @@ export default function KnowledgeBasePage() {
                       </div>
                       <p className="text-gray-700 mb-3">{doc.content}</p>
                       <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <span>Categoría: {doc.category}</span>
-                        <span>·</span>
+                        <span>CategorÃ­a: {doc.category}</span>
+                        <span>Â·</span>
                         <span>Actualizado: {formatDateTime(doc.updatedAt)}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2 mt-4">
+                        <Button size="sm" variant="outline" onClick={() => handleEditDocument(doc)}>
+                          <Pencil className="size-4 mr-2" />
+                          Editar
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => handleDeleteDocument(doc.id)}>
+                          <Trash2 className="size-4 mr-2" />
+                          Desactivar
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -158,9 +271,9 @@ export default function KnowledgeBasePage() {
           <CardContent className="pt-6">
             <h3 className="font-semibold text-blue-900 mb-2">Sobre el sistema RAG</h3>
             <p className="text-sm text-blue-800">
-              La recuperación documental usa Supabase pgvector con embeddings neuronales cuando PostgreSQL está activo.
+              La recuperaciÃ³n documental usa Supabase pgvector con embeddings neuronales cuando PostgreSQL estÃ¡ activo.
               En modo local conserva TF-IDF como respaldo para que la demo funcione sin servicios externos.
-              La carga de nuevos documentos todavía no está implementada desde la interfaz.
+              Puedes agregar o editar documentos y luego reindexar para que el motor RAG los use en nuevas respuestas.
             </p>
           </CardContent>
         </Card>
@@ -168,3 +281,4 @@ export default function KnowledgeBasePage() {
     </AdminLayout>
   );
 }
+

@@ -38,6 +38,8 @@ export default function ReportsPage() {
   }));
   const statusData = data?.byStatus || [];
   const responseTimeData = data?.attentionTimeByCategory || [];
+  const confidenceData = data?.confidenceByCategory || [];
+  const reviewStatusData = data?.responsesByReviewStatus || [];
 
   const handleExport = () => {
     const rows = [
@@ -199,6 +201,42 @@ export default function ReportsPage() {
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Confianza promedio por categoria</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={confidenceData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="categoria" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="confianza_promedio" fill="#10b981" name="Confianza %" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Revision de respuestas</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={reviewStatusData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="estado_revision" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="total" fill="#8b5cf6" />
+                </BarChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
         </div>
