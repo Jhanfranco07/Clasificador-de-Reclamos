@@ -104,7 +104,7 @@ const fallbackRestaurants: Restaurant[] = [
     products: [
       { id: 'pr-1', name: '1/4 pollo con papas', description: 'Clasico pollo a la brasa.', price: 21.9, image: 'https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?w=600' },
       { id: 'pr-2', name: '1/2 pollo familiar', description: 'Papas, ensalada y cremas.', price: 42.5, image: 'https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?w=600' },
-      { id: 'pr-3', name: 'Salchipapa brasa', description: 'Papas, hot dog y pollo trozado.', price: 18.5, image: 'https://images.unsplash.com/photo-1588756694278-4b8d1a4f3f3f?w=600' },
+      { id: 'pr-3', name: 'Salchipapa brasa', description: 'Papas, hot dog y pollo trozado.', price: 18.5, image: 'https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?w=600' },
       { id: 'pr-4', name: 'Anticuchos mixtos', description: 'Brochetas con papas doradas.', price: 24.9, image: 'https://images.unsplash.com/photo-1529193591184-b1d58069ecdd?w=600' },
     ],
   },
@@ -283,7 +283,7 @@ export default function LandingPage() {
   const updateQuantity = (id: string, delta: number) => {
     setCart((items) =>
       items
-        .map((item) => ({ ...item, quantity: item.quantity + delta }))
+        .map((item) => (item.id === id ? { ...item, quantity: item.quantity + delta } : item))
         .filter((item) => item.quantity > 0)
     );
   };
