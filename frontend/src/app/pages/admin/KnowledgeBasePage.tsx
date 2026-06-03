@@ -143,7 +143,7 @@ export default function KnowledgeBasePage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">{indexedDocs}</div>
-              <p className="text-xs text-gray-500 mt-1">Disponibles para recuperaciÃ³n</p>
+              <p className="text-xs text-gray-500 mt-1">Disponibles para recuperación</p>
             </CardContent>
           </Card>
 
@@ -245,8 +245,8 @@ export default function KnowledgeBasePage() {
                       </div>
                       <p className="text-gray-700 mb-3">{doc.content}</p>
                       <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <span>CategorÃ­a: {doc.category}</span>
-                        <span>Â·</span>
+                        <span>Categoría: {doc.category}</span>
+                        <span>·</span>
                         <span>Actualizado: {formatDateTime(doc.updatedAt)}</span>
                       </div>
                       <div className="flex flex-wrap gap-2 mt-4">
@@ -271,7 +271,7 @@ export default function KnowledgeBasePage() {
           <CardContent className="pt-6">
             <h3 className="font-semibold text-blue-900 mb-2">Sobre el sistema RAG</h3>
             <p className="text-sm text-blue-800">
-              La recuperaciÃ³n documental usa Supabase pgvector con embeddings neuronales cuando PostgreSQL estÃ¡ activo.
+              La recuperación documental usa Supabase pgvector con embeddings neuronales cuando PostgreSQL está activo.
               En modo local conserva TF-IDF como respaldo para que la demo funcione sin servicios externos.
               Puedes agregar o editar documentos y luego reindexar para que el motor RAG los use en nuevas respuestas.
             </p>

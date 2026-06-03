@@ -55,14 +55,14 @@ export default function LoginPage() {
     setError('');
     setInfo('');
     if (!email.trim()) {
-      setError('Ingresa tu correo para simular la recuperacion.');
+      setError('Ingresa tu correo para simular la recuperación.');
       return;
     }
     try {
       const result = await requestPasswordReset(email.trim());
       setInfo(result.message);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo solicitar la recuperacion.');
+      setError(err instanceof Error ? err.message : 'No se pudo solicitar la recuperación.');
     }
   };
 
@@ -78,7 +78,7 @@ export default function LoginPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Iniciar sesiÃ³n</CardTitle>
+            <CardTitle className="text-2xl">Iniciar sesión</CardTitle>
             <CardDescription>
               Accede a tu cuenta para gestionar pedidos y reclamos
             </CardDescription>
@@ -111,11 +111,11 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">ContraseÃ±a</Label>
+                <Label htmlFor="password">Contraseña</Label>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                  placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -123,19 +123,19 @@ export default function LoginPage() {
               </div>
 
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Iniciando sesiÃ³n...' : 'Iniciar sesiÃ³n'}
+                {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
               </Button>
 
               <div className="text-sm text-center">
                 <button type="button" onClick={handlePasswordReset} className="text-orange-600 hover:underline">
-                  Â¿Olvidaste tu contraseÃ±a?
+                  ¿Olvidaste tu contraseña?
                 </button>
               </div>
 
               <div className="text-center text-sm text-gray-600">
-                Â¿No tienes cuenta?{' '}
+                ¿No tienes cuenta?{' '}
                 <Link to="/register" className="text-orange-600 hover:underline font-semibold">
-                  RegÃ­strate
+                  Regístrate
                 </Link>
               </div>
             </form>
@@ -154,7 +154,7 @@ export default function LoginPage() {
                 </Button>
               </div>
               <p className="text-xs text-blue-700 mt-3">
-                En esta versiÃ³n puedes usar cualquier contraseÃ±a.
+                En esta versión puedes usar cualquier contraseña.
               </p>
             </div>
           </CardContent>
@@ -162,7 +162,7 @@ export default function LoginPage() {
 
         <div className="text-center mt-6">
           <Link to="/" className="text-sm text-gray-600 hover:text-gray-900">
-            â† Volver al inicio
+            ← Volver al inicio
           </Link>
         </div>
       </div>
