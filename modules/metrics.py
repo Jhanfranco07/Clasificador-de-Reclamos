@@ -128,15 +128,23 @@ def distribucion_sentimiento():
     """)
 
 def confianza_por_categoria():
-    return fetch_all("""
+    rows = fetch_all("""
         SELECT
             COALESCE(ai.categoria_detectada, 'Sin clasificar') AS categoria,
-            ROUND(AVG(ai.confianza) * 100, 1) AS confianza_promedio,
+            AVG(ai.confianza) AS confianza_promedio,
             COUNT(*) AS total
         FROM analisis_ia ai
         GROUP BY COALESCE(ai.categoria_detectada, 'Sin clasificar')
         ORDER BY confianza_promedio DESC
     """)
+    return [
+        {
+            "categoria": row["categoria"],
+            "confianza_promedio": _safe_number((row["confianza_promedio"] or 0) * 100),
+            "total": row["total"],
+        }
+        for row in rows
+    ]
 
 def revision_humana_por_categoria():
     return fetch_all("""
@@ -168,10 +176,10 @@ def tiempo_promedio_atencion():
     return round(row["promedio"], 1) if row and row["promedio"] is not None else 0
 
 def tiempo_promedio_por_categoria():
-    return fetch_all("""
+    rows = fetch_all("""
         SELECT
             COALESCE(c.nombre, 'Sin clasificar') AS categoria,
-            ROUND(AVG(r.tiempo_atencion_minutos), 1) AS tiempo_promedio_min,
+            AVG(r.tiempo_atencion_minutos) AS tiempo_promedio_min,
             COUNT(*) AS total
         FROM reclamos r
         LEFT JOIN categorias_reclamo c ON c.id_categoria = r.id_categoria
@@ -179,6 +187,14 @@ def tiempo_promedio_por_categoria():
         GROUP BY COALESCE(c.nombre, 'Sin clasificar')
         ORDER BY tiempo_promedio_min DESC
     """)
+    return [
+        {
+            "categoria": row["categoria"],
+            "tiempo_promedio_min": _safe_number(row["tiempo_promedio_min"]),
+            "total": row["total"],
+        }
+        for row in rows
+    ]
 
 def casos_criticos_pendientes_detalle():
     return fetch_all("""
