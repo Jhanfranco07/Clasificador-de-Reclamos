@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -300,10 +300,12 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
-      <header className="border-b bg-white sticky top-0 z-50">
+      <header className="border-b bg-white/95 backdrop-blur sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Package className="size-8 text-orange-500" />
+            <span className="flex size-10 items-center justify-center rounded-xl bg-orange-500 text-white shadow-sm">
+              <Package className="size-6" />
+            </span>
             <span className="font-bold text-2xl">SmartClaim AI</span>
           </div>
           <div className="flex items-center gap-3">
@@ -353,22 +355,22 @@ export default function LandingPage() {
                 </a>
               </div>
               <div className="grid grid-cols-3 gap-3 max-w-xl">
-                <div className="rounded-lg border bg-white p-3">
+                <div className="rounded-lg border bg-white p-3 shadow-sm">
                   <p className="text-2xl font-bold">{restaurants.length}</p>
                   <p className="text-sm text-gray-500">Restaurantes</p>
                 </div>
-                <div className="rounded-lg border bg-white p-3">
+                <div className="rounded-lg border bg-white p-3 shadow-sm">
                   <p className="text-2xl font-bold">{totalProducts}</p>
                   <p className="text-sm text-gray-500">Productos</p>
                 </div>
-                <div className="rounded-lg border bg-white p-3">
+                <div className="rounded-lg border bg-white p-3 shadow-sm">
                   <p className="text-2xl font-bold">24/7</p>
                   <p className="text-sm text-gray-500">Soporte disponible</p>
                 </div>
               </div>
             </div>
 
-            <div className="relative min-h-[360px] overflow-hidden rounded-lg">
+            <div className="relative min-h-[360px] overflow-hidden rounded-lg shadow-2xl shadow-slate-200">
               <ImageWithFallback
                 src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1200"
                 alt="Mesa con comida de delivery"
@@ -418,7 +420,7 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-[1fr_360px] gap-6 items-start">
             <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
               {visibleRestaurants.map((restaurant) => (
-                <article key={restaurant.id} className="bg-white border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                <article key={restaurant.id} className="bg-white border rounded-lg overflow-hidden shadow-sm hover:-translate-y-1 hover:shadow-xl transition-all duration-200">
                   <div className="aspect-[4/3] overflow-hidden">
                     <ImageWithFallback src={restaurant.image} alt={restaurant.name} className="h-full w-full object-cover" />
                   </div>
@@ -563,3 +565,5 @@ export default function LandingPage() {
     </div>
   );
 }
+
+

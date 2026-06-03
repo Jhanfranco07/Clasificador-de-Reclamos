@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Package, AlertCircle } from 'lucide-react';
+import { Package, AlertCircle, ShieldCheck, Sparkles } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { requestPasswordReset } from '../lib/api';
@@ -67,17 +67,26 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-blue-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#fff7ed,transparent_32%),linear-gradient(135deg,#ffffff_0%,#f8fafc_45%,#eff6ff_100%)] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2 mb-4">
-            <Package className="size-10 text-orange-500" />
+            <span className="flex size-12 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-lg shadow-orange-500/20">
+              <Package className="size-7" />
+            </span>
             <span className="font-bold text-3xl">SmartClaim AI</span>
           </Link>
+          <div className="mx-auto flex w-fit items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs text-gray-600 shadow-sm">
+            <ShieldCheck className="size-3.5 text-green-600" />
+            Acceso seguro por rol
+          </div>
         </div>
 
-        <Card>
+        <Card className="border-white/80 shadow-2xl shadow-slate-200/70">
           <CardHeader>
+            <div className="mb-2 flex size-10 items-center justify-center rounded-xl bg-slate-900 text-white">
+              <Sparkles className="size-5" />
+            </div>
             <CardTitle className="text-2xl">Iniciar sesión</CardTitle>
             <CardDescription>
               Accede a tu cuenta para gestionar pedidos y reclamos

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import {
@@ -59,7 +59,7 @@ export default function AdminDashboardPage() {
           </p>
         </div>
 
-        <Card className="border-orange-200 bg-orange-50">
+        <Card className="overflow-hidden border-orange-200 bg-gradient-to-r from-orange-50 via-white to-blue-50 shadow-sm">
           <CardContent className="py-5">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
@@ -85,7 +85,7 @@ export default function AdminDashboardPage() {
         )}
 
         <div className="grid md:grid-cols-4 gap-6">
-          <Card>
+          <Card className="shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Total de reclamos</CardTitle>
               <AlertCircle className="size-4 text-gray-500" />
@@ -96,7 +96,7 @@ export default function AdminDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Nuevos</CardTitle>
               <Clock className="size-4 text-blue-500" />
@@ -107,7 +107,7 @@ export default function AdminDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Analizados por IA</CardTitle>
               <Brain className="size-4 text-purple-500" />
@@ -118,7 +118,7 @@ export default function AdminDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="shadow-sm border-red-100">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Críticos pendientes</CardTitle>
               <AlertTriangle className="size-4 text-red-500" />
@@ -131,7 +131,7 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
-          <Card>
+          <Card className="shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">En revisión</CardTitle>
               <Users className="size-4 text-amber-500" />
@@ -142,7 +142,7 @@ export default function AdminDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Respondidos/Cerrados</CardTitle>
               <CheckCircle className="size-4 text-green-500" />
@@ -153,7 +153,7 @@ export default function AdminDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Confianza promedio</CardTitle>
               <TrendingUp className="size-4 text-blue-500" />
@@ -168,7 +168,7 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
-          <Card>
+          <Card className="shadow-sm">
             <CardHeader>
               <CardTitle>Reclamos por categoría</CardTitle>
             </CardHeader>
@@ -186,7 +186,7 @@ export default function AdminDashboardPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="shadow-sm">
             <CardHeader>
               <CardTitle>Reclamos por estado</CardTitle>
             </CardHeader>
@@ -204,7 +204,7 @@ export default function AdminDashboardPage() {
           </Card>
         </div>
 
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
             <CardTitle>Actividad reciente</CardTitle>
           </CardHeader>
@@ -232,3 +232,5 @@ export default function AdminDashboardPage() {
     </AdminLayout>
   );
 }
+
+

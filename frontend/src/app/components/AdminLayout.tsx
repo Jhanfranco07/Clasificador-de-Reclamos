@@ -1,4 +1,4 @@
-import { Link, useNavigate, useLocation } from 'react-router';
+﻿import { Link, useNavigate, useLocation } from 'react-router';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import {
@@ -53,10 +53,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-gray-900 text-white border-b border-gray-800 sticky top-0 z-50">
+      <header className="bg-slate-950 text-white border-b border-slate-800 sticky top-0 z-50 shadow-lg shadow-slate-950/10">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/admin" className="flex items-center gap-2">
-            <Package className="size-8 text-orange-500" />
+            <span className="flex size-10 items-center justify-center rounded-xl bg-orange-500 text-white">
+              <Package className="size-6" />
+            </span>
             <div>
               <span className="font-bold text-xl">SmartClaim AI</span>
               <span className="text-xs text-gray-400 block">Panel Administrativo</span>
@@ -103,14 +105,14 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         </div>
       </header>
 
-      <nav className="bg-white border-b">
+      <nav className="bg-white border-b shadow-sm">
         <div className="container mx-auto px-4">
           <div className="flex gap-1 overflow-x-auto">
             {navItems.map((item) => (
               <Link key={item.path} to={item.path}>
                 <Button
                   variant={isActive(item.path) ? 'default' : 'ghost'}
-                  className="gap-2"
+                  className="gap-2 whitespace-nowrap"
                 >
                   <item.icon className="size-4" />
                   {item.label}
@@ -127,3 +129,4 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     </div>
   );
 }
+
