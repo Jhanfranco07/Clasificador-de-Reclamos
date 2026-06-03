@@ -11,7 +11,7 @@ import {
 } from './ui/dropdown-menu';
 import { Package, Home, ShoppingBag, AlertCircle, HelpCircle, LogOut, User, Bell } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { listNotifications, markNotificationsRead, NotificationItem } from '../lib/api';
 
 interface ClientLayoutProps {
@@ -23,6 +23,8 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const notificationsRef = useRef<HTMLDivElement | null>(null);
   const unread = notifications.filter((item) => !item.read).length;
 
   useEffect(() => {
@@ -31,6 +33,16 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
       .then((result) => setNotifications(result.items))
       .catch(() => setNotifications([]));
   }, [currentUser?.role]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!notificationsRef.current?.contains(event.target as Node)) {
+        setNotificationsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -46,6 +58,17 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
 
   const isActive = (path: string) => location.pathname === path;
 
+  const openNotification = async (item: NotificationItem) => {
+    setNotificationsOpen(false);
+    try {
+      const result = await markNotificationsRead();
+      setNotifications(result.items);
+    } catch {
+      // The user should still be able to open the claim if read tracking fails.
+    }
+    navigate(item.claimId ? `/claims/${item.claimId}` : '/claims');
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b sticky top-0 z-50">
@@ -59,59 +82,73 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
             <span className="text-sm text-gray-600 hidden md:block">
               Hola, {currentUser?.name?.split(' ')[0]}
             </span>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="relative">
-                  <Bell className="size-4" />
-                  {unread > 0 && (
-                    <span className="absolute -right-1 -top-1 rounded-full bg-orange-500 px-1.5 text-[10px] text-white">
-                      {unread}
-                    </span>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80">
-                <DropdownMenuLabel>Notificaciones</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {notifications.length === 0 ? (
-                  <DropdownMenuItem disabled>No tienes avisos pendientes</DropdownMenuItem>
-                ) : (
-                  notifications.slice(0, 5).map((item) => (
-                    <DropdownMenuItem key={item.id} asChild>
-                      <Link
-                        to={item.claimId ? `/claims/${item.claimId}` : '/claims'}
-                        onClick={async () => {
-                          try {
-                            const result = await markNotificationsRead();
-                            setNotifications(result.items);
-                          } catch {
-                            // Navigation should still work even if the read flag fails.
-                          }
-                        }}
-                        className="flex cursor-pointer flex-col items-start gap-1"
-                      >
-                        <span className="font-semibold">{item.title}</span>
-                        <span className="text-xs text-gray-500">{item.message}</span>
-                        <span className="text-xs font-medium text-orange-600">Ver reclamo</span>
-                      </Link>
-                    </DropdownMenuItem>
-                  ))
+            <div className="relative" ref={notificationsRef}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="relative"
+                aria-label="Abrir notificaciones"
+                aria-expanded={notificationsOpen}
+                onClick={() => setNotificationsOpen((open) => !open)}
+              >
+                <Bell className="size-4" />
+                {unread > 0 && (
+                  <span className="absolute -right-1 -top-1 rounded-full bg-orange-500 px-1.5 text-[10px] text-white">
+                    {unread}
+                  </span>
                 )}
-                {notifications.length > 0 && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
+              </Button>
+
+              {notificationsOpen && (
+                <div className="absolute right-0 top-11 z-[100] w-80 overflow-hidden rounded-lg border bg-white shadow-xl">
+                  <div className="border-b px-4 py-3">
+                    <p className="font-semibold">Notificaciones</p>
+                    <p className="text-xs text-gray-500">
+                      {unread > 0 ? `${unread} aviso(s) sin leer` : 'Sin avisos pendientes'}
+                    </p>
+                  </div>
+
+                  <div className="max-h-80 overflow-y-auto p-2">
+                    {notifications.length === 0 ? (
+                      <div className="rounded-md px-3 py-4 text-sm text-gray-500">
+                        No tienes avisos pendientes.
+                      </div>
+                    ) : (
+                      notifications.slice(0, 8).map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => openNotification(item)}
+                          className="w-full rounded-md px-3 py-2 text-left hover:bg-gray-50"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-sm font-semibold">{item.title}</span>
+                            {!item.read && <span className="mt-1 size-2 rounded-full bg-orange-500" />}
+                          </div>
+                          <p className="mt-1 text-xs text-gray-500">{item.message}</p>
+                          <p className="mt-1 text-xs font-medium text-orange-600">Ver reclamo</p>
+                        </button>
+                      ))
+                    )}
+                  </div>
+
+                  {notifications.length > 0 && (
+                    <button
+                      type="button"
                       onClick={async () => {
                         const result = await markNotificationsRead();
                         setNotifications(result.items);
+                        setNotificationsOpen(false);
                       }}
+                      className="w-full border-t px-4 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50"
                     >
-                      Marcar como leidas
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                      Marcar como leídas
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
             <Button variant="outline" size="sm" className="hidden sm:flex gap-2" onClick={handleLogout}>
               <LogOut className="size-4" />
               Salir
