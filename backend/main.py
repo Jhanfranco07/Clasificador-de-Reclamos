@@ -539,7 +539,10 @@ def create_claim(payload: ClaimCreate, user: dict[str, Any] = Depends(get_curren
             payload.responsible,
         )
         if payload.analyze:
-            return _analyze_and_generate(id_reclamo)
+            try:
+                return _analyze_and_generate(id_reclamo)
+            except HTTPException:
+                return _to_claim_detail(id_reclamo)
         return _to_claim_detail(id_reclamo)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"No se pudo crear el reclamo: {exc}") from exc

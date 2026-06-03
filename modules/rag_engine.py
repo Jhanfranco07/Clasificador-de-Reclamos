@@ -31,6 +31,9 @@ LOCAL_EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "sentence-transformers/para
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 _embedding_model = None
 
+def _pgvector_habilitado():
+    return os.getenv("ENABLE_PGVECTOR_RAG", "false").strip().lower() in {"1", "true", "yes", "on"}
+
 def dividir_en_fragmentos(texto, max_palabras=70, solapamiento=15):
     """
     Divide un documento en fragmentos con solapamiento.
@@ -196,7 +199,7 @@ def construir_indice_tfidf(forzar=False):
     }
 
 def construir_indice_vectorial(forzar=False):
-    if using_postgres():
+    if using_postgres() and _pgvector_habilitado():
         try:
             return construir_indice_pgvector(forzar=forzar)
         except Exception as exc:
@@ -221,10 +224,10 @@ def recuperar_documentos(texto_reclamo, categoria, max_docs=3):
     En PostgreSQL usa pgvector con embeddings neuronales; en SQLite usa TF-IDF.
     Devuelve una estructura compatible con el resto del sistema.
     """
-    if using_postgres():
+    if using_postgres() and _pgvector_habilitado():
         try:
             if contar_embeddings_rag() == 0:
-                construir_indice_pgvector(forzar=True)
+                return recuperar_documentos_tfidf(texto_reclamo, categoria, max_docs)
 
             consulta = " ".join([str(categoria or ""), str(texto_reclamo or "")])
             embedding = generar_embedding_local(consulta)
@@ -251,6 +254,9 @@ def recuperar_documentos(texto_reclamo, categoria, max_docs=3):
         except Exception:
             pass
 
+    return recuperar_documentos_tfidf(texto_reclamo, categoria, max_docs)
+
+def recuperar_documentos_tfidf(texto_reclamo, categoria, max_docs=3):
     vectorizer, matrix, metadata = cargar_indice_vectorial()
 
     consulta = " ".join([
@@ -324,7 +330,7 @@ def _generar_respuesta_openai(nombre_cliente, codigo_pedido, descripcion, analis
             for doc in documentos[:5]
         ) or "No hay documentos recuperados."
 
-        client = OpenAI()
+        client = OpenAI(timeout=20.0, max_retries=1)
         response = client.responses.create(
             model=OPENAI_MODEL,
             instructions=(
@@ -425,7 +431,7 @@ def generar_respuesta_basica(nombre_cliente, codigo_pedido, descripcion, analisi
 
 def obtener_resumen_indice():
     construir_indice_vectorial(forzar=False)
-    if using_postgres():
+    if using_postgres() and _pgvector_habilitado():
         embeddings = contar_embeddings_rag()
         fragmentos = listar_fragmentos_documento()
         documentos = set(f["id_documento"] for f in fragmentos)
