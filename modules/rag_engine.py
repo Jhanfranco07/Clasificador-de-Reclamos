@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 import os
 import re
 import joblib
@@ -28,6 +29,7 @@ VECTORIZER_PATH = VECTOR_DIR / "rag_tfidf_vectorizer.joblib"
 MATRIX_PATH = VECTOR_DIR / "rag_tfidf_matrix.joblib"
 METADATA_PATH = VECTOR_DIR / "rag_metadata.joblib"
 OPENAI_MODEL = os.getenv("OPENAI_CHAT_MODEL", os.getenv("OPENAI_MODEL", "gpt-4.1-mini"))
+logger = logging.getLogger(__name__)
 
 def _pgvector_habilitado():
     return os.getenv("ENABLE_PGVECTOR_RAG", "false").strip().lower() in {"1", "true", "yes", "on"}
@@ -189,6 +191,7 @@ def construir_indice_vectorial(forzar=False):
         try:
             return construir_indice_pgvector(forzar=forzar)
         except Exception as exc:
+            logger.exception("Falló la construcción del índice pgvector; se utilizará TF-IDF")
             fallback = construir_indice_tfidf(forzar=forzar)
             fallback["fallback_reason"] = str(exc)
             return fallback
@@ -220,7 +223,7 @@ def recuperar_documentos(texto_reclamo, categoria, max_docs=3):
         if semantic:
             return semantic[: int(max_docs)]
     except Exception:
-        pass
+        logger.exception("Falló la búsqueda mediante el índice local de embeddings OpenAI")
 
     if using_postgres() and _pgvector_habilitado():
         try:
@@ -251,7 +254,7 @@ def recuperar_documentos(texto_reclamo, categoria, max_docs=3):
             if resultados:
                 return resultados
         except Exception:
-            pass
+            logger.exception("Falló la recuperación mediante Supabase pgvector; se utilizará TF-IDF")
 
     return recuperar_documentos_tfidf(texto_reclamo, categoria, max_docs)
 
@@ -361,6 +364,7 @@ def _generar_respuesta_openai(nombre_cliente, codigo_pedido, descripcion, analis
         texto = getattr(response, "output_text", None)
         return texto.strip() if texto else None
     except Exception:
+        logger.exception("Falló la generación de respuesta con OpenAI; se utilizará la plantilla local")
         return None
 
 def generar_respuesta_sugerida(nombre_cliente, codigo_pedido, descripcion, analisis, documentos, historial=None):

@@ -283,3 +283,22 @@ def test_reports_expose_operational_and_ai_metrics(api_client):
     assert "reclamos_cerrados" in report["metrics"]
     assert "casos_escalados" in report["metrics"]
     assert report["metrics"]["tiempo_promedio_primera_respuesta"] >= 0
+
+
+def test_health_reports_database_status(api_client):
+    response = api_client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+    assert response.json()["database"] == "ok"
+    assert response.json()["databaseProvider"] == "sqlite"
+
+
+def test_production_runtime_rejects_insecure_secret(monkeypatch):
+    from modules.config import validate_runtime_config
+
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("AUTH_SECRET", "smartclaim-dev-secret-change-me")
+
+    with pytest.raises(RuntimeError, match="AUTH_SECRET"):
+        validate_runtime_config()

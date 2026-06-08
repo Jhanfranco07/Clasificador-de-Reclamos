@@ -1,5 +1,6 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const TOKEN_KEY = 'smartclaim_token';
+const REQUEST_TIMEOUT_MS = 30_000;
 
 export function getStoredToken() {
   return window.localStorage.getItem(TOKEN_KEY);
@@ -15,6 +16,9 @@ export function clearStoredToken() {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getStoredToken();
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  options.signal?.addEventListener('abort', () => controller.abort(), { once: true });
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
@@ -24,9 +28,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
         ...(options.headers || {}),
       },
       ...options,
+      signal: controller.signal,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('La solicitud tardó demasiado. Intenta nuevamente.');
+    }
     throw new Error('No se pudo conectar con el servidor. Verifica que la API esté activa y vuelve a intentarlo.');
+  } finally {
+    window.clearTimeout(timeout);
   }
 
   if (!response.ok) {
@@ -36,6 +46,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       message = body.detail || message;
     } catch {
       // Keep the generic message when the backend returns no JSON.
+    }
+    if (response.status === 401 && token) {
+      clearStoredToken();
+      window.dispatchEvent(new Event('smartclaim:unauthorized'));
     }
     throw new Error(message);
   }

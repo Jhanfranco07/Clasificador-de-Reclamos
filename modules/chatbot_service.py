@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import unicodedata
@@ -12,6 +13,8 @@ from database.repositories import (
     listar_reclamos_por_correo,
 )
 from modules.rag_engine import recuperar_documentos
+
+logger = logging.getLogger(__name__)
 
 PERSONAL_INTENTS = {
     "order_count",
@@ -201,4 +204,5 @@ def answer_chat(message: str, user: dict[str, Any] | None = None, context: dict[
             return {"message": fallback, "intent": intent["name"], "provider": "local_fallback", "documents": []}
         return {"message": text, "intent": intent["name"], "provider": "openai", "documents": [doc.get("titulo") for doc in documents]}
     except Exception:
+        logger.exception("Falló la respuesta OpenAI del chatbot; se utilizará respuesta local")
         return {"message": fallback, "intent": intent["name"], "provider": "local_fallback", "documents": []}

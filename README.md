@@ -222,15 +222,20 @@ DATABASE_URL=postgresql://...
 USE_RAG=true
 MODEL_PROVIDER=local
 AUTH_SECRET=change-this-secret-in-production
+CORS_ORIGINS=https://clasificador-de-reclamos.vercel.app
+ALLOW_VERCEL_PREVIEWS=false
 OPENAI_API_KEY=sk-...
 OPENAI_CHAT_MODEL=gpt-4.1-mini
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 USE_OPENAI_EMBEDDINGS=true
+ENABLE_PGVECTOR_RAG=true
 RAG_TOP_K=5
 RAG_SIMILARITY_THRESHOLD=0.70
 ```
 
 No subas `.env` al repositorio. La cadena real de `DATABASE_URL` debe quedar solo como variable secreta en Render o en tu entorno local.
+En producción, `AUTH_SECRET` debe tener al menos 32 caracteres. Mantén `ALLOW_VERCEL_PREVIEWS=false`
+para aceptar únicamente los dominios definidos en `CORS_ORIGINS`.
 
 ## Pruebas Funcionales
 

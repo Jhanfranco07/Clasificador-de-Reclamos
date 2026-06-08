@@ -4,8 +4,8 @@ import { clearStoredToken, getMe, getStoredToken, loginUser, registerUser } from
 
 interface AuthContextType {
   currentUser: User | null;
-  login: (email: string, password: string) => Promise<boolean>;
-  register: (payload: { name: string; email: string; phone?: string; password: string }) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<User | null>;
+  register: (payload: { name: string; email: string; phone?: string; password: string }) => Promise<User | null>;
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -57,23 +57,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      clearStoredToken();
+      setCurrentUser(null);
+    };
+    window.addEventListener('smartclaim:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('smartclaim:unauthorized', handleUnauthorized);
+  }, []);
+
+  const login = async (email: string, password: string): Promise<User | null> => {
     try {
       const result = await loginUser(email, password);
-      setCurrentUser(toUser(result.user));
-      return true;
+      const user = toUser(result.user);
+      setCurrentUser(user);
+      return user;
     } catch {
-      return false;
+      return null;
     }
   };
 
-  const register = async (payload: { name: string; email: string; phone?: string; password: string }): Promise<boolean> => {
+  const register = async (payload: { name: string; email: string; phone?: string; password: string }): Promise<User | null> => {
     try {
       const result = await registerUser(payload);
-      setCurrentUser(toUser(result.user));
-      return true;
+      const user = toUser(result.user);
+      setCurrentUser(user);
+      return user;
     } catch {
-      return false;
+      return null;
     }
   };
 

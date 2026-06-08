@@ -31,7 +31,7 @@ export default function RegisterPage() {
     }
 
     setIsSubmitting(true);
-    const ok = await register({
+    const user = await register({
       name: formData.name,
       email: formData.email,
       phone: formData.phone,
@@ -39,7 +39,7 @@ export default function RegisterPage() {
     });
     setIsSubmitting(false);
 
-    if (!ok) {
+    if (!user) {
       setError('No se pudo crear la cuenta. Revisa si el correo ya existe.');
       return;
     }

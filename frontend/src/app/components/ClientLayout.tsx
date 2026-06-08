@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { Package, Home, ShoppingBag, AlertCircle, HelpCircle, LogOut, User, Bell, Utensils, ShoppingCart } from 'lucide-react';
+import { Package, Home, ShoppingBag, AlertCircle, HelpCircle, LogOut, Bell, Utensils, ShoppingCart } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { listNotifications, markNotificationsRead, NotificationItem } from '../lib/api';
@@ -120,7 +120,11 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
               </Button>
 
               {notificationsOpen && (
-                <div className="absolute right-0 top-11 z-[100] w-80 overflow-hidden rounded-lg border bg-white shadow-xl">
+                <div
+                  className="absolute right-0 top-11 z-[100] w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border bg-white shadow-xl"
+                  role="dialog"
+                  aria-label="Notificaciones"
+                >
                   <div className="border-b px-4 py-3">
                     <p className="font-semibold">Notificaciones</p>
                     <p className="text-xs text-gray-500">
@@ -174,7 +178,7 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative size-10 rounded-full">
+                <Button variant="ghost" className="relative size-10 rounded-full" aria-label="Abrir menú de cuenta">
                   <Avatar>
                     <AvatarFallback>
                       {currentUser?.name?.charAt(0).toUpperCase()}
@@ -184,11 +188,11 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Mi cuenta</DropdownMenuLabel>
+                <div className="px-2 pb-2 text-xs text-gray-500">
+                  <p className="font-medium text-gray-700">{currentUser?.name}</p>
+                  <p className="truncate">{currentUser?.email}</p>
+                </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <User className="mr-2 size-4" />
-                  Perfil
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 size-4" />
                   Cerrar sesión
@@ -203,15 +207,17 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
         <div className="container mx-auto px-4">
           <div className="flex gap-1 overflow-x-auto">
             {navItems.map((item) => (
-              <Link key={item.path} to={item.path}>
-                <Button
+              <Button
+                key={item.path}
+                asChild
                   variant={isActive(item.matches) ? 'default' : 'ghost'}
-                  className="gap-2"
-                >
+                  className="gap-2 whitespace-nowrap"
+              >
+                <Link to={item.path} aria-current={isActive(item.matches) ? 'page' : undefined}>
                   <item.icon className="size-4" />
                   {item.label}
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             ))}
           </div>
         </div>

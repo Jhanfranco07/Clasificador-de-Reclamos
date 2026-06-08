@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 import logging
 import re
 import sys
@@ -14,7 +15,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-from database.db_connection import fetch_all, fetch_one, init_db
+from database.db_connection import fetch_all, fetch_one, init_db, using_postgres
 from database.repositories import (
     actualizar_configuracion,
     actualizar_documento_base,
@@ -74,25 +75,32 @@ from modules.rag_engine import (
 )
 from modules.security import create_token, decode_token, hash_password, verify_password
 from modules.chatbot_service import answer_chat
+from modules.config import allow_vercel_previews, cors_origins, validate_runtime_config
 
 
 logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    validate_runtime_config()
+    init_db()
+    asegurar_usuarios_auth_base()
+    asegurar_pedidos_demo_base()
+    yield
+
 
 app = FastAPI(
     title="SmartClaim AI API",
     version="1.0.0",
     description="API full stack para clasificacion, RAG y gestion de reclamos.",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origins=cors_origins(),
+    allow_origin_regex=r"https://.*\.vercel\.app" if allow_vercel_previews() else None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -247,13 +255,6 @@ SENTIMENT_TO_UI = {
     "NEUTRO": "NEUTRAL",
     "NEGATIVO": "NEGATIVE",
 }
-
-
-@app.on_event("startup")
-def startup() -> None:
-    init_db()
-    asegurar_usuarios_auth_base()
-    asegurar_pedidos_demo_base()
 
 
 def _to_user(row: dict[str, Any]) -> dict[str, Any]:
@@ -551,8 +552,23 @@ def _analyze_and_generate(id_reclamo: int) -> dict[str, Any]:
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health() -> dict[str, Any]:
+    try:
+        fetch_one("SELECT 1 AS ok")
+        database_status = "ok"
+    except Exception:
+        logger.exception("La verificación de salud no pudo consultar la base de datos")
+        database_status = "error"
+    try:
+        rag_enabled = bool((_config() or {}).get("usar_rag"))
+    except Exception:
+        rag_enabled = False
+    return {
+        "status": "ok" if database_status == "ok" else "degraded",
+        "database": database_status,
+        "databaseProvider": "postgres" if using_postgres() else "sqlite",
+        "ragEnabled": rag_enabled,
+    }
 
 
 @app.post("/api/chat")

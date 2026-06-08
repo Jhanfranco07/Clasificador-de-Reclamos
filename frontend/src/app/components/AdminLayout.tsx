@@ -16,7 +16,6 @@ import {
   Settings,
   BarChart3,
   LogOut,
-  User,
   Package,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -80,7 +79,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative size-10 rounded-full">
+                <Button variant="ghost" className="relative size-10 rounded-full" aria-label="Abrir menú de cuenta">
                   <Avatar>
                     <AvatarFallback className="bg-orange-600">
                       {currentUser?.name?.charAt(0).toUpperCase()}
@@ -90,11 +89,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Mi cuenta</DropdownMenuLabel>
+                <div className="px-2 pb-2 text-xs text-gray-500">
+                  <p className="font-medium text-gray-700">{currentUser?.name}</p>
+                  <p className="truncate">{currentUser?.email}</p>
+                </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <User className="mr-2 size-4" />
-                  Perfil
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 size-4" />
                   Cerrar sesión
@@ -109,15 +108,17 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         <div className="container mx-auto px-4">
           <div className="flex gap-1 overflow-x-auto">
             {navItems.map((item) => (
-              <Link key={item.path} to={item.path}>
-                <Button
+              <Button
+                key={item.path}
+                asChild
                   variant={isActive(item.path) ? 'default' : 'ghost'}
                   className="gap-2 whitespace-nowrap"
-                >
+              >
+                <Link to={item.path} aria-current={isActive(item.path) ? 'page' : undefined}>
                   <item.icon className="size-4" />
                   {item.label}
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             ))}
           </div>
         </div>

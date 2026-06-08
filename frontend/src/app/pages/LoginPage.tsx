@@ -26,13 +26,13 @@ export default function LoginPage() {
     setInfo('');
     setLoading(true);
 
-    const success = await login(email, password);
+    const user = await login(email, password);
 
-    if (success) {
+    if (user) {
       const hasPendingCart = Boolean(window.localStorage.getItem(CART_KEY));
-      if (hasPendingCart && !email.includes('@smartclaim.com')) {
+      if (hasPendingCart && user.role === 'CLIENT') {
         navigate('/checkout');
-      } else if (email.includes('@smartclaim.com')) {
+      } else if (user.role === 'ADMIN' || user.role === 'AGENT') {
         navigate('/admin');
       } else {
         navigate('/dashboard');
@@ -163,7 +163,7 @@ export default function LoginPage() {
                 </Button>
               </div>
               <p className="text-xs text-blue-700 mt-3">
-                En esta versión puedes usar cualquier contraseña.
+                Contraseña de prueba para estas cuentas: 123456.
               </p>
             </div>
           </CardContent>

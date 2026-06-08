@@ -9,6 +9,7 @@ import secrets
 import time
 from typing import Any
 
+from modules.config import DEFAULT_AUTH_SECRET
 
 def _b64encode(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
@@ -42,7 +43,7 @@ def verify_password(password: str, stored_hash: str) -> bool:
 
 
 def _secret() -> bytes:
-    value = os.getenv("AUTH_SECRET", "smartclaim-dev-secret-change-me")
+    value = os.getenv("AUTH_SECRET", DEFAULT_AUTH_SECRET)
     return value.encode("utf-8")
 
 
