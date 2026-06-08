@@ -209,3 +209,23 @@ def test_chatbot_uses_real_cart_context(api_client):
     assert response.status_code == 200
     assert "3 productos" in response.json()["message"]
     assert "47.50" in response.json()["message"]
+
+
+def test_agent_signature_replaces_template_placeholder():
+    from backend.main import _firmar_respuesta_agente
+
+    response = _firmar_respuesta_agente(
+        "Gracias por contactarnos.\n\nSaludos cordiales,\n[Nombre del agente]\nServicio de Atención al Cliente",
+        "Laura Martinez",
+    )
+
+    assert "[Nombre del agente]" not in response
+    assert "Laura Martinez" in response
+
+
+def test_agent_signature_is_added_when_missing():
+    from backend.main import _firmar_respuesta_agente
+
+    response = _firmar_respuesta_agente("Estamos revisando tu reclamo.", "Admin System")
+
+    assert response.endswith("Saludos cordiales,\nAdmin System\nServicio de Atención al Cliente")

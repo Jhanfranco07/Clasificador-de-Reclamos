@@ -343,7 +343,9 @@ def _generar_respuesta_openai(nombre_cliente, codigo_pedido, descripcion, analis
                 "No solicites datos sensibles completos de tarjetas. "
                 "Los casos de cobro, fraude, tarjeta, pedido no recibido o baja confianza requieren revision humana. "
                 "No confirmes responsabilidad de la empresa sin validacion. "
-                "Usa solo el contexto documental entregado cuando exista."
+                "Usa solo el contexto documental entregado cuando exista. "
+                "No incluyas firmas, nombres inventados ni marcadores como [Nombre del agente]; "
+                "el sistema agregara la firma del agente autenticado al momento de enviar."
             ),
             input=(
                 f"Cliente: {nombre_cliente}\n"

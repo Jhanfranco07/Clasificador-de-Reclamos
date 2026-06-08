@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -183,6 +184,29 @@ STATUS_TO_UI = {
     "Escalado": "ESCALATED",
     "Cerrado": "CLOSED",
 }
+
+
+def _firmar_respuesta_agente(texto: str, nombre_agente: str) -> str:
+    """Replace template signatures and guarantee the authenticated agent signs."""
+    respuesta = str(texto or "").strip()
+    agente = str(nombre_agente or "Agente de soporte").strip()
+    firma = f"Saludos cordiales,\n{agente}\nServicio de Atención al Cliente"
+
+    marcador = re.compile(r"\[(?:nombre\s+del\s+agente|nombre\s+agente|agente|nombre)\]", re.IGNORECASE)
+    if marcador.search(respuesta):
+        return marcador.sub(agente, respuesta)
+
+    if agente.lower() in respuesta.lower():
+        return respuesta
+
+    firma_generica = re.compile(
+        r"(?is)\n+(?:saludos cordiales|atentamente),?\s*\n+"
+        r"(?:equipo de soporte|servicio de atenci[oó]n al cliente|smartclaim ai)\s*$"
+    )
+    if firma_generica.search(respuesta):
+        return firma_generica.sub(f"\n\n{firma}", respuesta)
+
+    return f"{respuesta}\n\n{firma}"
 
 UI_TO_STATUS = {
     "RECEIVED": "Nuevo",
@@ -829,10 +853,15 @@ def update_response(response_id: int, payload: ResponseUpdate, user: dict[str, A
 
 @app.post("/api/responses/{response_id}/approve")
 def approve_response(response_id: int, payload: ResponseUpdate | None = None, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
-    aprobar_respuesta(response_id, payload.response_text if payload else None)
-    row = fetch_one("SELECT id_reclamo FROM respuestas_sugeridas WHERE id_respuesta = ?", (response_id,))
+    row = fetch_one(
+        "SELECT id_reclamo, respuesta_generada FROM respuestas_sugeridas WHERE id_respuesta = ?",
+        (response_id,),
+    )
     if not row:
         raise HTTPException(status_code=404, detail="Respuesta no encontrada")
+    texto_base = payload.response_text if payload and payload.response_text.strip() else row["respuesta_generada"]
+    respuesta_firmada = _firmar_respuesta_agente(texto_base, user["nombre"])
+    aprobar_respuesta(response_id, respuesta_firmada)
     marcar_respondido(row["id_reclamo"], "Respuesta enviada al cliente desde el panel de soporte.")
     return _to_claim_detail(row["id_reclamo"])
 
