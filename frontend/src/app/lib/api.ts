@@ -228,6 +228,14 @@ export interface DocumentsResponse {
   };
 }
 
+export interface ReindexResponse {
+  status: string;
+  provider?: string;
+  fragmentos?: number;
+  modelo_embedding?: string;
+  fallback_reason?: string;
+}
+
 export interface ConfigResponse {
   model: string;
   confidenceThreshold: number;
@@ -402,7 +410,7 @@ export function getDocuments() {
 }
 
 export function reindexDocuments() {
-  return request<Record<string, unknown>>('/api/documents/reindex', { method: 'POST' });
+  return request<ReindexResponse>('/api/documents/reindex', { method: 'POST' });
 }
 
 export function createDocument(payload: { title: string; type: string; category: string; content: string }) {

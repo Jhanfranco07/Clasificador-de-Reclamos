@@ -14,6 +14,7 @@ export default function KnowledgeBasePage() {
   const [data, setData] = useState<DocumentsResponse | null>(null);
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [isWorking, setIsWorking] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -39,9 +40,19 @@ export default function KnowledgeBasePage() {
   const handleReindex = async () => {
     setIsWorking(true);
     setError('');
+    setNotice('');
     try {
-      await reindexDocuments();
+      const result = await reindexDocuments();
       await loadDocuments();
+      if (result.fallback_reason) {
+        setError(`No se pudieron generar embeddings de OpenAI. Se mantuvo TF-IDF como respaldo: ${result.fallback_reason}`);
+      } else {
+        setNotice(
+          result.provider === 'pgvector'
+            ? `Índice reconstruido correctamente con ${result.fragmentos || 0} embeddings en Supabase pgvector.`
+            : `Índice TF-IDF reconstruido correctamente con ${result.fragmentos || 0} fragmentos.`
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo reindexar.');
     } finally {
@@ -123,6 +134,11 @@ export default function KnowledgeBasePage() {
             <CardContent className="py-4 text-red-700">{error}</CardContent>
           </Card>
         )}
+        {notice && (
+          <Card className="border-green-200 bg-green-50">
+            <CardContent className="py-4 text-green-700">{notice}</CardContent>
+          </Card>
+        )}
 
         <div className="grid md:grid-cols-3 gap-6">
           <Card>
@@ -153,9 +169,11 @@ export default function KnowledgeBasePage() {
               <RefreshCw className="size-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{data?.index.embeddings || data?.index.fragmentos || 0}</div>
+              <div className="text-2xl font-bold text-blue-600">{data?.index.embeddings || 0}</div>
               <p className="text-xs text-gray-500 mt-1">
-                {data?.index.provider === 'supabase_pgvector' ? 'Supabase pgvector' : 'TF-IDF local'}
+                {data?.index.provider === 'supabase_pgvector'
+                  ? `${data.index.modelo_embedding || 'OpenAI'} · Supabase pgvector`
+                  : `TF-IDF local · ${data?.index.fragmentos || 0} fragmentos`}
               </p>
             </CardContent>
           </Card>
