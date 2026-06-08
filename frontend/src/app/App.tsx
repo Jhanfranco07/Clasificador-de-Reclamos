@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Toaster } from './components/ui/sonner';
 import ChatbotWidget from './components/ChatbotWidget';
@@ -35,6 +35,7 @@ function ProtectedRoute({
   allowedRoles?: Array<'CLIENT' | 'AGENT' | 'ADMIN'>;
 }) {
   const { isAuthenticated, currentUser, isLoading } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -45,7 +46,7 @@ function ProtectedRoute({
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />;
   }
 
   if (allowedRoles && currentUser && !allowedRoles.includes(currentUser.role)) {

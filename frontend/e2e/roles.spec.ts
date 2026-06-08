@@ -16,6 +16,15 @@ test('cliente navega por pedidos, reclamos y perfil', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Mi perfil' })).toBeVisible();
 });
 
+test('cliente vuelve a la pantalla que originó el inicio de sesión', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Iniciar sesión' }).click();
+  await page.getByLabel('Email').fill('maria.gonzalez@email.com');
+  await page.getByLabel(/Contraseña/).fill('123456');
+  await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
+  await expect(page).toHaveURL('/');
+});
+
 test('agente gestiona reclamos sin acceder a configuración administrativa', async ({ page }) => {
   await login(page, 'laura.martinez@smartclaim.com');
   await expect(page).toHaveURL(/\/admin/);

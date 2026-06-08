@@ -1,5 +1,5 @@
 ﻿import { useState } from 'react';
-import { useNavigate, Link } from 'react-router';
+import { useNavigate, Link, useLocation } from 'react-router';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -9,10 +9,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { requestPasswordReset } from '../lib/api';
 
-const CART_KEY = 'smartclaim_pending_cart';
-
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,14 +28,11 @@ export default function LoginPage() {
     const user = await login(email, password);
 
     if (user) {
-      const hasPendingCart = Boolean(window.localStorage.getItem(CART_KEY));
-      if (hasPendingCart && user.role === 'CLIENT') {
-        navigate('/checkout');
-      } else if (user.role === 'ADMIN' || user.role === 'AGENT') {
-        navigate('/admin');
-      } else {
-        navigate('/dashboard');
-      }
+      const requestedPath = (location.state as { from?: string } | null)?.from;
+      const destination = user.role === 'CLIENT'
+        ? requestedPath && !requestedPath.startsWith('/admin') ? requestedPath : '/dashboard'
+        : requestedPath?.startsWith('/admin') ? requestedPath : '/admin';
+      navigate(destination, { replace: true });
     } else {
       setError('Credenciales incorrectas. Usa uno de los accesos de prueba disponibles.');
     }

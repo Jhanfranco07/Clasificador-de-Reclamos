@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import {
@@ -229,6 +229,7 @@ export const fallbackRestaurants: Restaurant[] = [
 
 export default function CatalogPage({ internal = false }: { internal?: boolean }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated, currentUser, logout } = useAuth();
   const [apiRestaurants, setApiRestaurants] = useState<Restaurant[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('Todos');
@@ -339,10 +340,10 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
               </>
             ) : (
               <>
-                <Link to="/login">
+                <Link to="/login" state={{ from: `${location.pathname}${location.search}` }}>
                   <Button variant="ghost">Iniciar sesión</Button>
                 </Link>
-                <Link to="/register">
+                <Link to="/register" state={{ from: `${location.pathname}${location.search}` }}>
                   <Button>Registrarse</Button>
                 </Link>
               </>
