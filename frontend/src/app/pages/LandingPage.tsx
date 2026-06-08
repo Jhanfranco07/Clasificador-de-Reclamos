@@ -227,12 +227,18 @@ const fallbackRestaurants: Restaurant[] = [
   },
 ];
 
-export default function LandingPage() {
+export default function LandingPage({ internal = false }: { internal?: boolean }) {
   const navigate = useNavigate();
   const { isAuthenticated, currentUser, logout } = useAuth();
   const [apiRestaurants, setApiRestaurants] = useState<Restaurant[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('Todos');
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    try {
+      return JSON.parse(window.localStorage.getItem(CART_KEY) || '[]') as CartItem[];
+    } catch {
+      return [];
+    }
+  });
 
   useEffect(() => {
     getCatalog()
@@ -245,6 +251,10 @@ export default function LandingPage() {
         setApiRestaurants([]);
       });
   }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(CART_KEY, JSON.stringify(cart));
+  }, [cart]);
 
   const restaurants = apiRestaurants.length > 0 ? apiRestaurants : fallbackRestaurants;
   const categories = useMemo(
@@ -300,7 +310,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
-      <header className="border-b bg-white/95 backdrop-blur sticky top-0 z-50">
+      {!internal && <header className="border-b bg-white/95 backdrop-blur sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="flex size-10 items-center justify-center rounded-xl bg-orange-500 text-white shadow-sm">
@@ -339,7 +349,7 @@ export default function LandingPage() {
             )}
           </div>
         </div>
-      </header>
+      </header>}
 
       <main>
         <section className="bg-white">

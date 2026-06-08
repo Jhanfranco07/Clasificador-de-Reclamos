@@ -1,8 +1,9 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Toaster } from './components/ui/sonner';
 import ChatbotWidget from './components/ChatbotWidget';
+import ClientLayout from './components/ClientLayout';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -22,7 +23,7 @@ const KnowledgeBasePage = lazy(() => import('./pages/admin/KnowledgeBasePage'));
 const AIConfigPage = lazy(() => import('./pages/admin/AIConfigPage'));
 const ReportsPage = lazy(() => import('./pages/admin/ReportsPage'));
 
-function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
+function ProtectedRoute({ children, adminOnly = false }: { children?: React.ReactNode; adminOnly?: boolean }) {
   const { isAuthenticated, currentUser, isLoading } = useAuth();
 
   if (isLoading) {
@@ -41,7 +42,7 @@ function ProtectedRoute({ children, adminOnly = false }: { children: React.React
     return <Navigate to="/dashboard" replace />;
   }
 
-  return <>{children}</>;
+  return <>{children ?? <Outlet />}</>;
 }
 
 function AppRoutes() {
@@ -52,76 +53,24 @@ function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
-      <Route path="/restaurants" element={<LandingPage />} />
-      <Route path="/restaurants/:id" element={<LandingPage />} />
-      <Route path="/products" element={<LandingPage />} />
-      <Route path="/cart" element={<LandingPage />} />
-
       {/* Client routes */}
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <DashboardPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/orders"
-        element={
-          <ProtectedRoute>
-            <OrdersPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/orders/:id"
-        element={
-          <ProtectedRoute>
-            <OrderDetailPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/checkout"
-        element={
-          <ProtectedRoute>
-            <CheckoutPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/claims/new"
-        element={
-          <ProtectedRoute>
-            <NewClaimPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/claims"
-        element={
-          <ProtectedRoute>
-            <ClaimsListPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/claims/:id"
-        element={
-          <ProtectedRoute>
-            <ClaimDetailPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/help"
-        element={
-          <ProtectedRoute>
-            <HelpCenterPage />
-          </ProtectedRoute>
-        }
-      />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<ClientLayout />}>
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/restaurants" element={<LandingPage internal />} />
+          <Route path="/restaurants/:id" element={<LandingPage internal />} />
+          <Route path="/products" element={<LandingPage internal />} />
+          <Route path="/cart" element={<LandingPage internal />} />
+          <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/orders/:id" element={<OrderDetailPage />} />
+          <Route path="/claims" element={<ClaimsListPage />} />
+          <Route path="/claims/new" element={<NewClaimPage />} />
+          <Route path="/claims/:id" element={<ClaimDetailPage />} />
+          <Route path="/help" element={<HelpCenterPage />} />
+          <Route path="/notifications" element={<Navigate to="/claims" replace />} />
+        </Route>
+      </Route>
 
       {/* Admin routes */}
       <Route

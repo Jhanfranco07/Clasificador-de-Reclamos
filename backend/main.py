@@ -69,7 +69,7 @@ from modules.rag_engine import (
     recuperar_documentos,
 )
 from modules.security import create_token, decode_token, hash_password, verify_password
-from modules.chatbot import answer_chat
+from modules.chatbot_service import answer_chat
 
 
 app = FastAPI(

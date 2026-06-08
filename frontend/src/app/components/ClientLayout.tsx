@@ -1,4 +1,4 @@
-import { Link, useNavigate, useLocation } from 'react-router';
+import { Link, Outlet, useNavigate, useLocation } from 'react-router';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import {
@@ -11,14 +11,24 @@ import {
 } from './ui/dropdown-menu';
 import { Package, Home, ShoppingBag, AlertCircle, HelpCircle, LogOut, User, Bell, Utensils, ShoppingCart } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { listNotifications, markNotificationsRead, NotificationItem } from '../lib/api';
 
 interface ClientLayoutProps {
-  children: ReactNode;
+  children?: ReactNode;
 }
 
+const ClientLayoutContext = createContext(false);
+
 export default function ClientLayout({ children }: ClientLayoutProps) {
+  const insideClientLayout = useContext(ClientLayoutContext);
+  if (insideClientLayout) {
+    return <>{children}</>;
+  }
+  return <ClientLayoutShell>{children}</ClientLayoutShell>;
+}
+
+function ClientLayoutShell({ children }: ClientLayoutProps) {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -50,15 +60,21 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
   };
 
   const navItems = [
-    { path: '/dashboard', label: 'Inicio', icon: Home },
-    { path: '/restaurants', label: 'Restaurantes', icon: Utensils },
-    { path: '/cart', label: 'Carrito', icon: ShoppingCart },
-    { path: '/orders', label: 'Mis pedidos', icon: ShoppingBag },
-    { path: '/claims', label: 'Mis reclamos', icon: AlertCircle },
-    { path: '/help', label: 'Ayuda', icon: HelpCircle },
+    { path: '/dashboard', label: 'Inicio', icon: Home, matches: ['/dashboard'] },
+    { path: '/restaurants', label: 'Restaurantes', icon: Utensils, matches: ['/restaurants', '/products'] },
+    { path: '/cart', label: 'Carrito', icon: ShoppingCart, matches: ['/cart', '/checkout'] },
+    { path: '/orders', label: 'Mis pedidos', icon: ShoppingBag, matches: ['/orders'] },
+    { path: '/claims', label: 'Mis reclamos', icon: AlertCircle, matches: ['/claims', '/notifications'] },
+    { path: '/help', label: 'Ayuda', icon: HelpCircle, matches: ['/help'] },
   ];
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (matches: string[]) => matches.some((path) => (
+    location.pathname === path || (path !== '/dashboard' && location.pathname.startsWith(`${path}/`))
+  ));
+
+  const isCatalogView = ['/restaurants', '/products', '/cart'].some(
+    (path) => location.pathname === path || location.pathname.startsWith(`${path}/`)
+  );
 
   const openNotification = async (item: NotificationItem) => {
     setNotificationsOpen(false);
@@ -72,6 +88,7 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
   };
 
   return (
+    <ClientLayoutContext.Provider value>
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -188,7 +205,7 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
             {navItems.map((item) => (
               <Link key={item.path} to={item.path}>
                 <Button
-                  variant={isActive(item.path) ? 'default' : 'ghost'}
+                  variant={isActive(item.matches) ? 'default' : 'ghost'}
                   className="gap-2"
                 >
                   <item.icon className="size-4" />
@@ -200,9 +217,10 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
         </div>
       </nav>
 
-      <main className="container mx-auto px-4 py-8">
-        {children}
+      <main className={isCatalogView ? 'w-full' : 'container mx-auto px-4 py-8'}>
+        {children ?? <Outlet />}
       </main>
     </div>
+    </ClientLayoutContext.Provider>
   );
 }

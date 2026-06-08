@@ -334,10 +334,10 @@ export function reopenClaim(id: string) {
   return request<ClaimDetailResponse>(`/api/claims/${id}/reopen`, { method: 'POST' });
 }
 
-export function sendChatMessage(message: string, sessionId?: string) {
+export function sendChatMessage(message: string, sessionId?: string, context?: Record<string, unknown>) {
   return request<{ message: string; documents: string[]; provider: string }>('/api/chat', {
     method: 'POST',
-    body: JSON.stringify({ message, session_id: sessionId }),
+    body: JSON.stringify({ message, session_id: sessionId, context }),
   });
 }
 

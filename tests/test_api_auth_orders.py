@@ -147,3 +147,65 @@ def test_chatbot_works_without_openai_key(api_client, monkeypatch):
     response = api_client.post("/api/chat", json={"message": "¿Cómo creo un reclamo?"})
     assert response.status_code == 200
     assert response.json()["provider"] == "local"
+
+
+def test_chatbot_returns_real_authenticated_order_count(api_client, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    login = api_client.post(
+        "/api/auth/login",
+        json={"email": "maria.gonzalez@email.com", "password": "123456"},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['token']}"}
+    orders = api_client.get("/api/orders", headers=headers).json()["items"]
+    response = api_client.post(
+        "/api/chat",
+        headers=headers,
+        json={"message": "¿Cuántos pedidos he realizado?"},
+    )
+    text = response.json()["message"]
+    assert response.status_code == 200
+    assert str(len(orders)) in text
+    assert "[" not in text
+
+
+def test_chatbot_requires_login_for_personal_data(api_client):
+    response = api_client.post("/api/chat", json={"message": "¿Cuántos pedidos he realizado?"})
+    assert response.status_code == 200
+    assert "iniciar sesión" in response.json()["message"]
+
+
+def test_chatbot_returns_real_open_claim_count(api_client, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    login = api_client.post(
+        "/api/auth/login",
+        json={"email": "maria.gonzalez@email.com", "password": "123456"},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['token']}"}
+    claims = api_client.get("/api/claims", headers=headers).json()["items"]
+    open_count = sum(1 for claim in claims if claim["statusKey"] != "CLOSED")
+    response = api_client.post(
+        "/api/chat",
+        headers=headers,
+        json={"message": "¿Tengo reclamos abiertos?"},
+    )
+    assert response.status_code == 200
+    assert str(open_count) in response.json()["message"]
+
+
+def test_chatbot_uses_real_cart_context(api_client):
+    login = api_client.post(
+        "/api/auth/login",
+        json={"email": "maria.gonzalez@email.com", "password": "123456"},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['token']}"}
+    response = api_client.post(
+        "/api/chat",
+        headers=headers,
+        json={
+            "message": "¿Cuántos productos tengo en el carrito?",
+            "context": {"cart": {"quantity": 3, "subtotal": 47.5}},
+        },
+    )
+    assert response.status_code == 200
+    assert "3 productos" in response.json()["message"]
+    assert "47.50" in response.json()["message"]
