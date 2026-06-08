@@ -27,6 +27,7 @@ POSTGRES_PK = {
     "productos": "id_producto",
     "reclamos": "id_reclamo",
     "notificaciones": "id_notificacion",
+    "claim_messages": "id_mensaje",
     "analisis_ia": "id_analisis",
     "documentos_base": "id_documento",
     "fragmentos_documento": "id_fragmento",

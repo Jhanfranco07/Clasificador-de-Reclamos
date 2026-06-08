@@ -25,8 +25,10 @@ from database.repositories import (
     crear_cliente,
     crear_comentario_agente,
     crear_documento_base,
+    crear_notificacion,
     crear_pedido_cliente,
     crear_reclamo,
+    crear_mensaje_reclamo,
     crear_usuario_auth,
     desactivar_documento_base,
     escalar_reclamo,
@@ -38,6 +40,7 @@ from database.repositories import (
     listar_pedidos_por_correo,
     listar_documentos,
     listar_notificaciones,
+    listar_mensajes_reclamo,
     listar_reclamos,
     listar_reclamos_por_correo,
     marcar_notificaciones_leidas,
@@ -46,6 +49,7 @@ from database.repositories import (
     obtener_detalle_reclamo,
     obtener_usuario_auth_por_correo,
     obtener_usuario_auth_por_id,
+    reabrir_reclamo,
 )
 from modules.classifier import clasificar_reclamo
 from modules.metrics import (
@@ -65,6 +69,7 @@ from modules.rag_engine import (
     recuperar_documentos,
 )
 from modules.security import create_token, decode_token, hash_password, verify_password
+from modules.chatbot import answer_chat
 
 
 app = FastAPI(
@@ -157,6 +162,16 @@ class DocumentPayload(BaseModel):
 class AgentCommentPayload(BaseModel):
     comment: str = Field(..., min_length=3)
     type: str = Field("INTERNO", pattern="^(INTERNO|SEGUIMIENTO|ESCALAMIENTO|CIERRE)$")
+
+
+class ClaimMessagePayload(BaseModel):
+    message: str = Field(..., min_length=2, max_length=4000)
+
+
+class ChatPayload(BaseModel):
+    message: str = Field(..., min_length=2, max_length=2000)
+    session_id: str | None = None
+    context: dict[str, Any] | None = None
 
 
 STATUS_TO_UI = {
@@ -408,6 +423,19 @@ def _to_notification(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _to_message(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": str(row["id_mensaje"]),
+        "claimId": str(row["id_reclamo"]),
+        "senderType": row["sender_type"],
+        "senderId": row.get("sender_id"),
+        "message": row["mensaje"],
+        "isInternal": bool(row.get("is_internal")),
+        "createdAt": row["fecha_creacion"],
+        "readAt": row.get("read_at"),
+    }
+
+
 def _to_comment(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": str(row["id_comentario"]),
@@ -477,6 +505,7 @@ def _analyze_and_generate(id_reclamo: int) -> dict[str, Any]:
                 reclamo["descripcion"],
                 analisis,
                 documentos,
+                historial=listar_mensajes_reclamo(id_reclamo),
             )
         else:
             respuesta = generar_respuesta_basica(
@@ -495,6 +524,16 @@ def _analyze_and_generate(id_reclamo: int) -> dict[str, Any]:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/api/chat")
+def chat(payload: ChatPayload, authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    user = None
+    if authorization and authorization.lower().startswith("bearer "):
+        token_data = decode_token(authorization.split(" ", 1)[1].strip())
+        if token_data:
+            user = obtener_usuario_auth_por_id(token_data.get("sub"))
+    return answer_chat(payload.message, user=user, context=payload.context)
 
 
 @app.post("/api/auth/login")
@@ -566,16 +605,13 @@ def catalog() -> dict[str, Any]:
 
 @app.get("/api/notifications")
 def notifications(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
-    if user["rol"] != "CLIENT":
-        return {"items": [], "unread": 0}
     items = [_to_notification(row) for row in listar_notificaciones(user["correo"])]
     return {"items": items, "unread": sum(1 for item in items if not item["read"])}
 
 
 @app.patch("/api/notifications/read")
 def read_notifications(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
-    if user["rol"] == "CLIENT":
-        marcar_notificaciones_leidas(user["correo"])
+    marcar_notificaciones_leidas(user["correo"])
     return notifications(user)
 
 
@@ -666,6 +702,79 @@ def claim_detail(claim_id: int, user: dict[str, Any] = Depends(get_current_user)
     if user["rol"] == "CLIENT" and detail["claim"]["customerEmail"].lower() != user["correo"].lower():
         raise HTTPException(status_code=403, detail="No tienes acceso a este reclamo")
     return detail
+
+
+@app.get("/api/claims/{claim_id}/messages")
+def claim_messages(claim_id: int, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    detail = _to_claim_detail(claim_id)
+    if user["rol"] == "CLIENT" and detail["claim"]["customerEmail"].lower() != user["correo"].lower():
+        raise HTTPException(status_code=403, detail="No tienes acceso a este reclamo")
+    messages = listar_mensajes_reclamo(claim_id, incluir_internos=user["rol"] in {"AGENT", "ADMIN"})
+    if not messages:
+        crear_mensaje_reclamo(claim_id, "client", detail["claim"]["customerEmail"], detail["claim"]["description"])
+        messages = listar_mensajes_reclamo(claim_id, incluir_internos=user["rol"] in {"AGENT", "ADMIN"})
+    return {
+        "items": [
+            _to_message(row)
+            for row in messages
+        ]
+    }
+
+
+@app.post("/api/claims/{claim_id}/messages", status_code=201)
+def add_claim_message(
+    claim_id: int,
+    payload: ClaimMessagePayload,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    detail = _to_claim_detail(claim_id)
+    if user["rol"] == "CLIENT" and detail["claim"]["customerEmail"].lower() != user["correo"].lower():
+        raise HTTPException(status_code=403, detail="No tienes acceso a este reclamo")
+    if detail["claim"]["statusKey"] == "CLOSED":
+        raise HTTPException(status_code=409, detail="El reclamo está cerrado. Reábrelo antes de responder.")
+
+    sender_type = "client" if user["rol"] == "CLIENT" else "agent"
+    crear_mensaje_reclamo(claim_id, sender_type, user["id_auth_user"], payload.message)
+    if sender_type == "client":
+        actualizar_estado_reclamo(
+            claim_id,
+            "En revision",
+            "Respuesta del cliente",
+            "El cliente agregó información al reclamo.",
+        )
+        for staff in fetch_all("SELECT correo FROM auth_users WHERE rol IN ('AGENT', 'ADMIN') AND estado = 'ACTIVO'"):
+            crear_notificacion(
+                staff["correo"],
+                "Cliente respondió un reclamo",
+                f"El cliente agregó un mensaje al reclamo {detail['claim']['code']}.",
+                "ALERTA",
+                claim_id,
+            )
+    else:
+        marcar_respondido(claim_id, "El agente respondió dentro de la conversación.")
+        crear_notificacion(
+            detail["claim"]["customerEmail"],
+            "Nuevo mensaje de soporte",
+            f"Soporte respondió en tu reclamo {detail['claim']['code']}.",
+            "RESPUESTA",
+            claim_id,
+        )
+    return claim_messages(claim_id, user)
+
+
+@app.post("/api/claims/{claim_id}/close")
+def close_claim(claim_id: int, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
+    cerrar_reclamo(claim_id, "Cerrado", "El agente cerró el reclamo.")
+    return _to_claim_detail(claim_id)
+
+
+@app.post("/api/claims/{claim_id}/reopen")
+def reopen_claim(claim_id: int, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    detail = _to_claim_detail(claim_id)
+    if user["rol"] == "CLIENT" and detail["claim"]["customerEmail"].lower() != user["correo"].lower():
+        raise HTTPException(status_code=403, detail="No tienes acceso a este reclamo")
+    reabrir_reclamo(claim_id)
+    return _to_claim_detail(claim_id)
 
 
 @app.get("/api/claims/{claim_id}/comments")

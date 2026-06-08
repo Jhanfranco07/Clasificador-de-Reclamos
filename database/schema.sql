@@ -142,6 +142,19 @@ CREATE TABLE IF NOT EXISTS notificaciones (
     FOREIGN KEY (id_reclamo) REFERENCES reclamos(id_reclamo) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS claim_messages (
+    id_mensaje INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_reclamo INTEGER NOT NULL,
+    sender_type TEXT NOT NULL CHECK (sender_type IN ('client', 'agent', 'ai', 'system')),
+    sender_id TEXT,
+    mensaje TEXT NOT NULL,
+    is_internal INTEGER NOT NULL DEFAULT 0 CHECK (is_internal IN (0, 1)),
+    read_at TEXT,
+    metadata_json TEXT,
+    fecha_creacion TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_reclamo) REFERENCES reclamos(id_reclamo) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS analisis_ia (
     id_analisis INTEGER PRIMARY KEY AUTOINCREMENT,
     id_reclamo INTEGER NOT NULL UNIQUE,
@@ -288,3 +301,4 @@ CREATE INDEX IF NOT EXISTS idx_pedidos_cliente ON pedidos(id_cliente);
 CREATE INDEX IF NOT EXISTS idx_pedido_items_pedido ON pedido_items(id_pedido);
 CREATE INDEX IF NOT EXISTS idx_productos_restaurante ON productos(id_restaurante);
 CREATE INDEX IF NOT EXISTS idx_notificaciones_correo ON notificaciones(correo_cliente);
+CREATE INDEX IF NOT EXISTS idx_claim_messages_reclamo ON claim_messages(id_reclamo, fecha_creacion);

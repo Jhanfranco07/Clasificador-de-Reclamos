@@ -35,6 +35,8 @@ import { CLAIM_STATUS_LABELS } from '../../types';
 import { formatDateTime } from '../../lib/utils';
 import AdminLayout from '../../components/AdminLayout';
 import { toast } from 'sonner';
+import ClaimConversation from '../../components/ClaimConversation';
+import { closeClaim, reopenClaim } from '../../lib/api';
 
 export default function AdminClaimDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -507,6 +509,26 @@ export default function AdminClaimDetailPage() {
               </CardContent>
             </Card>
           </div>
+        </div>
+        <ClaimConversation claimId={claim.id} viewer="agent" closed={claim.statusKey === 'CLOSED'} />
+        <div className="flex justify-end">
+          {claim.statusKey === 'CLOSED' ? (
+            <Button
+              variant="outline"
+              disabled={isWorking}
+              onClick={() => runAction(() => reopenClaim(claim.id))}
+            >
+              Reabrir reclamo
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              disabled={isWorking}
+              onClick={() => runAction(() => closeClaim(claim.id))}
+            >
+              Cerrar reclamo
+            </Button>
+          )}
         </div>
       </div>
     </AdminLayout>

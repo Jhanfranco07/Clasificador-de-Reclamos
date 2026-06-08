@@ -133,6 +133,18 @@ CREATE TABLE IF NOT EXISTS notificaciones (
     fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS claim_messages (
+    id_mensaje SERIAL PRIMARY KEY,
+    id_reclamo INTEGER NOT NULL REFERENCES reclamos(id_reclamo) ON DELETE CASCADE,
+    sender_type TEXT NOT NULL CHECK (sender_type IN ('client', 'agent', 'ai', 'system')),
+    sender_id TEXT,
+    mensaje TEXT NOT NULL,
+    is_internal INTEGER NOT NULL DEFAULT 0 CHECK (is_internal IN (0, 1)),
+    read_at TIMESTAMP,
+    metadata_json JSONB,
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS analisis_ia (
     id_analisis SERIAL PRIMARY KEY,
     id_reclamo INTEGER NOT NULL UNIQUE REFERENCES reclamos(id_reclamo) ON DELETE CASCADE,
@@ -173,7 +185,7 @@ CREATE TABLE IF NOT EXISTS rag_embeddings (
     id_documento INTEGER NOT NULL REFERENCES documentos_base(id_documento) ON DELETE CASCADE,
     modelo_embedding TEXT NOT NULL,
     dimension INTEGER NOT NULL,
-    embedding vector(384) NOT NULL,
+    embedding vector(1536) NOT NULL,
     texto_fragmento TEXT NOT NULL,
     titulo TEXT,
     tipo_documento TEXT,
@@ -283,3 +295,4 @@ CREATE INDEX IF NOT EXISTS idx_pedidos_cliente ON pedidos(id_cliente);
 CREATE INDEX IF NOT EXISTS idx_pedido_items_pedido ON pedido_items(id_pedido);
 CREATE INDEX IF NOT EXISTS idx_productos_restaurante ON productos(id_restaurante);
 CREATE INDEX IF NOT EXISTS idx_notificaciones_correo ON notificaciones(correo_cliente);
+CREATE INDEX IF NOT EXISTS idx_claim_messages_reclamo ON claim_messages(id_reclamo, fecha_creacion);

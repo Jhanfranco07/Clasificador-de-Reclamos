@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { Package, Home, ShoppingBag, AlertCircle, HelpCircle, LogOut, User, Bell } from 'lucide-react';
+import { Package, Home, ShoppingBag, AlertCircle, HelpCircle, LogOut, User, Bell, Utensils, ShoppingCart } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import { listNotifications, markNotificationsRead, NotificationItem } from '../lib/api';
@@ -51,6 +51,8 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
 
   const navItems = [
     { path: '/dashboard', label: 'Inicio', icon: Home },
+    { path: '/restaurants', label: 'Restaurantes', icon: Utensils },
+    { path: '/cart', label: 'Carrito', icon: ShoppingCart },
     { path: '/orders', label: 'Mis pedidos', icon: ShoppingBag },
     { path: '/claims', label: 'Mis reclamos', icon: AlertCircle },
     { path: '/help', label: 'Ayuda', icon: HelpCircle },

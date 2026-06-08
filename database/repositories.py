@@ -206,7 +206,25 @@ def crear_reclamo(id_cliente, codigo_pedido, canal_venta, fecha_pedido, descripc
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (codigo, id_cliente, codigo_pedido.strip(), canal_venta, str(fecha_pedido), descripcion.strip(), estado_nuevo_id, responsable_asignado))
     registrar_historial_estado(id_reclamo, None, "Nuevo", "Registro de reclamo", "El reclamo fue guardado en estado Nuevo.")
+    crear_mensaje_reclamo(id_reclamo, "client", str(id_cliente), descripcion.strip())
     return id_reclamo
+
+def crear_mensaje_reclamo(id_reclamo, sender_type, sender_id, mensaje, is_internal=False, metadata_json=None):
+    return execute("""
+        INSERT INTO claim_messages (
+            id_reclamo, sender_type, sender_id, mensaje, is_internal, metadata_json
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (id_reclamo, sender_type, str(sender_id) if sender_id else None, mensaje.strip(), int(is_internal), metadata_json))
+
+def listar_mensajes_reclamo(id_reclamo, incluir_internos=False):
+    filtro = "" if incluir_internos else "AND is_internal = 0"
+    return fetch_all(f"""
+        SELECT *
+        FROM claim_messages
+        WHERE id_reclamo = ? {filtro}
+        ORDER BY fecha_creacion ASC, id_mensaje ASC
+    """, (id_reclamo,))
 
 def obtener_reclamo_basico(id_reclamo):
     return fetch_one("""
@@ -452,6 +470,12 @@ def aprobar_respuesta(id_respuesta, respuesta_final=None):
     )
     reclamo = obtener_reclamo_basico(respuesta["id_reclamo"])
     if reclamo:
+        crear_mensaje_reclamo(
+            respuesta["id_reclamo"],
+            "agent",
+            "support",
+            final,
+        )
         crear_notificacion(
             reclamo["correo_cliente"],
             "Respuesta de soporte disponible",
@@ -614,6 +638,23 @@ def cerrar_reclamo(id_reclamo, estado_final="Cerrado", comentario=None):
         comentario or "El reclamo fue cerrado y se calculó el tiempo de atención."
     )
     registrar_log("Reclamos", "Cierre de reclamo", "INFO", f"Reclamo cerrado con estado {estado_final}.", id_reclamo)
+
+def reabrir_reclamo(id_reclamo, comentario=None):
+    estado_anterior = obtener_estado_actual(id_reclamo)
+    estado_id = get_estado_id("En revision") or get_estado_id("En revisión")
+    execute("""
+        UPDATE reclamos
+        SET id_estado = ?, fecha_cierre = NULL, tiempo_atencion_minutos = NULL,
+            fecha_actualizacion = CURRENT_TIMESTAMP
+        WHERE id_reclamo = ?
+    """, (estado_id, id_reclamo))
+    registrar_historial_estado(
+        id_reclamo,
+        estado_anterior,
+        "En revision",
+        "Reapertura de reclamo",
+        comentario or "El reclamo fue reabierto para continuar la conversación."
+    )
 
 def asignar_responsable(id_reclamo, responsable):
     execute("""

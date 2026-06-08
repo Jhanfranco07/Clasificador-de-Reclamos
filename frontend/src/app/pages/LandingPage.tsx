@@ -229,7 +229,7 @@ const fallbackRestaurants: Restaurant[] = [
 
 export default function LandingPage() {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, currentUser, logout } = useAuth();
   const [apiRestaurants, setApiRestaurants] = useState<Restaurant[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -315,12 +315,28 @@ export default function LandingPage() {
                 Carrito ({cart.reduce((total, item) => total + item.quantity, 0)})
               </Button>
             </a>
-            <Link to="/login">
-              <Button variant="ghost">Iniciar sesión</Button>
-            </Link>
-            <Link to="/register">
-              <Button>Registrarse</Button>
-            </Link>
+            {isAuthenticated ? (
+              <>
+                <div className="hidden lg:flex items-center gap-1">
+                  <Link to="/orders"><Button variant="ghost">Mis pedidos</Button></Link>
+                  <Link to="/claims"><Button variant="ghost">Mis reclamos</Button></Link>
+                  <Link to="/help"><Button variant="ghost">Ayuda</Button></Link>
+                </div>
+                <Link to="/dashboard">
+                  <Button variant="ghost">Hola, {currentUser?.name?.split(' ')[0]}</Button>
+                </Link>
+                <Button variant="outline" onClick={() => logout()}>Cerrar sesión</Button>
+              </>
+            ) : (
+              <>
+                <Link to="/login">
+                  <Button variant="ghost">Iniciar sesión</Button>
+                </Link>
+                <Link to="/register">
+                  <Button>Registrarse</Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>

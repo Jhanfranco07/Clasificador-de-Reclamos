@@ -76,6 +76,15 @@ def test_respuesta_basica_sin_rag():
     assert "ORD-TEST-003" in respuesta
 
 
+def test_openai_embeddings_disabled_uses_safe_empty_result(monkeypatch, tmp_path):
+    import modules.openai_embeddings as embeddings
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(embeddings, "INDEX_PATH", tmp_path / "openai_embeddings.json")
+    assert embeddings.enabled() is False
+    assert embeddings.search("pedido demorado") == []
+
+
 def test_guardar_analisis_respuesta_estado_e_historial(temp_app):
     from database.repositories import (
         crear_cliente,

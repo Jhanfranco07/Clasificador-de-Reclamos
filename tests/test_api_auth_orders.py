@@ -97,3 +97,53 @@ def test_register_creates_client_account(api_client):
         json={"email": "cliente.nuevo@example.com", "password": "123456"},
     )
     assert login.status_code == 200
+
+
+def test_claim_continuous_conversation(api_client):
+    client_login = api_client.post(
+        "/api/auth/login",
+        json={"email": "maria.gonzalez@email.com", "password": "123456"},
+    )
+    client_headers = {"Authorization": f"Bearer {client_login.json()['token']}"}
+    claim = api_client.post(
+        "/api/claims",
+        headers=client_headers,
+        json={
+            "customer_name": "Maria Gonzalez",
+            "customer_email": "maria.gonzalez@email.com",
+            "order_code": "ORD-CONVERSATION-001",
+            "description": "Mi pedido llegó incompleto y necesito ayuda con el producto faltante.",
+            "analyze": False,
+        },
+    )
+    claim_id = claim.json()["claim"]["id"]
+    initial = api_client.get(f"/api/claims/{claim_id}/messages", headers=client_headers)
+    assert initial.status_code == 200
+    assert initial.json()["items"][0]["senderType"] == "client"
+
+    agent_login = api_client.post(
+        "/api/auth/login",
+        json={"email": "laura.martinez@smartclaim.com", "password": "123456"},
+    )
+    agent_headers = {"Authorization": f"Bearer {agent_login.json()['token']}"}
+    agent_reply = api_client.post(
+        f"/api/claims/{claim_id}/messages",
+        headers=agent_headers,
+        json={"message": "Estamos revisando el producto faltante de tu pedido."},
+    )
+    assert agent_reply.status_code == 201
+
+    client_reply = api_client.post(
+        f"/api/claims/{claim_id}/messages",
+        headers=client_headers,
+        json={"message": "Gracias. El producto faltante fue una bebida."},
+    )
+    assert client_reply.status_code == 201
+    assert len(client_reply.json()["items"]) == 3
+
+
+def test_chatbot_works_without_openai_key(api_client, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    response = api_client.post("/api/chat", json={"message": "¿Cómo creo un reclamo?"})
+    assert response.status_code == 200
+    assert response.json()["provider"] == "local"

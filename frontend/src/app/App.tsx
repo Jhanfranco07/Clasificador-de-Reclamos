@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Toaster } from './components/ui/sonner';
+import ChatbotWidget from './components/ChatbotWidget';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -51,6 +52,10 @@ function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/restaurants" element={<LandingPage />} />
+      <Route path="/restaurants/:id" element={<LandingPage />} />
+      <Route path="/products" element={<LandingPage />} />
+      <Route path="/cart" element={<LandingPage />} />
 
       {/* Client routes */}
       <Route
@@ -127,6 +132,9 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route path="/admin/dashboard" element={<Navigate to="/admin" replace />} />
+      <Route path="/admin/documents" element={<Navigate to="/admin/knowledge" replace />} />
+      <Route path="/admin/settings" element={<Navigate to="/admin/ai-config" replace />} />
       <Route
         path="/admin/claims"
         element={
@@ -182,6 +190,7 @@ export default function App() {
         <div className="size-full">
           <AppRoutes />
           <Toaster />
+          <ChatbotWidget />
         </div>
       </BrowserRouter>
     </AuthProvider>

@@ -128,6 +128,17 @@ export interface NotificationItem {
   createdAt: string;
 }
 
+export interface ClaimMessage {
+  id: string;
+  claimId: string;
+  senderType: 'client' | 'agent' | 'ai' | 'system';
+  senderId?: string;
+  message: string;
+  isInternal: boolean;
+  createdAt: string;
+  readAt?: string;
+}
+
 export interface ClaimDetailResponse {
   claim: ClaimSummary & {
     description: string;
@@ -302,6 +313,32 @@ export function listClaims() {
 
 export function getClaim(id: string) {
   return request<ClaimDetailResponse>(`/api/claims/${id}`);
+}
+
+export function listClaimMessages(id: string) {
+  return request<{ items: ClaimMessage[] }>(`/api/claims/${id}/messages`);
+}
+
+export function sendClaimMessage(id: string, message: string) {
+  return request<{ items: ClaimMessage[] }>(`/api/claims/${id}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ message }),
+  });
+}
+
+export function closeClaim(id: string) {
+  return request<ClaimDetailResponse>(`/api/claims/${id}/close`, { method: 'POST' });
+}
+
+export function reopenClaim(id: string) {
+  return request<ClaimDetailResponse>(`/api/claims/${id}/reopen`, { method: 'POST' });
+}
+
+export function sendChatMessage(message: string, sessionId?: string) {
+  return request<{ message: string; documents: string[]; provider: string }>('/api/chat', {
+    method: 'POST',
+    body: JSON.stringify({ message, session_id: sessionId }),
+  });
 }
 
 export function createClaim(payload: {

@@ -108,7 +108,7 @@ export default function DashboardPage() {
               <CardDescription>Explora restaurantes y arma tu carrito.</CardDescription>
             </CardHeader>
             <CardContent>
-              <Link to="/">
+              <Link to="/restaurants">
                 <Button className="w-full">Explorar restaurantes</Button>
               </Link>
             </CardContent>
@@ -148,7 +148,7 @@ export default function DashboardPage() {
                   <ShoppingBag className="size-10 text-orange-500 mx-auto mb-3" />
                   <h2 className="text-xl font-bold">Aún no tienes pedidos</h2>
                   <p className="text-gray-600 mt-2">Explora restaurantes y confirma tu primer pedido para activar tu historial.</p>
-                  <Link to="/">
+                  <Link to="/restaurants">
                     <Button className="mt-4">Ver restaurantes</Button>
                   </Link>
                 </div>

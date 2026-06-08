@@ -27,9 +27,7 @@ VECTOR_DIR = BASE_DIR / "vector_store"
 VECTORIZER_PATH = VECTOR_DIR / "rag_tfidf_vectorizer.joblib"
 MATRIX_PATH = VECTOR_DIR / "rag_tfidf_matrix.joblib"
 METADATA_PATH = VECTOR_DIR / "rag_metadata.joblib"
-LOCAL_EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
-_embedding_model = None
+OPENAI_MODEL = os.getenv("OPENAI_CHAT_MODEL", os.getenv("OPENAI_MODEL", "gpt-4.1-mini"))
 
 def _pgvector_habilitado():
     return os.getenv("ENABLE_PGVECTOR_RAG", "false").strip().lower() in {"1", "true", "yes", "on"}
@@ -107,23 +105,10 @@ def _obtener_textos_fragmentos():
 
     return textos, metadata
 
-def _cargar_modelo_embeddings():
-    global _embedding_model
-    if _embedding_model is None:
-        from sentence_transformers import SentenceTransformer
-
-        _embedding_model = SentenceTransformer(LOCAL_EMBEDDING_MODEL)
-    return _embedding_model
-
-def generar_embedding_local(texto):
-    modelo = _cargar_modelo_embeddings()
-    vector = modelo.encode(str(texto or ""), normalize_embeddings=True)
-    return [float(value) for value in vector.tolist()]
-
 def construir_indice_pgvector(forzar=False):
     """
     Construye una base vectorial real en PostgreSQL/Supabase usando pgvector.
-    Requiere la extension vector y embeddings locales de sentence-transformers.
+    Requiere la extension vector y embeddings generados mediante OpenAI.
     """
     if not using_postgres():
         return construir_indice_tfidf(forzar=forzar)
@@ -132,7 +117,7 @@ def construir_indice_pgvector(forzar=False):
         return {
             "status": "existente",
             "provider": "pgvector",
-            "modelo_embedding": LOCAL_EMBEDDING_MODEL,
+            "modelo_embedding": os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
             "fragmentos": contar_embeddings_rag(),
         }
 
@@ -149,13 +134,14 @@ def construir_indice_pgvector(forzar=False):
             str(frag.get("tipo_documento") or ""),
             str(frag.get("texto_fragmento") or ""),
         ])
-        embedding = generar_embedding_local(texto_enriquecido)
-        crear_embedding_rag(frag, LOCAL_EMBEDDING_MODEL, len(embedding), embedding)
+        from modules.openai_embeddings import create_embeddings
+        embedding = create_embeddings([texto_enriquecido])[0]
+        crear_embedding_rag(frag, os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"), len(embedding), embedding)
 
     return {
         "status": "reconstruido",
         "provider": "pgvector",
-        "modelo_embedding": LOCAL_EMBEDDING_MODEL,
+        "modelo_embedding": os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
         "fragmentos": len(fragmentos),
     }
 
@@ -224,13 +210,26 @@ def recuperar_documentos(texto_reclamo, categoria, max_docs=3):
     En PostgreSQL usa pgvector con embeddings neuronales; en SQLite usa TF-IDF.
     Devuelve una estructura compatible con el resto del sistema.
     """
+    try:
+        from modules.openai_embeddings import search
+        semantic = search(
+            " ".join([str(categoria or ""), str(texto_reclamo or "")]),
+            top_k=int(os.getenv("RAG_TOP_K", str(max_docs))),
+            threshold=float(os.getenv("RAG_SIMILARITY_THRESHOLD", "0.70")),
+        )
+        if semantic:
+            return semantic[: int(max_docs)]
+    except Exception:
+        pass
+
     if using_postgres() and _pgvector_habilitado():
         try:
             if contar_embeddings_rag() == 0:
                 return recuperar_documentos_tfidf(texto_reclamo, categoria, max_docs)
 
             consulta = " ".join([str(categoria or ""), str(texto_reclamo or "")])
-            embedding = generar_embedding_local(consulta)
+            from modules.openai_embeddings import create_embeddings
+            embedding = create_embeddings([consulta])[0]
             filas = buscar_embeddings_rag(embedding, max_docs=max_docs)
 
             resultados = []
@@ -316,7 +315,7 @@ def recuperar_documentos_tfidf(texto_reclamo, categoria, max_docs=3):
 
     return resultados
 
-def _generar_respuesta_openai(nombre_cliente, codigo_pedido, descripcion, analisis, documentos):
+def _generar_respuesta_openai(nombre_cliente, codigo_pedido, descripcion, analisis, documentos, historial=None):
     if not os.getenv("OPENAI_API_KEY"):
         return None
 
@@ -329,6 +328,10 @@ def _generar_respuesta_openai(nombre_cliente, codigo_pedido, descripcion, analis
             f"Fragmento: {doc.get('fragmento') or doc.get('contenido')}"
             for doc in documentos[:5]
         ) or "No hay documentos recuperados."
+        conversacion = "\n".join(
+            f"{item.get('sender_type')}: {item.get('mensaje')}"
+            for item in (historial or [])[-10:]
+        ) or "Sin mensajes previos."
 
         client = OpenAI(timeout=20.0, max_retries=1)
         response = client.responses.create(
@@ -338,6 +341,8 @@ def _generar_respuesta_openai(nombre_cliente, codigo_pedido, descripcion, analis
                 "Genera una respuesta inicial breve, cordial y profesional para que un agente humano la revise. "
                 "No prometas reembolsos ni compensaciones definitivas. "
                 "No solicites datos sensibles completos de tarjetas. "
+                "Los casos de cobro, fraude, tarjeta, pedido no recibido o baja confianza requieren revision humana. "
+                "No confirmes responsabilidad de la empresa sin validacion. "
                 "Usa solo el contexto documental entregado cuando exista."
             ),
             input=(
@@ -346,6 +351,7 @@ def _generar_respuesta_openai(nombre_cliente, codigo_pedido, descripcion, analis
                 f"Reclamo: {descripcion}\n"
                 f"Categoria detectada: {analisis.get('categoria')}\n"
                 f"Prioridad: {analisis.get('prioridad')}\n\n"
+                f"Historial de conversación:\n{conversacion}\n\n"
                 f"Contexto documental recuperado:\n{contexto}\n\n"
                 "Redacta la respuesta sugerida en español, lista para revisión humana."
             ),
@@ -355,12 +361,14 @@ def _generar_respuesta_openai(nombre_cliente, codigo_pedido, descripcion, analis
     except Exception:
         return None
 
-def generar_respuesta_sugerida(nombre_cliente, codigo_pedido, descripcion, analisis, documentos):
+def generar_respuesta_sugerida(nombre_cliente, codigo_pedido, descripcion, analisis, documentos, historial=None):
     """
     Genera una respuesta sugerida fundamentada en fragmentos recuperados.
     No envía automáticamente la respuesta; queda para revisión del agente.
     """
-    respuesta_llm = _generar_respuesta_openai(nombre_cliente, codigo_pedido, descripcion, analisis, documentos)
+    respuesta_llm = _generar_respuesta_openai(
+        nombre_cliente, codigo_pedido, descripcion, analisis, documentos, historial
+    )
     if respuesta_llm:
         return respuesta_llm
 
@@ -441,7 +449,7 @@ def obtener_resumen_indice():
             "vectorizador": embeddings > 0,
             "matriz": embeddings > 0,
             "provider": "supabase_pgvector" if embeddings > 0 else "tfidf_fallback",
-            "modelo_embedding": LOCAL_EMBEDDING_MODEL if embeddings > 0 else None,
+            "modelo_embedding": os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small") if embeddings > 0 else None,
             "embeddings": embeddings,
         }
 

@@ -7,7 +7,6 @@ Interfaz React/Vite adaptada desde la demo de Figma para consumir el backend Fas
 ```powershell
 cd frontend
 npm install
-Copy-Item .env.example .env
 npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
@@ -17,7 +16,9 @@ La app queda disponible en:
 http://127.0.0.1:5173
 ```
 
-## Variable de entorno
+## Variable de entorno local
+
+La configuración se guarda directamente en `frontend/.env`, archivo privado ignorado por Git.
 
 ```text
 VITE_API_URL=http://localhost:8000

@@ -10,6 +10,9 @@ import { getClaim, ClaimDetailResponse } from '../../lib/api';
 import { CLAIM_STATUS_LABELS } from '../../types';
 import { formatDateTime } from '../../lib/utils';
 import ClientLayout from '../../components/ClientLayout';
+import ClaimConversation from '../../components/ClaimConversation';
+import { reopenClaim } from '../../lib/api';
+import { toast } from 'sonner';
 
 export default function ClaimDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -233,6 +236,19 @@ export default function ClaimDetailPage() {
               </div>
             </CardContent>
           </Card>
+        )}
+        <ClaimConversation claimId={claim.id} viewer="client" closed={claim.statusKey === 'CLOSED'} />
+        {claim.statusKey === 'CLOSED' && (
+          <Button
+            variant="outline"
+            onClick={async () => {
+              const updated = await reopenClaim(claim.id);
+              setDetail(updated);
+              toast.success('Reclamo reabierto. Ya puedes responder a soporte.');
+            }}
+          >
+            Reabrir reclamo
+          </Button>
         )}
       </div>
     </ClientLayout>

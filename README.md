@@ -37,7 +37,7 @@ smartclaim_ai/
 |-- frontend/                      # Interfaz React/Vite adaptada desde Figma
 |-- requirements.txt               # Dependencias del proyecto
 |-- README.md                      # Documentacion de instalacion y uso
-|-- .env.example                   # Variables de entorno de ejemplo
+|-- .env                           # Variables locales privadas, ignoradas por Git
 |-- assets/                        # Estilos visuales y componentes UI
 |-- data/                          # Base SQLite y dataset de entrenamiento
 |   |-- smartclaim.db
@@ -168,7 +168,6 @@ Terminal 2 - frontend:
 ```powershell
 cd smartclaim_ai\frontend
 npm install
-Copy-Item .env.example .env
 npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
@@ -223,10 +222,12 @@ DATABASE_URL=postgresql://...
 USE_RAG=true
 MODEL_PROVIDER=local
 AUTH_SECRET=change-this-secret-in-production
-EMBEDDING_PROVIDER=local
-EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
 OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4.1-mini
+OPENAI_CHAT_MODEL=gpt-4.1-mini
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+USE_OPENAI_EMBEDDINGS=true
+RAG_TOP_K=5
+RAG_SIMILARITY_THRESHOLD=0.70
 ```
 
 No subas `.env` al repositorio. La cadena real de `DATABASE_URL` debe quedar solo como variable secreta en Render o en tu entorno local.
@@ -316,7 +317,7 @@ El seed inicial carga 18 documentos detallados para alimentar el RAG y el LLM co
 ### Motor RAG
 
 Permite reconstruir fragmentos, generar el indice vectorial y probar recuperacion documental por similitud.
-En modo PostgreSQL/Supabase usa `pgvector` con embeddings neuronales locales de `sentence-transformers`.
+Puede usar OpenAI Embeddings para recuperacion semantica sin instalar modelos pesados en Render.
 En modo SQLite conserva TF-IDF como respaldo local.
 
 ### Reportes
@@ -329,13 +330,13 @@ Permite ajustar parametros basicos del prototipo: umbral de confianza, revision 
 
 ## Aclaracion Academica Sobre IA Y RAG
 
-Este prototipo usa dos modos de RAG. En SQLite local usa TF-IDF como aproximacion academica. En PostgreSQL/Supabase usa `pgvector` con embeddings neuronales open source (`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`) para recuperacion semantica.
+Este prototipo usa OpenAI Embeddings cuando existe una clave configurada y conserva TF-IDF como respaldo local. El indice OpenAI se guarda en JSON para no recalcular embeddings en cada solicitud. Opcionalmente, PostgreSQL/Supabase puede usar pgvector.
 
 Si `OPENAI_API_KEY` esta configurada, la respuesta sugerida se genera con OpenAI mediante la Responses API usando los documentos recuperados como contexto. Si no hay clave, el sistema usa una plantilla local para mantener la demo operativa.
 
 ## Limitaciones Actuales
 
-- No hay envio real de respuestas al cliente.
+- El envio ocurre dentro del hilo del reclamo; no integra correo, WhatsApp ni SMS externos.
 - En modo SQLite, el RAG usa TF-IDF; el modo vectorial real requiere PostgreSQL/Supabase con `pgvector`.
 - La generacion de respuesta usa OpenAI si hay API key; si no, usa plantilla local.
 - La version full stack tiene API FastAPI; para produccion se recomienda usar PostgreSQL/Supabase en lugar de SQLite local.
@@ -351,6 +352,47 @@ Si `OPENAI_API_KEY` esta configurada, la respuesta sugerida se genera con OpenAI
 - Agregar Dockerfile y docker-compose.
 - Incorporar auditoria avanzada de prompts, respuestas y decisiones del modelo.
 - Crear un flujo real de envio de respuesta al cliente.
+
+## OpenAI Embeddings Y Render Gratuito
+
+SmartClaim AI no instala `torch`, `transformers` ni `sentence-transformers`. La recuperacion semantica usa la API de OpenAI y cae automaticamente al RAG TF-IDF si falta la clave, no hay credito o la API falla.
+
+Generar manualmente el indice:
+
+```powershell
+python scripts/build_openai_embeddings_index.py
+```
+
+El resultado se guarda en `vector_store/openai_embeddings.json`. El script compara el hash de cada fragmento y solo vuelve a generar los embeddings modificados. No se ejecuta durante el inicio de FastAPI.
+
+## Conversacion Continua De Reclamos
+
+Cada reclamo tiene un hilo de mensajes. La descripcion inicial se registra como primer mensaje; cliente y soporte pueden responder mientras el caso este abierto. Una respuesta del cliente devuelve el caso a revision, una respuesta del agente genera una notificacion y el caso puede cerrarse o reabrirse.
+
+```text
+GET  /api/claims/{claim_id}/messages
+POST /api/claims/{claim_id}/messages
+POST /api/claims/{claim_id}/close
+POST /api/claims/{claim_id}/reopen
+```
+
+## Chatbot De Ayuda
+
+El widget flotante consulta `POST /api/chat`. Todas las llamadas a OpenAI ocurren en FastAPI; la clave nunca se expone al frontend. Sin OpenAI, el chatbot responde con orientacion local basica.
+
+## Navegacion De Cliente
+
+Un cliente autenticado puede navegar entre Inicio, Restaurantes, Carrito, Mis pedidos, Mis reclamos y Ayuda. Las rutas `/restaurants`, `/products` y `/cart` mantienen acceso al catalogo sin cerrar sesion.
+
+## Verificacion Full Stack
+
+```powershell
+python -m compileall -q backend database modules scripts tests
+python -m pytest -q
+cd frontend
+npm install
+npm run build
+```
 
 ## Flujo Recomendado De Demo
 
