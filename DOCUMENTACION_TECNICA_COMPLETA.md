@@ -13,12 +13,7 @@ SmartClaim AI es una plataforma académica full stack que simula la operación d
 
 El sistema permite que un cliente explore restaurantes, agregue productos al carrito, registre pedidos, reporte problemas y mantenga una conversación con soporte. Cuando se registra un reclamo, el backend puede clasificarlo automáticamente, asignar prioridad, calcular confianza, recuperar documentos internos relevantes y generar una respuesta sugerida. Un agente humano revisa la respuesta antes de enviarla, mientras que un administrador controla la base documental, la configuración de IA y los reportes.
 
-El proyecto implementa dos experiencias:
-
-1. **Aplicación full stack principal:** React/Vite + FastAPI, preparada para Vercel, Render y PostgreSQL/Supabase.
-2. **Aplicación Streamlit académica heredada:** interfaz complementaria para demostrar módulos técnicos, base de datos, modelo y motor RAG.
-
-La aplicación principal no es solamente un clasificador. Integra catálogo, pedidos, autenticación, reclamos, IA, RAG, revisión humana, mensajería, notificaciones, reportes y administración.
+La plataforma utiliza una única experiencia oficial construida con React/Vite y FastAPI, preparada para Vercel, Render y PostgreSQL/Supabase. No es solamente un clasificador: integra catálogo, pedidos, autenticación, reclamos, IA, RAG, revisión humana, mensajería, notificaciones, reportes y administración.
 
 ---
 
@@ -105,27 +100,6 @@ Incluye todas las funciones operativas del agente y además:
 - Filtros avanzados de reportes.
 - Exportación de reportes a CSV y PDF.
 - Consulta de métricas operativas y de IA.
-
-### 3.5 Funciones de la interfaz Streamlit heredada
-
-La versión Streamlit se conserva como demostrador académico y contiene:
-
-- Dashboard general.
-- Nuevo reclamo.
-- Historial de reclamos.
-- Análisis IA.
-- Base documental.
-- Reportes.
-- Configuración del modelo.
-- Modelo IA.
-- Motor RAG.
-- Exploración de base de datos.
-- Panel ejecutivo.
-- Datos de prueba.
-
-Para una demostración de producto se recomienda usar la aplicación React. Streamlit resulta útil para explicar componentes técnicos y explorar el prototipo local.
-
----
 
 ## 4. Actores y permisos
 
@@ -233,8 +207,6 @@ flowchart LR
     R --> O[OpenAI API]
     H --> O
     A --> N[Notificaciones internas]
-    ST[Streamlit académico] --> S
-    ST --> D
 ```
 
 ### 6.2 Arquitectura por capas
@@ -242,7 +214,6 @@ flowchart LR
 | Capa | Responsabilidad | Tecnologías principales |
 |---|---|---|
 | Presentación principal | Experiencia pública, cliente, agente y administrador | React, TypeScript, Vite, Tailwind, Radix UI, Lucide |
-| Presentación académica | Exploración técnica local | Streamlit |
 | API | Validación HTTP, autorización y exposición de casos de uso | FastAPI, Pydantic |
 | Aplicación/negocio | Reclamos, pedidos, respuestas, mensajes, reportes | Python |
 | IA/NLP | Clasificación, prioridad, sentimiento y generación | scikit-learn, reglas, OpenAI |
@@ -340,7 +311,6 @@ sequenceDiagram
 
 ```text
 smartclaim_ai/
-|-- app.py                         # Entrada de la aplicación Streamlit heredada
 |-- backend/
 |   |-- __init__.py
 |   `-- main.py                    # API FastAPI, DTO, permisos y casos de uso HTTP
@@ -356,8 +326,6 @@ smartclaim_ai/
 |   |-- e2e/                       # Pruebas Playwright por rol
 |   |-- package.json
 |   `-- vercel.json                # Build Vite y rewrite SPA
-|-- assets/
-|   `-- styles.py                  # Estilos compartidos de Streamlit
 |-- data/
 |   |-- reclamos_entrenamiento.csv # Dataset académico de clasificación
 |   `-- smartclaim.db              # Base SQLite local
@@ -380,7 +348,6 @@ smartclaim_ai/
 |   |-- metrics.py                 # Métricas operativas
 |   |-- security.py                # Hash de contraseñas y tokens
 |   `-- text_processing.py         # Normalización, sentimiento y entidades
-|-- pages/                         # Módulos Streamlit
 |-- scripts/                       # Preparación, entrenamiento, índices y migración
 |-- tests/                         # Pruebas funcionales y de API
 |-- vector_store/                  # Artefactos vectoriales locales
@@ -512,7 +479,7 @@ La API central está definida en `backend/main.py`. FastAPI valida los cuerpos d
 
 ### 11.1 Proveedores
 
-- **SQLite:** desarrollo local, pruebas y Streamlit.
+- **SQLite:** desarrollo local y pruebas.
 - **PostgreSQL/Supabase:** producción y persistencia centralizada.
 - La selección se realiza mediante `DB_PROVIDER`, `APP_ENV` y `DATABASE_URL`.
 - `database/db_connection.py` adapta consultas parametrizadas para ambos motores.
@@ -787,7 +754,7 @@ Los reportes administrativos no son accesibles para agentes ni clientes.
 - `AUTH_SECRET` debe tener al menos 32 caracteres.
 - CORS se limita a los orígenes configurados.
 - Las previews de Vercel solo se habilitan explícitamente.
-- `.env` y secretos de Streamlit están ignorados por Git.
+- `.env` está ignorado por Git.
 - No deben almacenarse claves reales en el repositorio.
 
 ### 16.4 Límites de seguridad actuales
@@ -879,22 +846,6 @@ Frontend:
 http://127.0.0.1:5173
 ```
 
-### 18.3 Streamlit
-
-```powershell
-cd "c:\Users\PC\Documents\2 - PROYECTOS DEV\smartclaim_ai"
-.\.venv\Scripts\Activate.ps1
-python -m streamlit run app.py
-```
-
-Streamlit:
-
-```text
-http://localhost:8501
-```
-
----
-
 ## 19. Scripts operativos
 
 | Script | Función |
@@ -956,7 +907,7 @@ Al publicar cambios en la rama conectada:
 ### 21.1 Pruebas Python
 
 ```powershell
-python -m compileall -q app.py assets backend database modules pages scripts tests
+python -m compileall -q backend database modules scripts tests
 pytest
 ```
 
@@ -1078,7 +1029,6 @@ Necesito que revisen el caso porque pagué el pedido completo.
 - TF-IDF es un fallback académico, no una base vectorial neuronal.
 - La autenticación propia es adecuada para prototipo, no reemplaza un proveedor de identidad empresarial.
 - Los archivos locales de Render pueden perderse entre despliegues; pgvector/Supabase es la opción persistente.
-- Streamlit y React duplican parcialmente capacidades porque representan etapas diferentes del proyecto.
 - No existe Dockerización activa en el alcance actual.
 - No se procesan pagos ni reembolsos reales.
 
