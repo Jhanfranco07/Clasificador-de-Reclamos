@@ -12,7 +12,9 @@ test('cliente navega por pedidos, reclamos y perfil', async ({ page }) => {
   await expect(page).toHaveURL(/\/dashboard|\/checkout/);
   await page.goto('/claims');
   await expect(page.getByRole('heading', { name: 'Mis reclamos' })).toBeVisible();
-  await page.goto('/profile');
+  await page.getByRole('button', { name: 'Abrir menú de cuenta' }).click();
+  await expect(page.getByRole('button', { name: 'Editar perfil' })).toBeVisible();
+  await page.getByRole('button', { name: 'Editar perfil' }).click();
   await expect(page.getByRole('heading', { name: 'Mi perfil' })).toBeVisible();
 });
 

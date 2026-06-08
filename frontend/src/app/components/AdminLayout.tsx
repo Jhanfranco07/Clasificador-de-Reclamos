@@ -2,14 +2,6 @@
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu';
-import {
   LayoutDashboard,
   Inbox,
   FileText,
@@ -20,7 +12,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import ThemeToggle from './ThemeToggle';
 
 interface AdminLayoutProps {
@@ -31,6 +23,18 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [accountOpen, setAccountOpen] = useState(false);
+  const accountRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!accountRef.current?.contains(event.target as Node)) {
+        setAccountOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -74,45 +78,58 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
           <div className="flex items-center gap-2 sm:gap-4">
             <ThemeToggle />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className="h-11 gap-3 rounded-lg px-2 text-white hover:bg-slate-800 hover:text-white sm:px-3"
-                  aria-label="Abrir menú de cuenta"
-                >
-                  <span className="hidden text-right sm:block">
-                    <span className="block text-xs text-gray-400">
-                      {currentUser?.role === 'ADMIN' ? 'Administrador' : 'Agente'}
-                    </span>
-                    <span className="block max-w-36 truncate text-sm font-medium">
-                      {currentUser?.name}
-                    </span>
+            <div className="relative" ref={accountRef}>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-11 gap-3 rounded-lg px-2 text-white hover:bg-slate-800 hover:text-white sm:px-3"
+                aria-label="Abrir menú de cuenta"
+                aria-expanded={accountOpen}
+                onClick={() => setAccountOpen((open) => !open)}
+              >
+                <span className="hidden text-right sm:block">
+                  <span className="block text-xs text-gray-400">
+                    {currentUser?.role === 'ADMIN' ? 'Administrador' : 'Agente'}
                   </span>
-                  <Avatar className="size-9">
-                    <AvatarFallback className="bg-orange-600">
-                      {currentUser?.name?.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Mi cuenta</DropdownMenuLabel>
-                <div className="px-2 pb-2 text-xs text-gray-500">
-                  <p className="font-medium text-gray-700">{currentUser?.name}</p>
-                  <p className="truncate">{currentUser?.email}</p>
-                </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate('/admin/profile')}>
+                  <span className="block max-w-36 truncate text-sm font-medium">
+                    {currentUser?.name}
+                  </span>
+                </span>
+                <Avatar className="size-9">
+                  <AvatarFallback className="bg-orange-600">
+                    {currentUser?.name?.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+
+              {accountOpen && (
+                <div className="absolute right-0 top-12 z-[110] w-64 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-xl">
+                  <div className="border-b border-border px-4 py-3">
+                    <p className="text-sm font-semibold">{currentUser?.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{currentUser?.email}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm hover:bg-accent"
+                    onClick={() => {
+                      setAccountOpen(false);
+                      navigate('/admin/profile');
+                    }}
+                  >
                   <UserRound className="mr-2 size-4" />
                   Editar perfil
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleLogout}>
+                  </button>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 border-t border-border px-4 py-3 text-left text-sm hover:bg-accent"
+                    onClick={handleLogout}
+                  >
                   <LogOut className="mr-2 size-4" />
                   Cerrar sesión
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>

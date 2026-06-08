@@ -1,14 +1,6 @@
 import { Link, Outlet, useNavigate, useLocation } from 'react-router';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback } from './ui/avatar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu';
 import { Package, Home, ShoppingBag, AlertCircle, HelpCircle, LogOut, Bell, Utensils, ShoppingCart, UserRound } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
@@ -35,7 +27,9 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
   const location = useLocation();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const notificationsRef = useRef<HTMLDivElement | null>(null);
+  const accountRef = useRef<HTMLDivElement | null>(null);
   const unread = notifications.filter((item) => !item.read).length;
 
   useEffect(() => {
@@ -49,6 +43,9 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
     const handleClickOutside = (event: MouseEvent) => {
       if (!notificationsRef.current?.contains(event.target as Node)) {
         setNotificationsOpen(false);
+      }
+      if (!accountRef.current?.contains(event.target as Node)) {
+        setAccountOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -171,43 +168,56 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
                 </div>
               )}
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className="h-11 gap-3 rounded-lg px-2 sm:px-3"
-                  aria-label="Abrir menú de cuenta"
-                >
-                  <span className="hidden text-left sm:block">
-                    <span className="block text-xs text-muted-foreground">Mi cuenta</span>
-                    <span className="block max-w-32 truncate text-sm font-medium">
-                      {currentUser?.name?.split(' ')[0]}
-                    </span>
+            <div className="relative" ref={accountRef}>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-11 gap-3 rounded-lg px-2 sm:px-3"
+                aria-label="Abrir menú de cuenta"
+                aria-expanded={accountOpen}
+                onClick={() => setAccountOpen((open) => !open)}
+              >
+                <span className="hidden text-left sm:block">
+                  <span className="block text-xs text-muted-foreground">Mi cuenta</span>
+                  <span className="block max-w-32 truncate text-sm font-medium">
+                    {currentUser?.name?.split(' ')[0]}
                   </span>
-                  <Avatar className="size-9">
-                    <AvatarFallback>
-                      {currentUser?.name?.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Mi cuenta</DropdownMenuLabel>
-                <div className="px-2 pb-2 text-xs text-gray-500">
-                  <p className="font-medium text-gray-700">{currentUser?.name}</p>
-                  <p className="truncate">{currentUser?.email}</p>
-                </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate('/profile')}>
+                </span>
+                <Avatar className="size-9">
+                  <AvatarFallback>
+                    {currentUser?.name?.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+
+              {accountOpen && (
+                <div className="absolute right-0 top-12 z-[110] w-64 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-xl">
+                  <div className="border-b border-border px-4 py-3">
+                    <p className="text-sm font-semibold">{currentUser?.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{currentUser?.email}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm hover:bg-accent"
+                    onClick={() => {
+                      setAccountOpen(false);
+                      navigate('/profile');
+                    }}
+                  >
                   <UserRound className="mr-2 size-4" />
                   Editar perfil
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleLogout}>
+                  </button>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 border-t border-border px-4 py-3 text-left text-sm hover:bg-accent"
+                    onClick={handleLogout}
+                  >
                   <LogOut className="mr-2 size-4" />
                   Cerrar sesión
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
