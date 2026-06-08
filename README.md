@@ -405,6 +405,26 @@ npm install
 npm run build
 ```
 
+## Pruebas E2E por rol
+
+Las pruebas Playwright validan los recorridos principales de cliente, agente y administrador, incluyendo permisos de navegación.
+
+```powershell
+cd frontend
+npx playwright install chromium
+$env:E2E_BASE_URL="http://localhost:5173"
+npm run test:e2e
+```
+
+## Funciones de interfaz recientes
+
+- Catálogo, detalle de restaurante y carrito separados por ruta.
+- Perfil editable para clientes, agentes y administradores.
+- Tema claro/oscuro opcional desde la barra superior.
+- Bandeja de reclamos con rango de fechas, búsqueda y paginación.
+- Reportes con filtros por fecha, estado, prioridad y categoría.
+- Exportación ejecutiva en CSV y PDF.
+
 ## Flujo Recomendado De Demo
 
 1. Abrir el Dashboard.

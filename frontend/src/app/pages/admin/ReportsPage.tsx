@@ -32,6 +32,10 @@ import AdminLayout from '../../components/AdminLayout';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { getReports, ReportsResponse } from '../../lib/api';
+import { Input } from '../../components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const CATEGORY_COLORS: Record<string, string> = {
   'Cobro indebido': '#ef4444',
@@ -134,12 +138,17 @@ function ChartCard({
 export default function ReportsPage() {
   const [data, setData] = useState<ReportsResponse | null>(null);
   const [error, setError] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [status, setStatus] = useState('ALL');
+  const [category, setCategory] = useState('ALL');
+  const [priority, setPriority] = useState('ALL');
 
   useEffect(() => {
-    getReports()
+    getReports({ dateFrom, dateTo, status, category, priority })
       .then(setData)
       .catch((err) => setError(err instanceof Error ? err.message : 'No se pudieron cargar los reportes.'));
-  }, []);
+  }, [category, dateFrom, dateTo, priority, status]);
 
   const metrics = data?.metrics || {};
   const totalClaims = metrics.total || 0;
@@ -194,6 +203,32 @@ export default function ReportsPage() {
     URL.revokeObjectURL(url);
   };
 
+  const handlePdfExport = () => {
+    const document = new jsPDF();
+    document.setFontSize(18);
+    document.text('SmartClaim AI - Reporte ejecutivo', 14, 18);
+    document.setFontSize(10);
+    document.text(`Periodo: ${dateFrom || 'inicio'} a ${dateTo || 'actualidad'}`, 14, 26);
+    autoTable(document, {
+      startY: 32,
+      head: [['Indicador', 'Valor']],
+      body: [
+        ['Total de reclamos registrados', totalClaims],
+        ['Tiempo promedio de resolución', `${metrics.tiempo_promedio_atencion || 0} min`],
+        ['Tasa de aprobación de respuestas', `${approvedRate}%`],
+        ['Casos escalados a supervisor', escalated],
+        ['Reclamos abiertos', metrics.reclamos_abiertos || 0],
+        ['Reclamos cerrados', metrics.reclamos_cerrados || 0],
+        ['Confianza promedio IA', `${metrics.confianza_promedio || 0}%`],
+      ],
+    });
+    autoTable(document, {
+      head: [['Categoría', 'Reclamos']],
+      body: categoryData.map((item) => [item.categoria, item.total]),
+    });
+    document.save('smartclaim-reporte-ejecutivo.pdf');
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-9">
@@ -205,11 +240,21 @@ export default function ReportsPage() {
               Indicadores calculados desde reclamos, conversaciones, análisis de IA y respuestas revisadas por soporte.
             </p>
           </div>
-          <Button onClick={handleExport} className="gap-2 self-start md:self-auto">
-            <Download className="size-4" />
-            Exportar CSV
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={handleExport} variant="outline" className="gap-2"><Download className="size-4" />CSV</Button>
+            <Button onClick={handlePdfExport} className="gap-2"><Download className="size-4" />PDF</Button>
+          </div>
         </div>
+
+        <Card>
+          <CardContent className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-5">
+            <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} aria-label="Fecha inicial" />
+            <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} aria-label="Fecha final" />
+            <Select value={status} onValueChange={setStatus}><SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger><SelectContent><SelectItem value="ALL">Todos los estados</SelectItem><SelectItem value="RECEIVED">Nuevo</SelectItem><SelectItem value="IN_REVIEW">En revisión</SelectItem><SelectItem value="RESPONDED">Respondido</SelectItem><SelectItem value="ESCALATED">Escalado</SelectItem><SelectItem value="CLOSED">Cerrado</SelectItem></SelectContent></Select>
+            <Select value={priority} onValueChange={setPriority}><SelectTrigger><SelectValue placeholder="Prioridad" /></SelectTrigger><SelectContent><SelectItem value="ALL">Todas las prioridades</SelectItem><SelectItem value="LOW">Baja</SelectItem><SelectItem value="MEDIUM">Media</SelectItem><SelectItem value="HIGH">Alta</SelectItem><SelectItem value="CRITICAL">Crítica</SelectItem></SelectContent></Select>
+            <Select value={category} onValueChange={setCategory}><SelectTrigger><SelectValue placeholder="Categoría" /></SelectTrigger><SelectContent><SelectItem value="ALL">Todas las categorías</SelectItem>{categoryData.map((item) => <SelectItem key={item.categoria} value={item.categoria}>{item.categoria}</SelectItem>)}</SelectContent></Select>
+          </CardContent>
+        </Card>
 
         {error && (
           <Card className="border-red-200 bg-red-50">

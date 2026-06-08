@@ -265,6 +265,14 @@ export interface ReportsResponse extends DashboardResponse {
   attentionTimeByCategory: Array<{ categoria: string; tiempo_promedio_min: number; total: number }>;
   firstResponseTimeByCategory: Array<{ categoria: string; tiempo_promedio_min: number; total: number }>;
   claimsEvolution: Array<{ fecha: string; total: number }>;
+  filters?: Record<string, string | null>;
+}
+
+export interface Pagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
 }
 
 export async function loginUser(email: string, password: string) {
@@ -294,6 +302,13 @@ export function requestPasswordReset(email: string) {
 
 export function getMe() {
   return request<{ user: AuthUser }>('/api/auth/me');
+}
+
+export function updateMe(payload: { name: string; phone?: string }) {
+  return request<{ user: AuthUser }>('/api/auth/me', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
 }
 
 export function getCatalog() {
@@ -331,8 +346,22 @@ export function createOrder(payload: {
   });
 }
 
-export function listClaims() {
-  return request<{ items: ClaimSummary[] }>('/api/claims');
+export function listClaims(filters: {
+  dateFrom?: string;
+  dateTo?: string;
+  status?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+} = {}) {
+  const params = new URLSearchParams();
+  if (filters.dateFrom) params.set('date_from', filters.dateFrom);
+  if (filters.dateTo) params.set('date_to', filters.dateTo);
+  if (filters.status && filters.status !== 'ALL') params.set('status', filters.status);
+  if (filters.search) params.set('search', filters.search);
+  params.set('page', String(filters.page || 1));
+  params.set('page_size', String(filters.pageSize || 10));
+  return request<{ items: ClaimSummary[]; pagination: Pagination }>(`/api/claims?${params}`);
 }
 
 export function getClaim(id: string) {
@@ -465,6 +494,18 @@ export function saveConfig(payload: {
   });
 }
 
-export function getReports() {
-  return request<ReportsResponse>('/api/reports');
+export function getReports(filters: {
+  dateFrom?: string;
+  dateTo?: string;
+  status?: string;
+  category?: string;
+  priority?: string;
+} = {}) {
+  const params = new URLSearchParams();
+  if (filters.dateFrom) params.set('date_from', filters.dateFrom);
+  if (filters.dateTo) params.set('date_to', filters.dateTo);
+  if (filters.status && filters.status !== 'ALL') params.set('status', filters.status);
+  if (filters.category && filters.category !== 'ALL') params.set('category', filters.category);
+  if (filters.priority && filters.priority !== 'ALL') params.set('priority', filters.priority);
+  return request<ReportsResponse>(`/api/reports?${params}`);
 }

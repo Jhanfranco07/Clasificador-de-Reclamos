@@ -5,6 +5,10 @@ from database.db_connection import fetch_all, fetch_one
 def _safe_number(value, decimals=1):
     if value is None:
         return 0
+    try:
+        return round(float(value), decimals)
+    except Exception:
+        return 0
 
 
 def _parse_datetime(value):
@@ -16,10 +20,6 @@ def _parse_datetime(value):
         return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
         return None
-    try:
-        return round(float(value), decimals)
-    except Exception:
-        return 0
 
 def obtener_metricas_dashboard():
     total = fetch_one("SELECT COUNT(*) AS total FROM reclamos")["total"]

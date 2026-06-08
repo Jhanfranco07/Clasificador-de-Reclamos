@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Toaster } from './components/ui/sonner';
 import ChatbotWidget from './components/ChatbotWidget';
 import ClientLayout from './components/ClientLayout';
+import { ThemeProvider } from 'next-themes';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -22,6 +23,9 @@ const AdminClaimDetailPage = lazy(() => import('./pages/admin/AdminClaimDetailPa
 const KnowledgeBasePage = lazy(() => import('./pages/admin/KnowledgeBasePage'));
 const AIConfigPage = lazy(() => import('./pages/admin/AIConfigPage'));
 const ReportsPage = lazy(() => import('./pages/admin/ReportsPage'));
+const RestaurantPage = lazy(() => import('./pages/catalog/RestaurantPage'));
+const CartPage = lazy(() => import('./pages/catalog/CartPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 
 function ProtectedRoute({
   children,
@@ -64,9 +68,10 @@ function AppRoutes() {
         <Route element={<ClientLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/restaurants" element={<LandingPage internal />} />
-          <Route path="/restaurants/:id" element={<LandingPage internal />} />
+          <Route path="/restaurants/:id" element={<RestaurantPage />} />
           <Route path="/products" element={<LandingPage internal />} />
-          <Route path="/cart" element={<LandingPage internal />} />
+          <Route path="/cart" element={<CartPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/orders/:id" element={<OrderDetailPage />} />
@@ -130,6 +135,14 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/admin/profile"
+        element={
+          <ProtectedRoute allowedRoles={['AGENT', 'ADMIN']}>
+            <ProfilePage />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -140,14 +153,16 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <div className="size-full">
-          <AppRoutes />
-          <Toaster />
-          <ChatbotWidget />
-        </div>
-      </BrowserRouter>
-    </AuthProvider>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+      <AuthProvider>
+        <BrowserRouter>
+          <div className="size-full">
+            <AppRoutes />
+            <Toaster />
+            <ChatbotWidget />
+          </div>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

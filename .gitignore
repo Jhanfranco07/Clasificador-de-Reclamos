@@ -21,6 +21,8 @@ htmlcov/
 
 # Logs
 *.log
+frontend/playwright-report/
+frontend/test-results/
 logs/
 
 # Archivos temporales del sistema y editores

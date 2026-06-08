@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '../../components/ui/select';
 import { AlertTriangle, Eye, Filter, Search } from 'lucide-react';
-import { listClaims, ClaimSummary } from '../../lib/api';
+import { listClaims, ClaimSummary, Pagination } from '../../lib/api';
 import { CLAIM_STATUS_LABELS, ClaimStatus } from '../../types';
 import { formatDateTime } from '../../lib/utils';
 import AdminLayout from '../../components/AdminLayout';
@@ -30,26 +30,19 @@ export default function ClaimsBandejaPage() {
   const [statusFilter, setStatusFilter] = useState<ClaimStatus | 'ALL'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 10, total: 0, totalPages: 1 });
 
   useEffect(() => {
-    listClaims()
-      .then((data) => setClaims(data.items))
-      .catch((err) => setError(err instanceof Error ? err.message : 'No se pudieron cargar los reclamos.'));
-  }, []);
+    const timer = window.setTimeout(() => listClaims({ status: statusFilter, search: searchTerm, dateFrom, dateTo, page: pagination.page, pageSize: pagination.pageSize })
+      .then((data) => { setClaims(data.items); setPagination(data.pagination); })
+      .catch((err) => setError(err instanceof Error ? err.message : 'No se pudieron cargar los reclamos.')),
+    250);
+    return () => window.clearTimeout(timer);
+  }, [dateFrom, dateTo, pagination.page, pagination.pageSize, searchTerm, statusFilter]);
 
-  const filteredClaims = claims.filter((claim) => {
-    const matchesStatus = statusFilter === 'ALL' || claim.statusKey === statusFilter;
-    const query = searchTerm.trim().toLowerCase();
-    const matchesSearch = !query || [
-      claim.code,
-      claim.customerName,
-      claim.customerEmail,
-      claim.orderCode,
-      claim.category,
-      claim.priority,
-    ].some((value) => value?.toLowerCase().includes(query));
-    return matchesStatus && matchesSearch;
-  });
+  const filteredClaims = claims;
 
   const urgentClaims = claims.filter((claim) => claim.priorityKey === 'CRITICAL' || claim.statusKey === 'ESCALATED');
   const activeClaims = claims.filter((claim) => !['RESPONDED', 'CLOSED'].includes(claim.statusKey));
@@ -91,12 +84,12 @@ export default function ClaimsBandejaPage() {
               <Search className="size-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <Input
                 value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
+                onChange={(event) => { setSearchTerm(event.target.value); setPagination((value) => ({ ...value, page: 1 })); }}
                 placeholder="Buscar código, cliente o pedido"
                 className="pl-9 sm:w-72"
               />
             </div>
-            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as ClaimStatus | 'ALL')}>
+            <Select value={statusFilter} onValueChange={(value) => { setStatusFilter(value as ClaimStatus | 'ALL'); setPagination((current) => ({ ...current, page: 1 })); }}>
               <SelectTrigger className="w-48">
                 <Filter className="size-4 text-gray-500 mr-2" />
                 <SelectValue placeholder="Filtrar por estado" />
@@ -111,6 +104,8 @@ export default function ClaimsBandejaPage() {
                 <SelectItem value="CLOSED">Cerrados</SelectItem>
               </SelectContent>
             </Select>
+            <Input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPagination((value) => ({ ...value, page: 1 })); }} aria-label="Fecha inicial" />
+            <Input type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPagination((value) => ({ ...value, page: 1 })); }} aria-label="Fecha final" />
           </div>
         </div>
 
@@ -215,6 +210,13 @@ export default function ClaimsBandejaPage() {
               </Table>
             </div>
           </CardContent>
+          <div className="flex items-center justify-between border-t px-6 py-4 text-sm">
+            <span>{pagination.total} reclamo(s) · Página {pagination.page} de {pagination.totalPages}</span>
+            <div className="flex gap-2">
+              <Button variant="outline" disabled={pagination.page <= 1} onClick={() => setPagination((value) => ({ ...value, page: value.page - 1 }))}>Anterior</Button>
+              <Button variant="outline" disabled={pagination.page >= pagination.totalPages} onClick={() => setPagination((value) => ({ ...value, page: value.page + 1 }))}>Siguiente</Button>
+            </div>
+          </div>
         </Card>
       </div>
     </AdminLayout>

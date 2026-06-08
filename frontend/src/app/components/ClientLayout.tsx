@@ -9,10 +9,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { Package, Home, ShoppingBag, AlertCircle, HelpCircle, LogOut, Bell, Utensils, ShoppingCart } from 'lucide-react';
+import { Package, Home, ShoppingBag, AlertCircle, HelpCircle, LogOut, Bell, Utensils, ShoppingCart, UserRound } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { listNotifications, markNotificationsRead, NotificationItem } from '../lib/api';
+import ThemeToggle from './ThemeToggle';
 
 interface ClientLayoutProps {
   children?: ReactNode;
@@ -98,6 +99,7 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
           </Link>
 
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <span className="text-sm text-gray-600 hidden md:block">
               Hola, {currentUser?.name?.split(' ')[0]}
             </span>
@@ -193,6 +195,10 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
                   <p className="truncate">{currentUser?.email}</p>
                 </div>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate('/profile')}>
+                  <UserRound className="mr-2 size-4" />
+                  Editar perfil
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 size-4" />
                   Cerrar sesión

@@ -9,19 +9,24 @@ import { listClaims, ClaimSummary } from '../../lib/api';
 import { CLAIM_STATUS_LABELS } from '../../types';
 import { formatDateTime } from '../../lib/utils';
 import ClientLayout from '../../components/ClientLayout';
+import { Input } from '../../components/ui/input';
 
 export default function ClaimsListPage() {
   const { currentUser } = useAuth();
   const [claims, setClaims] = useState<ClaimSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
-    listClaims()
-      .then((data) => setClaims(data.items))
+    listClaims({ dateFrom, dateTo, page, pageSize: 6 })
+      .then((data) => { setClaims(data.items); setTotalPages(data.pagination.totalPages); })
       .catch((err) => setError(err instanceof Error ? err.message : 'No se pudieron cargar los reclamos.'))
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [dateFrom, dateTo, page]);
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -72,6 +77,12 @@ export default function ClaimsListPage() {
             <CardContent className="py-4 text-red-700">{error}</CardContent>
           </Card>
         )}
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-white p-4 dark:bg-gray-900">
+          <span className="text-sm font-medium">Filtrar por fecha</span>
+          <Input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} className="w-auto" aria-label="Fecha inicial" />
+          <Input type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} className="w-auto" aria-label="Fecha final" />
+          {(dateFrom || dateTo) && <Button variant="ghost" onClick={() => { setDateFrom(''); setDateTo(''); setPage(1); }}>Limpiar</Button>}
+        </div>
 
         {isLoading ? (
           <Card>
@@ -128,6 +139,10 @@ export default function ClaimsListPage() {
                 </CardContent>
               </Card>
             ))}
+            <div className="flex items-center justify-between pt-3 text-sm">
+              <span>Página {page} de {totalPages}</span>
+              <div className="flex gap-2"><Button variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>Anterior</Button><Button variant="outline" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Siguiente</Button></div>
+            </div>
           </div>
         )}
       </div>

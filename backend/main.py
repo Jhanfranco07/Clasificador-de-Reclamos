@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 
@@ -18,6 +18,7 @@ if str(BASE_DIR) not in sys.path:
 from database.db_connection import fetch_all, fetch_one, init_db, using_postgres
 from database.repositories import (
     actualizar_configuracion,
+    actualizar_perfil_usuario,
     actualizar_documento_base,
     actualizar_estado_reclamo,
     actualizar_respuesta_final,
@@ -121,6 +122,11 @@ class RegisterRequest(BaseModel):
 
 class PasswordResetRequest(BaseModel):
     email: EmailStr
+
+
+class ProfileUpdate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=120)
+    phone: str | None = Field(default=None, max_length=30)
 
 
 class OrderItemCreate(BaseModel):
@@ -625,6 +631,12 @@ def me(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     return {"user": _to_user(user)}
 
 
+@app.patch("/api/auth/me")
+def update_me(payload: ProfileUpdate, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    updated = actualizar_perfil_usuario(user["id_auth_user"], payload.name, payload.phone)
+    return {"user": _to_user(updated)}
+
+
 @app.get("/api/catalog")
 def catalog() -> dict[str, Any]:
     restaurantes, productos_por_restaurante = listar_catalogo()
@@ -714,9 +726,41 @@ def dashboard(user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
 
 
 @app.get("/api/claims")
-def claims(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+def claims(
+    user: dict[str, Any] = Depends(get_current_user),
+    date_from: str | None = None,
+    date_to: str | None = None,
+    status: str | None = None,
+    search: str | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+) -> dict[str, Any]:
     rows = listar_reclamos_por_correo(user["correo"]) if user["rol"] == "CLIENT" else listar_reclamos()
-    return {"items": [_to_claim_summary(row) for row in rows]}
+    items = [_to_claim_summary(row) for row in rows]
+    query = (search or "").strip().lower()
+    filtered = [
+        item for item in items
+        if (not date_from or item["createdAt"][:10] >= date_from)
+        and (not date_to or item["createdAt"][:10] <= date_to)
+        and (not status or status == "ALL" or item["statusKey"] == status)
+        and (
+            not query
+            or any(query in str(item.get(key, "")).lower() for key in (
+                "code", "customerName", "customerEmail", "orderCode", "category", "priority"
+            ))
+        )
+    ]
+    total = len(filtered)
+    start = (page - 1) * page_size
+    return {
+        "items": filtered[start:start + page_size],
+        "pagination": {
+            "page": page,
+            "pageSize": page_size,
+            "total": total,
+            "totalPages": max(1, (total + page_size - 1) // page_size),
+        },
+    }
 
 
 @app.post("/api/claims", status_code=201)
@@ -966,15 +1010,58 @@ def put_config(payload: ConfigUpdate, user: dict[str, Any] = Depends(require_adm
 
 
 @app.get("/api/reports")
-def reports(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+def reports(
+    user: dict[str, Any] = Depends(require_admin),
+    date_from: str | None = None,
+    date_to: str | None = None,
+    status: str | None = None,
+    category: str | None = None,
+    priority: str | None = None,
+) -> dict[str, Any]:
+    rows = [_to_claim_summary(row) for row in listar_reclamos()]
+    scoped = [
+        item for item in rows
+        if (not date_from or item["createdAt"][:10] >= date_from)
+        and (not date_to or item["createdAt"][:10] <= date_to)
+        and (not status or status == "ALL" or item["statusKey"] == status)
+        and (not category or category == "ALL" or item["category"] == category)
+        and (not priority or priority == "ALL" or item["priorityKey"] == priority)
+    ]
+
+    def distribution(key: str, label: str) -> list[dict[str, Any]]:
+        counts: dict[str, int] = {}
+        for item in scoped:
+            value = str(item.get(key) or "Sin clasificar")
+            counts[value] = counts.get(value, 0) + 1
+        return [{label: value, "total": total} for value, total in sorted(counts.items(), key=lambda pair: pair[1], reverse=True)]
+
+    metrics = obtener_metricas_dashboard()
+    metrics.update({
+        "total": len(scoped),
+        "reclamos_abiertos": sum(item["statusKey"] != "CLOSED" for item in scoped),
+        "reclamos_cerrados": sum(item["statusKey"] == "CLOSED" for item in scoped),
+        "casos_escalados": sum(item["statusKey"] == "ESCALATED" for item in scoped),
+        "porcentaje_criticos": round(sum(item["priorityKey"] == "CRITICAL" for item in scoped) * 100 / len(scoped), 1) if scoped else 0,
+    })
+    evolution: dict[str, int] = {}
+    for item in scoped:
+        day = item["createdAt"][:10]
+        evolution[day] = evolution.get(day, 0) + 1
     return {
-        "metrics": obtener_metricas_dashboard(),
-        "byCategory": reclamos_por_categoria(),
-        "byPriority": reclamos_por_prioridad(),
-        "byStatus": reclamos_por_estado(),
+        "metrics": metrics,
+        "byCategory": distribution("category", "categoria"),
+        "byPriority": distribution("priority", "prioridad"),
+        "byStatus": distribution("status", "estado"),
         "confidenceByCategory": confianza_por_categoria(),
         "responsesByReviewStatus": respuestas_por_estado_revision(),
         "attentionTimeByCategory": tiempo_promedio_por_categoria(),
         "firstResponseTimeByCategory": tiempo_primera_respuesta_por_categoria(),
-        "claimsEvolution": evolucion_reclamos_por_fecha(),
+        "claimsEvolution": [{"fecha": day, "total": evolution[day]} for day in sorted(evolution)],
+        "filters": {
+            "dateFrom": date_from,
+            "dateTo": date_to,
+            "status": status,
+            "category": category,
+            "priority": priority,
+        },
     }

@@ -17,9 +17,11 @@ import {
   BarChart3,
   LogOut,
   Package,
+  UserRound,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { ReactNode } from 'react';
+import ThemeToggle from './ThemeToggle';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -71,6 +73,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           </Link>
 
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <span className="text-sm text-gray-300 hidden md:block">
               {currentUser?.role === 'ADMIN' ? 'Administrador' : 'Agente'} · {currentUser?.name}
             </span>
@@ -100,6 +103,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   <p className="truncate">{currentUser?.email}</p>
                 </div>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate('/admin/profile')}>
+                  <UserRound className="mr-2 size-4" />
+                  Editar perfil
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 size-4" />
                   Cerrar sesión

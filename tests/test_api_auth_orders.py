@@ -326,3 +326,25 @@ def test_agent_keeps_operational_claim_access(api_client):
 
     assert api_client.get("/api/dashboard", headers=headers).status_code == 200
     assert api_client.get("/api/claims", headers=headers).status_code == 200
+
+
+def test_profile_update_and_claim_pagination(api_client):
+    login = api_client.post(
+        "/api/auth/login",
+        json={"email": "maria.gonzalez@email.com", "password": "123456"},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['token']}"}
+
+    updated = api_client.patch(
+        "/api/auth/me",
+        headers=headers,
+        json={"name": "Maria Gonzalez Demo", "phone": "+51 999 888 777"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["user"]["name"] == "Maria Gonzalez Demo"
+    assert updated.json()["user"]["phone"] == "+51 999 888 777"
+
+    claims = api_client.get("/api/claims?page=1&page_size=1", headers=headers)
+    assert claims.status_code == 200
+    assert claims.json()["pagination"]["pageSize"] == 1
+    assert len(claims.json()["items"]) <= 1

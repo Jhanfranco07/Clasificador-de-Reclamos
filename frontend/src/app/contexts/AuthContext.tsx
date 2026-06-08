@@ -1,12 +1,13 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from '../types';
-import { clearStoredToken, getMe, getStoredToken, loginUser, registerUser } from '../lib/api';
+import { clearStoredToken, getMe, getStoredToken, loginUser, registerUser, updateMe } from '../lib/api';
 
 interface AuthContextType {
   currentUser: User | null;
   login: (email: string, password: string) => Promise<User | null>;
   register: (payload: { name: string; email: string; phone?: string; password: string }) => Promise<User | null>;
   logout: () => void;
+  updateProfile: (payload: { name: string; phone?: string }) => Promise<User>;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
@@ -93,6 +94,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setCurrentUser(null);
   };
 
+  const updateProfile = async (payload: { name: string; phone?: string }) => {
+    const result = await updateMe(payload);
+    const user = toUser(result.user);
+    setCurrentUser(user);
+    return user;
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -100,6 +108,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         login,
         register,
         logout,
+        updateProfile,
         isAuthenticated: !!currentUser,
         isLoading,
       }}

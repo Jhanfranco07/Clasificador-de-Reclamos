@@ -60,6 +60,21 @@ def obtener_usuario_auth_por_id(id_auth_user):
         LIMIT 1
     """, (id_auth_user,))
 
+def actualizar_perfil_usuario(id_auth_user, nombre, telefono=None):
+    execute("""
+        UPDATE auth_users
+        SET nombre = ?, telefono = ?
+        WHERE id_auth_user = ?
+    """, (nombre.strip(), telefono.strip() if telefono else None, id_auth_user))
+    user = obtener_usuario_auth_por_id(id_auth_user)
+    if user:
+        execute("""
+            UPDATE clientes
+            SET nombre = ?, telefono = ?
+            WHERE lower(correo) = lower(?)
+        """, (nombre.strip(), telefono.strip() if telefono else None, user["correo"]))
+    return user
+
 def asegurar_usuarios_auth_base():
     usuarios = [
         ("Maria Gonzalez", "maria.gonzalez@email.com", "CLIENT", "+51 900 111 222"),
