@@ -310,8 +310,8 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
-      {!internal && <header className="border-b bg-white/95 backdrop-blur sticky top-0 z-50">
+    <div className="min-h-screen bg-background text-foreground">
+      {!internal && <header className="border-b border-border bg-card/95 backdrop-blur sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="flex size-10 items-center justify-center rounded-xl bg-orange-500 text-white shadow-sm">
@@ -353,7 +353,7 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
       </header>}
 
       <main>
-        <section className="bg-white">
+        <section className="bg-card">
           <div className="container mx-auto px-4 py-10 grid lg:grid-cols-[1.05fr_0.95fr] gap-8 items-center">
             <div className="space-y-6">
               <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">
@@ -447,7 +447,7 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
           <div className="grid lg:grid-cols-[1fr_360px] gap-6 items-start">
             <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
               {visibleRestaurants.map((restaurant) => (
-                <article key={restaurant.id} className="bg-white border rounded-lg overflow-hidden shadow-sm hover:-translate-y-1 hover:shadow-xl transition-all duration-200">
+                <article key={restaurant.id} className="bg-card text-card-foreground border border-border rounded-lg overflow-hidden shadow-sm hover:-translate-y-1 hover:shadow-xl dark:hover:shadow-slate-950/40 transition-all duration-200">
                   <div className="aspect-[4/3] overflow-hidden">
                     <ImageWithFallback src={restaurant.image} alt={restaurant.name} className="h-full w-full object-cover" />
                   </div>
@@ -479,7 +479,7 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
 
                     <div className="space-y-3">
                       {restaurant.products.map((product) => (
-                        <div key={product.id} className="grid grid-cols-[64px_1fr_auto] gap-3 items-center rounded-lg bg-gray-50 p-3">
+                        <div key={product.id} className="grid grid-cols-[64px_1fr_auto] gap-3 items-center rounded-lg bg-muted/60 p-3">
                           <ImageWithFallback src={product.image} alt={product.name} className="size-16 rounded-lg object-cover" />
                           <div>
                             <p className="font-semibold leading-tight">{product.name}</p>
@@ -497,7 +497,7 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
               ))}
             </div>
 
-            <aside id="carrito" className="bg-white border rounded-lg shadow-sm p-5 lg:sticky lg:top-24">
+            <aside id="carrito" className="bg-card text-card-foreground border border-border rounded-lg shadow-sm dark:shadow-slate-950/25 p-5 lg:sticky lg:top-24">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-2xl font-bold">Tu carrito</h2>
@@ -574,17 +574,17 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
 
         <section className="container mx-auto px-4 py-10">
           <div className="grid md:grid-cols-3 gap-5">
-            <div className="bg-white p-5 rounded-lg border">
+            <div className="bg-card text-card-foreground p-5 rounded-lg border border-border">
               <MapPin className="size-6 text-orange-600 mb-3" />
               <h3 className="font-bold text-lg">Seguimiento del pedido</h3>
               <p className="text-gray-600 text-sm mt-2">Consulta estado, direccion y detalle del consumo.</p>
             </div>
-            <div className="bg-white p-5 rounded-lg border">
+            <div className="bg-card text-card-foreground p-5 rounded-lg border border-border">
               <HeadphonesIcon className="size-6 text-blue-600 mb-3" />
               <h3 className="font-bold text-lg">Atención inteligente</h3>
               <p className="text-gray-600 text-sm mt-2">Tus reclamos se ordenan por tipo, prioridad y estado de atención.</p>
             </div>
-            <div className="bg-white p-5 rounded-lg border">
+            <div className="bg-card text-card-foreground p-5 rounded-lg border border-border">
               <Shield className="size-6 text-green-600 mb-3" />
               <h3 className="font-bold text-lg">Gestion por agente</h3>
               <p className="text-gray-600 text-sm mt-2">El agente revisa, edita, aprueba, escala o cierra el reclamo.</p>

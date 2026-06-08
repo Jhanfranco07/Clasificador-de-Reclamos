@@ -408,7 +408,7 @@ export default function ReportsPage() {
           </div>
           <div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
             <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />
-            Los indicadores representan todos los datos disponibles actualmente. El sistema todavía no aplica filtros por rango de fechas.
+            Los indicadores principales y distribuciones reflejan los filtros seleccionados. Los promedios históricos de IA se mantienen como referencia global.
           </div>
         </section>
       </div>

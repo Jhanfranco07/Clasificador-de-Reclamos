@@ -33,10 +33,10 @@ export default function RestaurantPage() {
   if (!restaurant) return <div className="p-8 text-center">Restaurante no encontrado.</div>;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="container mx-auto px-4 py-8">
         <Button asChild variant="ghost" className="mb-5"><Link to="/restaurants"><ArrowLeft className="mr-2 size-4" />Volver al catálogo</Link></Button>
-        <div className="overflow-hidden rounded-lg border bg-white dark:bg-gray-900">
+        <div className="overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-lg dark:shadow-slate-950/30">
           <ImageWithFallback src={restaurant.image} alt={restaurant.name} className="h-72 w-full object-cover" />
           <div className="p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
@@ -45,7 +45,7 @@ export default function RestaurantPage() {
             </div>
             <div className="mt-8 grid gap-4 md:grid-cols-2">
               {restaurant.products.map((product) => (
-                <article key={product.id} className="grid grid-cols-[96px_1fr_auto] items-center gap-4 rounded-lg border p-3">
+                <article key={product.id} className="grid grid-cols-[96px_1fr_auto] items-center gap-4 rounded-lg border border-border bg-muted/40 p-3">
                   <ImageWithFallback src={product.image} alt={product.name} className="size-24 rounded-md object-cover" />
                   <div><h2 className="font-semibold">{product.name}</h2><p className="text-sm text-gray-500">{product.description}</p><p className="mt-2 font-bold">{formatCurrency(product.price)}</p></div>
                   <Button size="icon" onClick={() => add(product)} aria-label={`Agregar ${product.name}`}><Plus className="size-4" /></Button>

@@ -90,8 +90,8 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
 
   return (
     <ClientLayoutContext.Provider value>
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b sticky top-0 z-50">
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="bg-card border-b border-border sticky top-0 z-50 shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/dashboard" className="flex items-center gap-2">
             <Package className="size-8 text-orange-500" />
@@ -123,7 +123,7 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
 
               {notificationsOpen && (
                 <div
-                  className="absolute right-0 top-11 z-[100] w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border bg-white shadow-xl"
+                  className="absolute right-0 top-11 z-[100] w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-xl"
                   role="dialog"
                   aria-label="Notificaciones"
                 >
@@ -145,7 +145,7 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
                           key={item.id}
                           type="button"
                           onClick={() => openNotification(item)}
-                          className="w-full rounded-md px-3 py-2 text-left hover:bg-gray-50"
+                          className="w-full rounded-md px-3 py-2 text-left hover:bg-accent hover:text-accent-foreground"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <span className="text-sm font-semibold">{item.title}</span>
@@ -166,7 +166,7 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
                         setNotifications(result.items);
                         setNotificationsOpen(false);
                       }}
-                      className="w-full border-t px-4 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      className="w-full border-t border-border px-4 py-2 text-left text-sm font-medium text-foreground hover:bg-accent"
                     >
                       Marcar como leídas
                     </button>
@@ -209,7 +209,7 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
         </div>
       </header>
 
-      <nav className="bg-white border-b">
+      <nav className="bg-card border-b border-border">
         <div className="container mx-auto px-4">
           <div className="flex gap-1 overflow-x-auto">
             {navItems.map((item) => (
@@ -217,7 +217,7 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
                 key={item.path}
                 asChild
                   variant={isActive(item.matches) ? 'default' : 'ghost'}
-                  className="gap-2 whitespace-nowrap"
+                  className={isActive(item.matches) ? 'gap-2 whitespace-nowrap bg-orange-500 text-white hover:bg-orange-600' : 'gap-2 whitespace-nowrap'}
               >
                 <Link to={item.path} aria-current={isActive(item.matches) ? 'page' : undefined}>
                   <item.icon className="size-4" />

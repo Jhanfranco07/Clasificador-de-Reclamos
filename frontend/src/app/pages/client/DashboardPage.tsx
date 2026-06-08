@@ -99,7 +99,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
-          <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
+          <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 dark:from-orange-950/40 dark:to-slate-800 dark:border-orange-900/60">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Plus className="size-5" />
@@ -114,7 +114,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 dark:from-blue-950/40 dark:to-slate-800 dark:border-blue-900/60">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <AlertCircle className="size-5" />
@@ -154,7 +154,7 @@ export default function DashboardPage() {
                 </div>
               )}
               {recentOrders.map((order) => (
-                <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors">
                   <div className="flex items-center gap-4">
                     <img src={order.storeImage} alt={order.storeName} className="size-12 rounded-lg object-cover" />
                     <div>
@@ -195,7 +195,7 @@ export default function DashboardPage() {
             <CardContent>
               <div className="space-y-4">
                 {openClaims.slice(0, 4).map((claim) => (
-                  <div key={claim.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                  <div key={claim.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors">
                     <div>
                       <p className="font-semibold">{claim.code}</p>
                       <p className="text-sm text-gray-600">{claim.category}</p>
@@ -216,7 +216,7 @@ export default function DashboardPage() {
           </Card>
         )}
 
-        <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
+        <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200 dark:from-purple-950/35 dark:to-slate-800 dark:border-purple-900/60">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <HelpCircle className="size-5" />

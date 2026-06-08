@@ -25,6 +25,15 @@ test('cliente vuelve a la pantalla que originó el inicio de sesión', async ({ 
   await expect(page).toHaveURL('/');
 });
 
+test('preferencia de tema oscuro persiste al recargar', async ({ page }) => {
+  await login(page, 'maria.gonzalez@email.com');
+  await page.getByRole('button', { name: 'Usar tema oscuro' }).click();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await page.reload();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await expect(page.getByRole('button', { name: 'Usar tema claro' })).toBeVisible();
+});
+
 test('agente gestiona reclamos sin acceder a configuración administrativa', async ({ page }) => {
   await login(page, 'laura.martinez@smartclaim.com');
   await expect(page).toHaveURL(/\/admin/);

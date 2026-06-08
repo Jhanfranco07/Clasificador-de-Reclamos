@@ -57,8 +57,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-slate-950 text-white border-b border-slate-800 sticky top-0 z-50 shadow-lg shadow-slate-950/10">
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="bg-slate-950 text-white dark:bg-slate-900 border-b border-slate-800 dark:border-slate-700 sticky top-0 z-50 shadow-lg shadow-slate-950/10">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/admin" className="flex items-center gap-2">
             <span className="flex size-10 items-center justify-center rounded-xl bg-orange-500 text-white">
@@ -117,7 +117,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         </div>
       </header>
 
-      <nav className="bg-white border-b shadow-sm">
+      <nav className="bg-card border-b border-border shadow-sm">
         <div className="container mx-auto px-4">
           <div className="flex gap-1 overflow-x-auto">
             {navItems.map((item) => (
@@ -125,7 +125,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 key={item.path}
                 asChild
                   variant={isActive(item.path) ? 'default' : 'ghost'}
-                  className="gap-2 whitespace-nowrap"
+                  className={isActive(item.path) ? 'gap-2 whitespace-nowrap bg-orange-500 text-white hover:bg-orange-600' : 'gap-2 whitespace-nowrap'}
               >
                 <Link to={item.path} aria-current={isActive(item.path) ? 'page' : undefined}>
                   <item.icon className="size-4" />

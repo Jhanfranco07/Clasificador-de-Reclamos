@@ -63,7 +63,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#fff7ed,transparent_32%),linear-gradient(135deg,#ffffff_0%,#f8fafc_45%,#eff6ff_100%)] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#fff7ed,transparent_32%),linear-gradient(135deg,#ffffff_0%,#f8fafc_45%,#eff6ff_100%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(249,115,22,0.12),transparent_32%),linear-gradient(135deg,#0f172a_0%,#111827_55%,#0f172a_100%)] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2 mb-4">
@@ -72,7 +72,7 @@ export default function LoginPage() {
             </span>
             <span className="font-bold text-3xl">SmartClaim AI</span>
           </Link>
-          <div className="mx-auto flex w-fit items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs text-gray-600 shadow-sm">
+          <div className="mx-auto flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground shadow-sm">
             <ShieldCheck className="size-3.5 text-green-600" />
             Acceso seguro por rol
           </div>

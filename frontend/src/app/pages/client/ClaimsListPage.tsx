@@ -77,7 +77,7 @@ export default function ClaimsListPage() {
             <CardContent className="py-4 text-red-700">{error}</CardContent>
           </Card>
         )}
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-white p-4 dark:bg-gray-900">
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-4 text-card-foreground">
           <span className="text-sm font-medium">Filtrar por fecha</span>
           <Input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} className="w-auto" aria-label="Fecha inicial" />
           <Input type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} className="w-auto" aria-label="Fecha final" />

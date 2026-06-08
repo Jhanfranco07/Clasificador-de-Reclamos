@@ -41,7 +41,7 @@ export default function ClaimConversation({
   };
 
   return (
-    <section className="rounded-lg border bg-white p-5">
+    <section className="rounded-lg border border-border bg-card p-5 text-card-foreground">
       <div className="mb-5 flex items-center gap-2">
         <MessageSquare className="size-5 text-orange-600" />
         <h2 className="text-lg font-bold">Conversación del reclamo</h2>
@@ -51,7 +51,7 @@ export default function ClaimConversation({
           const own = item.senderType === viewer;
           return (
             <div key={item.id} className={`flex ${own ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[85%] rounded-lg px-4 py-3 ${own ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-900'}`}>
+              <div className={`max-w-[85%] rounded-lg px-4 py-3 ${own ? 'bg-orange-500 text-white' : 'bg-muted text-foreground'}`}>
                 <p className="whitespace-pre-line text-sm">{item.message}</p>
                 <p className={`mt-2 text-xs ${own ? 'text-white/65' : 'text-gray-500'}`}>
                   {item.senderType === 'client' ? 'Cliente' : item.senderType === 'agent' ? 'Soporte' : 'Sistema'} · {formatDateTime(item.createdAt)}
@@ -62,7 +62,7 @@ export default function ClaimConversation({
         })}
       </div>
       {closed ? (
-        <p className="mt-5 rounded-md bg-gray-50 p-3 text-sm text-gray-600">
+        <p className="mt-5 rounded-md bg-muted p-3 text-sm text-muted-foreground">
           Este reclamo está cerrado. Reábrelo para continuar la conversación.
         </p>
       ) : (

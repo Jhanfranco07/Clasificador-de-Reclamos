@@ -89,8 +89,8 @@ export default function ChatbotWidget() {
   return (
     <div className="fixed bottom-5 right-5 z-[120]">
       {open && (
-        <div className="mb-3 flex h-[430px] w-[340px] flex-col overflow-hidden rounded-lg border bg-white shadow-2xl">
-          <div className="flex items-center justify-between bg-slate-950 px-4 py-3 text-white">
+        <div className="mb-3 flex h-[430px] w-[340px] flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-2xl shadow-slate-950/30">
+          <div className="flex items-center justify-between bg-slate-900 px-4 py-3 text-white">
             <div>
               <div className="flex items-center gap-2 font-semibold">
                 <Bot className="size-5" /> Asistente SmartClaim AI
@@ -104,7 +104,7 @@ export default function ChatbotWidget() {
           <div className="flex-1 space-y-3 overflow-y-auto p-3">
             {messages.map((item, index) => (
               <div key={index} className={`flex ${item.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <p className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${item.role === 'user' ? 'bg-orange-500 text-white' : 'bg-gray-100'}`}>
+                <p className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${item.role === 'user' ? 'bg-orange-500 text-white' : 'bg-muted text-foreground'}`}>
                   {item.text}
                 </p>
               </div>
@@ -112,7 +112,7 @@ export default function ChatbotWidget() {
             {working && <TypingIndicator />}
             <div ref={messagesEndRef} />
           </div>
-          <div className="flex gap-2 border-t p-3">
+          <div className="flex gap-2 border-t border-border bg-card p-3">
             <Input
               disabled={working}
               value={text}
@@ -128,7 +128,7 @@ export default function ChatbotWidget() {
       )}
       <Button
         onClick={() => setOpen((value) => !value)}
-        className="size-12 rounded-full shadow-xl"
+        className="size-12 rounded-full bg-orange-500 text-white shadow-xl shadow-orange-950/30 hover:bg-orange-600"
         aria-label="Abrir ayuda"
       >
         <Bot className="size-5" />
