@@ -302,3 +302,27 @@ def test_production_runtime_rejects_insecure_secret(monkeypatch):
 
     with pytest.raises(RuntimeError, match="AUTH_SECRET"):
         validate_runtime_config()
+
+
+def test_agent_cannot_access_admin_configuration(api_client):
+    agent_login = api_client.post(
+        "/api/auth/login",
+        json={"email": "laura.martinez@smartclaim.com", "password": "123456"},
+    )
+    headers = {"Authorization": f"Bearer {agent_login.json()['token']}"}
+
+    assert api_client.get("/api/config", headers=headers).status_code == 403
+    assert api_client.get("/api/documents", headers=headers).status_code == 403
+    assert api_client.get("/api/reports", headers=headers).status_code == 403
+    assert api_client.post("/api/documents/reindex", headers=headers).status_code == 403
+
+
+def test_agent_keeps_operational_claim_access(api_client):
+    agent_login = api_client.post(
+        "/api/auth/login",
+        json={"email": "laura.martinez@smartclaim.com", "password": "123456"},
+    )
+    headers = {"Authorization": f"Bearer {agent_login.json()['token']}"}
+
+    assert api_client.get("/api/dashboard", headers=headers).status_code == 200
+    assert api_client.get("/api/claims", headers=headers).status_code == 200

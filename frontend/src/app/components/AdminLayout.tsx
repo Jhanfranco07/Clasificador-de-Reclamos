@@ -38,9 +38,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const navItems = [
     { path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/admin/claims', label: 'Bandeja de reclamos', icon: Inbox },
-    { path: '/admin/knowledge', label: 'Base documental', icon: FileText },
-    { path: '/admin/ai-config', label: 'Configuración IA', icon: Settings },
-    { path: '/admin/reports', label: 'Reportes', icon: BarChart3 },
+    ...(currentUser?.role === 'ADMIN'
+      ? [
+          { path: '/admin/knowledge', label: 'Base documental', icon: FileText },
+          { path: '/admin/ai-config', label: 'Configuración IA', icon: Settings },
+          { path: '/admin/reports', label: 'Reportes', icon: BarChart3 },
+        ]
+      : []),
   ];
 
   const isActive = (path: string) => {
@@ -60,7 +64,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             </span>
             <div>
               <span className="font-bold text-xl">SmartClaim AI</span>
-              <span className="text-xs text-gray-400 block">Panel Administrativo</span>
+              <span className="text-xs text-gray-400 block">
+                {currentUser?.role === 'ADMIN' ? 'Panel Administrativo' : 'Panel de Soporte'}
+              </span>
             </div>
           </Link>
 

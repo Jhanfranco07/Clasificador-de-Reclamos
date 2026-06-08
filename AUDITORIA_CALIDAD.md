@@ -17,6 +17,7 @@ SmartClaim AI es un prototipo full stack funcional y presentable. Implementa aut
 - Eliminación de acciones de perfil sin implementación.
 - Mejoras semánticas y de accesibilidad en navegación, cuenta y notificaciones.
 - Pruebas para salud del servicio y configuración insegura de producción.
+- Separación real de permisos entre administrador y agente en frontend y backend.
 
 ## Riesgos pendientes priorizados
 

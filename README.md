@@ -190,6 +190,12 @@ Admin:   admin@smartclaim.com            Password: 123456
 La autenticacion full stack usa usuarios en base de datos, hash PBKDF2 y token Bearer firmado con `AUTH_SECRET`.
 El registro de cliente crea una cuenta real y tambien registra el cliente para pedidos y reclamos.
 
+Permisos por rol:
+
+- `CLIENT`: catálogo, pedidos, reclamos propios, conversación y notificaciones.
+- `AGENT`: dashboard operativo, bandeja de reclamos, análisis, respuestas, escalamiento y cierre.
+- `ADMIN`: funciones del agente, base documental, reindexación, configuración IA y reportes globales.
+
 ## PostgreSQL En Supabase
 
 El proyecto puede trabajar en dos modos:

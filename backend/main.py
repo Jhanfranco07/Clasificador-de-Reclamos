@@ -297,6 +297,12 @@ def require_staff(user: dict[str, Any] = Depends(get_current_user)) -> dict[str,
     return user
 
 
+def require_admin(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    if user["rol"] != "ADMIN":
+        raise HTTPException(status_code=403, detail="Esta acción requiere permisos de administrador")
+    return user
+
+
 def _config() -> dict[str, Any]:
     row = get_configuracion_activa()
     return row or {
@@ -904,39 +910,39 @@ def approve_response(response_id: int, payload: ResponseUpdate | None = None, us
 
 
 @app.get("/api/documents")
-def documents(user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
+def documents(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
     docs = [_to_document(doc) for doc in listar_documentos()]
     return {"items": docs, "index": obtener_resumen_indice()}
 
 
 @app.post("/api/documents", status_code=201)
-def create_document(payload: DocumentPayload, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
+def create_document(payload: DocumentPayload, user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
     crear_documento_base(payload.title, payload.type, payload.category, payload.content)
     construir_indice_vectorial(forzar=True)
     return documents(user)
 
 
 @app.put("/api/documents/{document_id}")
-def update_document(document_id: int, payload: DocumentPayload, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
+def update_document(document_id: int, payload: DocumentPayload, user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
     actualizar_documento_base(document_id, payload.title, payload.type, payload.category, payload.content)
     construir_indice_vectorial(forzar=True)
     return documents(user)
 
 
 @app.delete("/api/documents/{document_id}")
-def delete_document(document_id: int, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
+def delete_document(document_id: int, user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
     desactivar_documento_base(document_id)
     construir_indice_vectorial(forzar=True)
     return documents(user)
 
 
 @app.post("/api/documents/reindex")
-def reindex_documents(user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
+def reindex_documents(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
     return construir_indice_vectorial(forzar=True)
 
 
 @app.get("/api/config")
-def get_config(user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
+def get_config(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
     config = _config()
     return {
         "model": config.get("modelo_base"),
@@ -949,7 +955,7 @@ def get_config(user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
 
 
 @app.put("/api/config")
-def put_config(payload: ConfigUpdate, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
+def put_config(payload: ConfigUpdate, user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
     actualizar_configuracion(
         payload.confidence_threshold,
         payload.human_review_required,
@@ -960,7 +966,7 @@ def put_config(payload: ConfigUpdate, user: dict[str, Any] = Depends(require_sta
 
 
 @app.get("/api/reports")
-def reports(user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
+def reports(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
     return {
         "metrics": obtener_metricas_dashboard(),
         "byCategory": reclamos_por_categoria(),

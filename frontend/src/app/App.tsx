@@ -23,7 +23,13 @@ const KnowledgeBasePage = lazy(() => import('./pages/admin/KnowledgeBasePage'));
 const AIConfigPage = lazy(() => import('./pages/admin/AIConfigPage'));
 const ReportsPage = lazy(() => import('./pages/admin/ReportsPage'));
 
-function ProtectedRoute({ children, adminOnly = false }: { children?: React.ReactNode; adminOnly?: boolean }) {
+function ProtectedRoute({
+  children,
+  allowedRoles,
+}: {
+  children?: React.ReactNode;
+  allowedRoles?: Array<'CLIENT' | 'AGENT' | 'ADMIN'>;
+}) {
   const { isAuthenticated, currentUser, isLoading } = useAuth();
 
   if (isLoading) {
@@ -38,8 +44,8 @@ function ProtectedRoute({ children, adminOnly = false }: { children?: React.Reac
     return <Navigate to="/login" replace />;
   }
 
-  if (adminOnly && currentUser?.role !== 'ADMIN' && currentUser?.role !== 'AGENT') {
-    return <Navigate to="/dashboard" replace />;
+  if (allowedRoles && currentUser && !allowedRoles.includes(currentUser.role)) {
+    return <Navigate to={currentUser.role === 'CLIENT' ? '/dashboard' : '/admin'} replace />;
   }
 
   return <>{children ?? <Outlet />}</>;
@@ -76,7 +82,7 @@ function AppRoutes() {
       <Route
         path="/admin"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute allowedRoles={['AGENT', 'ADMIN']}>
             <AdminDashboardPage />
           </ProtectedRoute>
         }
@@ -87,7 +93,7 @@ function AppRoutes() {
       <Route
         path="/admin/claims"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute allowedRoles={['AGENT', 'ADMIN']}>
             <ClaimsBandejaPage />
           </ProtectedRoute>
         }
@@ -95,7 +101,7 @@ function AppRoutes() {
       <Route
         path="/admin/claims/:id"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute allowedRoles={['AGENT', 'ADMIN']}>
             <AdminClaimDetailPage />
           </ProtectedRoute>
         }
@@ -103,7 +109,7 @@ function AppRoutes() {
       <Route
         path="/admin/knowledge"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute allowedRoles={['ADMIN']}>
             <KnowledgeBasePage />
           </ProtectedRoute>
         }
@@ -111,7 +117,7 @@ function AppRoutes() {
       <Route
         path="/admin/ai-config"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute allowedRoles={['ADMIN']}>
             <AIConfigPage />
           </ProtectedRoute>
         }
@@ -119,7 +125,7 @@ function AppRoutes() {
       <Route
         path="/admin/reports"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute allowedRoles={['ADMIN']}>
             <ReportsPage />
           </ProtectedRoute>
         }
