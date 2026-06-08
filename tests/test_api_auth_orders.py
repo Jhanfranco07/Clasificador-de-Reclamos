@@ -264,3 +264,22 @@ def test_client_message_succeeds_when_notification_fails(api_client, monkeypatch
 
     assert response.status_code == 201
     assert response.json()["items"][-1]["message"].startswith("¿Podrían explicarme")
+
+
+def test_reports_expose_operational_and_ai_metrics(api_client):
+    admin_login = api_client.post(
+        "/api/auth/login",
+        json={"email": "admin@smartclaim.com", "password": "123456"},
+    )
+    headers = {"Authorization": f"Bearer {admin_login.json()['token']}"}
+
+    response = api_client.get("/api/reports", headers=headers)
+
+    assert response.status_code == 200
+    report = response.json()
+    assert "firstResponseTimeByCategory" in report
+    assert "claimsEvolution" in report
+    assert "reclamos_abiertos" in report["metrics"]
+    assert "reclamos_cerrados" in report["metrics"]
+    assert "casos_escalados" in report["metrics"]
+    assert report["metrics"]["tiempo_promedio_primera_respuesta"] >= 0

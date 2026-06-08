@@ -1,8 +1,21 @@
+from datetime import datetime
+
 from database.db_connection import fetch_all, fetch_one
 
 def _safe_number(value, decimals=1):
     if value is None:
         return 0
+
+
+def _parse_datetime(value):
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
     try:
         return round(float(value), decimals)
     except Exception:
@@ -61,6 +74,42 @@ def obtener_metricas_dashboard():
         WHERE tiempo_atencion_minutos IS NOT NULL
     """)["promedio"]
 
+    abiertos = fetch_one("""
+        SELECT COUNT(*) AS total
+        FROM reclamos r
+        INNER JOIN estados_reclamo e ON e.id_estado = r.id_estado
+        WHERE e.nombre NOT IN ('Cerrado')
+    """)["total"]
+
+    cerrados = fetch_one("""
+        SELECT COUNT(*) AS total
+        FROM reclamos r
+        INNER JOIN estados_reclamo e ON e.id_estado = r.id_estado
+        WHERE e.nombre = 'Cerrado'
+    """)["total"]
+
+    en_revision = fetch_one("""
+        SELECT COUNT(*) AS total
+        FROM reclamos r
+        INNER JOIN estados_reclamo e ON e.id_estado = r.id_estado
+        WHERE e.nombre IN ('En revision', 'En revisión')
+    """)["total"]
+
+    escalados = fetch_one("""
+        SELECT COUNT(DISTINCT id_reclamo) AS total
+        FROM historial_estados
+        WHERE estado_nuevo = 'Escalado' OR accion = 'Escalamiento de reclamo'
+    """)["total"]
+
+    criticos = fetch_one("""
+        SELECT COUNT(*) AS total
+        FROM reclamos r
+        INNER JOIN prioridades p ON p.id_prioridad = r.id_prioridad
+        WHERE p.nombre IN ('Crítica', 'Critica')
+    """)["total"]
+
+    primera_respuesta = tiempo_promedio_primera_respuesta()
+
     return {
         "total": total,
         "analizados": analizados,
@@ -73,8 +122,14 @@ def obtener_metricas_dashboard():
         "respuestas_aprobadas": respuestas_aprobadas,
         "porcentaje_respuestas_aprobadas": round((respuestas_aprobadas / respuestas_total) * 100, 1) if respuestas_total else 0,
         "tiempo_promedio_atencion": _safe_number(tiempo_promedio),
+        "tiempo_promedio_primera_respuesta": primera_respuesta,
         "casos_criticos_pendientes": casos_criticos_pendientes,
-        "confianza_promedio": round(float(confianza_promedio) * 100, 1) if confianza_promedio is not None else 0
+        "confianza_promedio": round(float(confianza_promedio) * 100, 1) if confianza_promedio is not None else 0,
+        "reclamos_abiertos": abiertos,
+        "reclamos_cerrados": cerrados,
+        "reclamos_en_revision": en_revision,
+        "casos_escalados": escalados,
+        "porcentaje_criticos": round((criticos / total) * 100, 1) if total else 0,
     }
 
 def reclamos_por_categoria():
@@ -195,6 +250,61 @@ def tiempo_promedio_por_categoria():
         }
         for row in rows
     ]
+
+
+def _tiempos_primera_respuesta():
+    rows = fetch_all("""
+        SELECT
+            r.id_reclamo,
+            COALESCE(c.nombre, 'Sin clasificar') AS categoria,
+            r.fecha_creacion,
+            MIN(cm.fecha_creacion) AS fecha_primera_respuesta
+        FROM reclamos r
+        LEFT JOIN categorias_reclamo c ON c.id_categoria = r.id_categoria
+        INNER JOIN claim_messages cm
+            ON cm.id_reclamo = r.id_reclamo
+            AND cm.sender_type = 'agent'
+            AND cm.is_internal = 0
+        GROUP BY r.id_reclamo, COALESCE(c.nombre, 'Sin clasificar'), r.fecha_creacion
+    """)
+    result = []
+    for row in rows:
+        created = _parse_datetime(row["fecha_creacion"])
+        answered = _parse_datetime(row["fecha_primera_respuesta"])
+        if created and answered:
+            result.append({
+                "categoria": row["categoria"],
+                "minutos": max(0, (answered - created).total_seconds() / 60),
+            })
+    return result
+
+
+def tiempo_promedio_primera_respuesta():
+    tiempos = _tiempos_primera_respuesta()
+    return _safe_number(sum(item["minutos"] for item in tiempos) / len(tiempos)) if tiempos else 0
+
+
+def tiempo_primera_respuesta_por_categoria():
+    grouped = {}
+    for item in _tiempos_primera_respuesta():
+        grouped.setdefault(item["categoria"], []).append(item["minutos"])
+    return [
+        {
+            "categoria": categoria,
+            "tiempo_promedio_min": _safe_number(sum(values) / len(values)),
+            "total": len(values),
+        }
+        for categoria, values in sorted(grouped.items(), key=lambda pair: sum(pair[1]) / len(pair[1]), reverse=True)
+    ]
+
+
+def evolucion_reclamos_por_fecha():
+    return fetch_all("""
+        SELECT CAST(fecha_creacion AS DATE) AS fecha, COUNT(*) AS total
+        FROM reclamos
+        GROUP BY CAST(fecha_creacion AS DATE)
+        ORDER BY fecha ASC
+    """)
 
 def casos_criticos_pendientes_detalle():
     return fetch_all("""

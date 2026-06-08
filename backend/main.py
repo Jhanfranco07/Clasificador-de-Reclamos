@@ -61,6 +61,8 @@ from modules.metrics import (
     reclamos_por_estado,
     reclamos_por_prioridad,
     respuestas_por_estado_revision,
+    evolucion_reclamos_por_fecha,
+    tiempo_primera_respuesta_por_categoria,
     tiempo_promedio_por_categoria,
 )
 from modules.rag_engine import (
@@ -951,4 +953,6 @@ def reports(user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
         "confidenceByCategory": confianza_por_categoria(),
         "responsesByReviewStatus": respuestas_por_estado_revision(),
         "attentionTimeByCategory": tiempo_promedio_por_categoria(),
+        "firstResponseTimeByCategory": tiempo_primera_respuesta_por_categoria(),
+        "claimsEvolution": evolucion_reclamos_por_fecha(),
     }

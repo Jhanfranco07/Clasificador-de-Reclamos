@@ -249,6 +249,8 @@ export interface ReportsResponse extends DashboardResponse {
   confidenceByCategory: Array<{ categoria: string; confianza_promedio: number; total: number }>;
   responsesByReviewStatus: Array<{ estado_revision: string; total: number }>;
   attentionTimeByCategory: Array<{ categoria: string; tiempo_promedio_min: number; total: number }>;
+  firstResponseTimeByCategory: Array<{ categoria: string; tiempo_promedio_min: number; total: number }>;
+  claimsEvolution: Array<{ fecha: string; total: number }>;
 }
 
 export async function loginUser(email: string, password: string) {
