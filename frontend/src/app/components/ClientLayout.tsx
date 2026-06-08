@@ -98,17 +98,14 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
             <span className="font-bold text-xl">SmartClaim AI</span>
           </Link>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-4">
             <ThemeToggle />
-            <span className="text-sm text-gray-600 hidden md:block">
-              Hola, {currentUser?.name?.split(' ')[0]}
-            </span>
             <div className="relative" ref={notificationsRef}>
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                className="relative"
+                size="icon"
+                className="relative shrink-0"
                 aria-label="Abrir notificaciones"
                 aria-expanded={notificationsOpen}
                 onClick={() => setNotificationsOpen((open) => !open)}
@@ -174,14 +171,20 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
                 </div>
               )}
             </div>
-            <Button variant="outline" size="sm" className="hidden sm:flex gap-2" onClick={handleLogout}>
-              <LogOut className="size-4" />
-              Salir
-            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative size-10 rounded-full" aria-label="Abrir menú de cuenta">
-                  <Avatar>
+                <Button
+                  variant="ghost"
+                  className="h-11 gap-3 rounded-lg px-2 sm:px-3"
+                  aria-label="Abrir menú de cuenta"
+                >
+                  <span className="hidden text-left sm:block">
+                    <span className="block text-xs text-muted-foreground">Mi cuenta</span>
+                    <span className="block max-w-32 truncate text-sm font-medium">
+                      {currentUser?.name?.split(' ')[0]}
+                    </span>
+                  </span>
+                  <Avatar className="size-9">
                     <AvatarFallback>
                       {currentUser?.name?.charAt(0).toUpperCase()}
                     </AvatarFallback>

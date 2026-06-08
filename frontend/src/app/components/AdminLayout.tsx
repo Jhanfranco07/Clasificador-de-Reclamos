@@ -72,24 +72,24 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             </div>
           </Link>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-4">
             <ThemeToggle />
-            <span className="text-sm text-gray-300 hidden md:block">
-              {currentUser?.role === 'ADMIN' ? 'Administrador' : 'Agente'} · {currentUser?.name}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="hidden sm:flex gap-2 bg-transparent text-white border-gray-700 hover:bg-gray-800 hover:text-white"
-              onClick={handleLogout}
-            >
-              <LogOut className="size-4" />
-              Salir
-            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative size-10 rounded-full" aria-label="Abrir menú de cuenta">
-                  <Avatar>
+                <Button
+                  variant="ghost"
+                  className="h-11 gap-3 rounded-lg px-2 text-white hover:bg-slate-800 hover:text-white sm:px-3"
+                  aria-label="Abrir menú de cuenta"
+                >
+                  <span className="hidden text-right sm:block">
+                    <span className="block text-xs text-gray-400">
+                      {currentUser?.role === 'ADMIN' ? 'Administrador' : 'Agente'}
+                    </span>
+                    <span className="block max-w-36 truncate text-sm font-medium">
+                      {currentUser?.name}
+                    </span>
+                  </span>
+                  <Avatar className="size-9">
                     <AvatarFallback className="bg-orange-600">
                       {currentUser?.name?.charAt(0).toUpperCase()}
                     </AvatarFallback>
