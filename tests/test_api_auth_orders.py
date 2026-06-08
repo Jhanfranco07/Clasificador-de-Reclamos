@@ -229,3 +229,38 @@ def test_agent_signature_is_added_when_missing():
     response = _firmar_respuesta_agente("Estamos revisando tu reclamo.", "Admin System")
 
     assert response.endswith("Saludos cordiales,\nAdmin System\nServicio de Atención al Cliente")
+
+
+def test_client_message_succeeds_when_notification_fails(api_client, monkeypatch):
+    client_login = api_client.post(
+        "/api/auth/login",
+        json={"email": "maria.gonzalez@email.com", "password": "123456"},
+    )
+    client_headers = {"Authorization": f"Bearer {client_login.json()['token']}"}
+    claim = api_client.post(
+        "/api/claims",
+        headers=client_headers,
+        json={
+            "customer_name": "Maria Gonzalez",
+            "customer_email": "maria.gonzalez@email.com",
+            "order_code": "ORD-NOTIFICATION-FAILURE",
+            "description": "Necesito información adicional sobre la respuesta de soporte.",
+            "analyze": False,
+        },
+    )
+    claim_id = claim.json()["claim"]["id"]
+
+    import backend.main as backend_main
+
+    def fail_notification(*args, **kwargs):
+        raise RuntimeError("Notification provider unavailable")
+
+    monkeypatch.setattr(backend_main, "crear_notificacion", fail_notification)
+    response = api_client.post(
+        f"/api/claims/{claim_id}/messages",
+        headers=client_headers,
+        json={"message": "¿Podrían explicarme con mayor detalle la solución propuesta?"},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["items"][-1]["message"].startswith("¿Podrían explicarme")

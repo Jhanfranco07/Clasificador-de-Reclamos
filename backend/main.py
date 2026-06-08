@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 import sys
 from pathlib import Path
@@ -72,6 +73,8 @@ from modules.rag_engine import (
 from modules.security import create_token, decode_token, hash_password, verify_password
 from modules.chatbot_service import answer_chat
 
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="SmartClaim AI API",
@@ -760,29 +763,45 @@ def add_claim_message(
     sender_type = "client" if user["rol"] == "CLIENT" else "agent"
     crear_mensaje_reclamo(claim_id, sender_type, user["id_auth_user"], payload.message)
     if sender_type == "client":
-        actualizar_estado_reclamo(
-            claim_id,
-            "En revision",
-            "Respuesta del cliente",
-            "El cliente agregó información al reclamo.",
-        )
-        for staff in fetch_all("SELECT correo FROM auth_users WHERE rol IN ('AGENT', 'ADMIN') AND estado = 'ACTIVO'"):
+        try:
+            actualizar_estado_reclamo(
+                claim_id,
+                "En revision",
+                "Respuesta del cliente",
+                "El cliente agregó información al reclamo.",
+            )
+        except Exception:
+            logger.exception("No se pudo actualizar el estado del reclamo %s tras el mensaje del cliente", claim_id)
+        try:
+            staff_members = fetch_all("SELECT correo FROM auth_users WHERE rol IN ('AGENT', 'ADMIN') AND estado = 'ACTIVO'")
+            for staff in staff_members:
+                try:
+                    crear_notificacion(
+                        staff["correo"],
+                        "Cliente respondió un reclamo",
+                        f"El cliente agregó un mensaje al reclamo {detail['claim']['code']}.",
+                        "ALERTA",
+                        claim_id,
+                    )
+                except Exception:
+                    logger.exception("No se pudo notificar a %s sobre el reclamo %s", staff["correo"], claim_id)
+        except Exception:
+            logger.exception("No se pudieron consultar agentes para notificar sobre el reclamo %s", claim_id)
+    else:
+        try:
+            marcar_respondido(claim_id, "El agente respondió dentro de la conversación.")
+        except Exception:
+            logger.exception("No se pudo marcar como respondido el reclamo %s", claim_id)
+        try:
             crear_notificacion(
-                staff["correo"],
-                "Cliente respondió un reclamo",
-                f"El cliente agregó un mensaje al reclamo {detail['claim']['code']}.",
-                "ALERTA",
+                detail["claim"]["customerEmail"],
+                "Nuevo mensaje de soporte",
+                f"Soporte respondió en tu reclamo {detail['claim']['code']}.",
+                "RESPUESTA",
                 claim_id,
             )
-    else:
-        marcar_respondido(claim_id, "El agente respondió dentro de la conversación.")
-        crear_notificacion(
-            detail["claim"]["customerEmail"],
-            "Nuevo mensaje de soporte",
-            f"Soporte respondió en tu reclamo {detail['claim']['code']}.",
-            "RESPUESTA",
-            claim_id,
-        )
+        except Exception:
+            logger.exception("No se pudo notificar al cliente sobre el reclamo %s", claim_id)
     return claim_messages(claim_id, user)
 
 
