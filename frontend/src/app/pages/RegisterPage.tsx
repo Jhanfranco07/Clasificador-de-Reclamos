@@ -154,11 +154,6 @@ export default function RegisterPage() {
               </div>
             </form>
 
-            <div className="mt-6 p-4 bg-amber-50 rounded-lg border border-amber-200">
-              <p className="text-xs text-amber-900">
-                Tu cuenta se crea en la base de datos y queda lista para registrar pedidos y reclamos.
-              </p>
-            </div>
           </CardContent>
         </Card>
 

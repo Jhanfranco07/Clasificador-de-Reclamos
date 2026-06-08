@@ -34,17 +34,10 @@ export default function LoginPage() {
         : requestedPath?.startsWith('/admin') ? requestedPath : '/admin';
       navigate(destination, { replace: true });
     } else {
-      setError('Credenciales incorrectas. Usa uno de los accesos de prueba disponibles.');
+      setError('Correo o contraseña incorrectos. Verifica tus datos e inténtalo nuevamente.');
     }
 
     setLoading(false);
-  };
-
-  const fillAccess = (accessEmail: string) => {
-    setEmail(accessEmail);
-    setPassword('123456');
-    setError('');
-    setInfo('');
   };
 
   const handlePasswordReset = async () => {
@@ -145,23 +138,6 @@ export default function LoginPage() {
               </div>
             </form>
 
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="text-xs font-semibold text-blue-900 mb-3">Accesos de prueba</p>
-              <div className="grid gap-2">
-                <Button variant="outline" size="sm" onClick={() => fillAccess('maria.gonzalez@email.com')}>
-                  Entrar como cliente
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => fillAccess('laura.martinez@smartclaim.com')}>
-                  Entrar como agente
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => fillAccess('admin@smartclaim.com')}>
-                  Entrar como admin
-                </Button>
-              </div>
-              <p className="text-xs text-blue-700 mt-3">
-                Contraseña de prueba para estas cuentas: 123456.
-              </p>
-            </div>
           </CardContent>
         </Card>
 
@@ -174,4 +150,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
