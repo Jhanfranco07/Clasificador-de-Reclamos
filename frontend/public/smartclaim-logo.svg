@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SmartClaim AI">
+  <rect width="64" height="64" rx="16" fill="#fff7ed"/>
+  <path d="M32 8 51 18.8v26.4L32 56 13 45.2V18.8L32 8Z" fill="#ff6b00"/>
+  <path d="M32 13.6 46.2 21.6 32 29.7 17.8 21.6 32 13.6Z" fill="#fff7ed"/>
+  <path d="M18 26.4 29 32.7v14.1l-11-6.3V26.4Z" fill="#ffedd5"/>
+  <path d="M46 26.4 35 32.7v14.1l11-6.3V26.4Z" fill="#ffffff"/>
+  <path d="M32 8 51 18.8v26.4L32 56 13 45.2V18.8L32 8Z" fill="none" stroke="#ea580c" stroke-width="2.5" stroke-linejoin="round"/>
+</svg>
