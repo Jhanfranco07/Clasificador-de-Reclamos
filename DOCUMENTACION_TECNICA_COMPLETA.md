@@ -962,8 +962,8 @@ Las semillas crean cuentas para pruebas académicas:
 
 | Rol | Correo | Contraseña |
 |---|---|---|
-| Cliente | `maria.gonzalez@email.com` | `123456` |
-| Agente | `laura.martinez@smartclaim.com` | `123456` |
+| Cliente | `jhan.perez@gmail.com` | `123456` |
+| Agente | `gonzalo.caceres@smartclaim.com` | `123456` |
 | Administrador | `admin@smartclaim.com` | `123456` |
 
 Estas credenciales no deben usarse en una operación comercial real.

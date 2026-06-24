@@ -24,7 +24,7 @@ def api_client(monkeypatch, tmp_path):
 def test_auth_orders_claims_and_roles(api_client):
     login = api_client.post(
         "/api/auth/login",
-        json={"email": "maria.gonzalez@email.com", "password": "123456"},
+        json={"email": "jhan.perez@gmail.com", "password": "123456"},
     )
     assert login.status_code == 200
     token = login.json()["token"]
@@ -55,8 +55,8 @@ def test_auth_orders_claims_and_roles(api_client):
         "/api/claims",
         headers=headers,
         json={
-            "customer_name": "Maria Gonzalez",
-            "customer_email": "maria.gonzalez@email.com",
+            "customer_name": "Jhan Perez",
+            "customer_email": "jhan.perez@gmail.com",
             "customer_phone": "+51 900 111 222",
             "order_code": order_code,
             "channel": "WEB",
@@ -102,15 +102,15 @@ def test_register_creates_client_account(api_client):
 def test_claim_continuous_conversation(api_client):
     client_login = api_client.post(
         "/api/auth/login",
-        json={"email": "maria.gonzalez@email.com", "password": "123456"},
+        json={"email": "jhan.perez@gmail.com", "password": "123456"},
     )
     client_headers = {"Authorization": f"Bearer {client_login.json()['token']}"}
     claim = api_client.post(
         "/api/claims",
         headers=client_headers,
         json={
-            "customer_name": "Maria Gonzalez",
-            "customer_email": "maria.gonzalez@email.com",
+            "customer_name": "Jhan Perez",
+            "customer_email": "jhan.perez@gmail.com",
             "order_code": "ORD-CONVERSATION-001",
             "description": "Mi pedido llegó incompleto y necesito ayuda con el producto faltante.",
             "analyze": False,
@@ -123,7 +123,7 @@ def test_claim_continuous_conversation(api_client):
 
     agent_login = api_client.post(
         "/api/auth/login",
-        json={"email": "laura.martinez@smartclaim.com", "password": "123456"},
+        json={"email": "gonzalo.caceres@smartclaim.com", "password": "123456"},
     )
     agent_headers = {"Authorization": f"Bearer {agent_login.json()['token']}"}
     agent_reply = api_client.post(
@@ -153,7 +153,7 @@ def test_chatbot_returns_real_authenticated_order_count(api_client, monkeypatch)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     login = api_client.post(
         "/api/auth/login",
-        json={"email": "maria.gonzalez@email.com", "password": "123456"},
+        json={"email": "jhan.perez@gmail.com", "password": "123456"},
     )
     headers = {"Authorization": f"Bearer {login.json()['token']}"}
     orders = api_client.get("/api/orders", headers=headers).json()["items"]
@@ -178,7 +178,7 @@ def test_chatbot_returns_real_open_claim_count(api_client, monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     login = api_client.post(
         "/api/auth/login",
-        json={"email": "maria.gonzalez@email.com", "password": "123456"},
+        json={"email": "jhan.perez@gmail.com", "password": "123456"},
     )
     headers = {"Authorization": f"Bearer {login.json()['token']}"}
     claims = api_client.get("/api/claims", headers=headers).json()["items"]
@@ -195,7 +195,7 @@ def test_chatbot_returns_real_open_claim_count(api_client, monkeypatch):
 def test_chatbot_uses_real_cart_context(api_client):
     login = api_client.post(
         "/api/auth/login",
-        json={"email": "maria.gonzalez@email.com", "password": "123456"},
+        json={"email": "jhan.perez@gmail.com", "password": "123456"},
     )
     headers = {"Authorization": f"Bearer {login.json()['token']}"}
     response = api_client.post(
@@ -216,11 +216,11 @@ def test_agent_signature_replaces_template_placeholder():
 
     response = _firmar_respuesta_agente(
         "Gracias por contactarnos.\n\nSaludos cordiales,\n[Nombre del agente]\nServicio de Atención al Cliente",
-        "Laura Martinez",
+        "Gonzalo Caceres",
     )
 
     assert "[Nombre del agente]" not in response
-    assert "Laura Martinez" in response
+    assert "Gonzalo Caceres" in response
 
 
 def test_agent_signature_is_added_when_missing():
@@ -234,15 +234,15 @@ def test_agent_signature_is_added_when_missing():
 def test_client_message_succeeds_when_notification_fails(api_client, monkeypatch):
     client_login = api_client.post(
         "/api/auth/login",
-        json={"email": "maria.gonzalez@email.com", "password": "123456"},
+        json={"email": "jhan.perez@gmail.com", "password": "123456"},
     )
     client_headers = {"Authorization": f"Bearer {client_login.json()['token']}"}
     claim = api_client.post(
         "/api/claims",
         headers=client_headers,
         json={
-            "customer_name": "Maria Gonzalez",
-            "customer_email": "maria.gonzalez@email.com",
+            "customer_name": "Jhan Perez",
+            "customer_email": "jhan.perez@gmail.com",
             "order_code": "ORD-NOTIFICATION-FAILURE",
             "description": "Necesito información adicional sobre la respuesta de soporte.",
             "analyze": False,
@@ -307,7 +307,7 @@ def test_production_runtime_rejects_insecure_secret(monkeypatch):
 def test_agent_cannot_access_admin_configuration(api_client):
     agent_login = api_client.post(
         "/api/auth/login",
-        json={"email": "laura.martinez@smartclaim.com", "password": "123456"},
+        json={"email": "gonzalo.caceres@smartclaim.com", "password": "123456"},
     )
     headers = {"Authorization": f"Bearer {agent_login.json()['token']}"}
 
@@ -320,7 +320,7 @@ def test_agent_cannot_access_admin_configuration(api_client):
 def test_agent_keeps_operational_claim_access(api_client):
     agent_login = api_client.post(
         "/api/auth/login",
-        json={"email": "laura.martinez@smartclaim.com", "password": "123456"},
+        json={"email": "gonzalo.caceres@smartclaim.com", "password": "123456"},
     )
     headers = {"Authorization": f"Bearer {agent_login.json()['token']}"}
 
@@ -331,17 +331,17 @@ def test_agent_keeps_operational_claim_access(api_client):
 def test_profile_update_and_claim_pagination(api_client):
     login = api_client.post(
         "/api/auth/login",
-        json={"email": "maria.gonzalez@email.com", "password": "123456"},
+        json={"email": "jhan.perez@gmail.com", "password": "123456"},
     )
     headers = {"Authorization": f"Bearer {login.json()['token']}"}
 
     updated = api_client.patch(
         "/api/auth/me",
         headers=headers,
-        json={"name": "Maria Gonzalez Demo", "phone": "+51 999 888 777"},
+        json={"name": "Jhan Perez Demo", "phone": "+51 999 888 777"},
     )
     assert updated.status_code == 200
-    assert updated.json()["user"]["name"] == "Maria Gonzalez Demo"
+    assert updated.json()["user"]["name"] == "Jhan Perez Demo"
     assert updated.json()["user"]["phone"] == "+51 999 888 777"
 
     claims = api_client.get("/api/claims?page=1&page_size=1", headers=headers)

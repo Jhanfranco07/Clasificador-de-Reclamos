@@ -100,7 +100,7 @@ src/app/
 ### 1️⃣ Acceso como Cliente
 ```
 URL: http://localhost/ (o la URL del preview)
-Login: maria.gonzalez@email.com
+Login: jhan.perez@gmail.com
 Contraseña: cualquiera
 ```
 
@@ -163,9 +163,9 @@ Contraseña: cualquiera
 ## 📊 F. DATOS DE PRUEBA INCLUIDOS
 
 ### Usuarios (4)
-- `maria.gonzalez@email.com` - Cliente
+- `jhan.perez@gmail.com` - Cliente
 - `carlos.rodriguez@email.com` - Cliente
-- `laura.martinez@smartclaim.com` - Agente
+- `gonzalo.caceres@smartclaim.com` - Agente
 - `admin@smartclaim.com` - Admin
 
 ### Pedidos (4)

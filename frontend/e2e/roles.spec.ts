@@ -8,7 +8,7 @@ async function login(page: Page, email: string) {
 }
 
 test('cliente navega por pedidos, reclamos y perfil', async ({ page }) => {
-  await login(page, 'maria.gonzalez@email.com');
+  await login(page, 'jhan.perez@gmail.com');
   await expect(page).toHaveURL(/\/dashboard|\/checkout/);
   await page.goto('/claims');
   await expect(page.getByRole('heading', { name: 'Mis reclamos' })).toBeVisible();
@@ -21,14 +21,14 @@ test('cliente navega por pedidos, reclamos y perfil', async ({ page }) => {
 test('cliente vuelve a la pantalla que originó el inicio de sesión', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('link', { name: 'Iniciar sesión' }).click();
-  await page.getByLabel('Email').fill('maria.gonzalez@email.com');
+  await page.getByLabel('Email').fill('jhan.perez@gmail.com');
   await page.getByLabel(/Contraseña/).fill('123456');
   await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
   await expect(page).toHaveURL('/');
 });
 
 test('preferencia de tema oscuro persiste al recargar', async ({ page }) => {
-  await login(page, 'maria.gonzalez@email.com');
+  await login(page, 'jhan.perez@gmail.com');
   await page.getByRole('button', { name: 'Usar tema oscuro' }).click();
   await expect(page.locator('html')).toHaveClass(/dark/);
   await page.reload();
@@ -37,7 +37,7 @@ test('preferencia de tema oscuro persiste al recargar', async ({ page }) => {
 });
 
 test('agente gestiona reclamos sin acceder a configuración administrativa', async ({ page }) => {
-  await login(page, 'laura.martinez@smartclaim.com');
+  await login(page, 'gonzalo.caceres@smartclaim.com');
   await expect(page).toHaveURL(/\/admin/);
   await expect(page.getByRole('link', { name: 'Bandeja de reclamos' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Configuración IA' })).toHaveCount(0);

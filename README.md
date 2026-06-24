@@ -125,8 +125,8 @@ http://127.0.0.1:5173
 ## Cuentas de demostración
 
 ```text
-Cliente: maria.gonzalez@email.com        Contraseña: 123456
-Agente:  laura.martinez@smartclaim.com   Contraseña: 123456
+Cliente: jhan.perez@gmail.com            Contraseña: 123456
+Agente:  gonzalo.caceres@smartclaim.com  Contraseña: 123456
 Admin:   admin@smartclaim.com             Contraseña: 123456
 ```
 

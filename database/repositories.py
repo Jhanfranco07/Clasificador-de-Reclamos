@@ -77,13 +77,43 @@ def actualizar_perfil_usuario(id_auth_user, nombre, telefono=None):
 
 def asegurar_usuarios_auth_base():
     usuarios = [
-        ("Maria Gonzalez", "maria.gonzalez@email.com", "CLIENT", "+51 900 111 222"),
-        ("Laura Martinez", "laura.martinez@smartclaim.com", "AGENT", None),
-        ("Admin System", "admin@smartclaim.com", "ADMIN", None),
+        ("Jhan Perez", "jhan.perez@gmail.com", "CLIENT", "+51 900 111 222", "maria.gonzalez@email.com"),
+        ("Gonzalo Caceres", "gonzalo.caceres@smartclaim.com", "AGENT", None, "laura.martinez@smartclaim.com"),
+        ("Admin System", "admin@smartclaim.com", "ADMIN", None, None),
     ]
-    for nombre, correo, rol, telefono in usuarios:
-        if not obtener_usuario_auth_por_correo(correo):
-            crear_usuario_auth(nombre, correo, hash_password("123456"), rol, telefono)
+    for nombre, correo, rol, telefono, correo_anterior in usuarios:
+        if obtener_usuario_auth_por_correo(correo):
+            execute(
+                """
+                UPDATE auth_users
+                SET nombre = ?, telefono = ?, rol = ?
+                WHERE lower(correo) = lower(?)
+                """,
+                (nombre, telefono, rol, correo),
+            )
+            continue
+
+        usuario_anterior = obtener_usuario_auth_por_correo(correo_anterior) if correo_anterior else None
+        if usuario_anterior:
+            execute(
+                """
+                UPDATE auth_users
+                SET nombre = ?, correo = ?, telefono = ?, rol = ?
+                WHERE id_auth_user = ?
+                """,
+                (nombre, correo, telefono, rol, usuario_anterior["id_auth_user"]),
+            )
+            execute(
+                """
+                UPDATE clientes
+                SET nombre = ?, correo = ?, telefono = ?
+                WHERE lower(correo) = lower(?)
+                """,
+                (nombre, correo, telefono, correo_anterior),
+            )
+            continue
+
+        crear_usuario_auth(nombre, correo, hash_password("123456"), rol, telefono)
 
 def generar_codigo_pedido():
     total = fetch_one("SELECT COUNT(*) AS total FROM pedidos")["total"] + 1
@@ -172,7 +202,7 @@ def obtener_pedido(id_pedido):
     return pedido, items
 
 def asegurar_pedidos_demo_base():
-    usuario = obtener_usuario_auth_por_correo("maria.gonzalez@email.com")
+    usuario = obtener_usuario_auth_por_correo("jhan.perez@gmail.com")
     if not usuario:
         return
     existentes = listar_pedidos_por_correo(usuario["correo"])

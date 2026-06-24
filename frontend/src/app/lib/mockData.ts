@@ -4,8 +4,8 @@ import { User, Order, Claim, ClaimAnalysis, ClaimResponse, ClaimHistoryEvent, Kn
 export const mockUsers: User[] = [
   {
     id: 'user-1',
-    name: 'María González',
-    email: 'maria.gonzalez@email.com',
+    name: 'Jhan Perez',
+    email: 'jhan.perez@gmail.com',
     role: 'CLIENT',
     phone: '+34 612 345 678',
     createdAt: new Date('2024-01-15')
@@ -20,8 +20,8 @@ export const mockUsers: User[] = [
   },
   {
     id: 'agent-1',
-    name: 'Laura Martínez',
-    email: 'laura.martinez@smartclaim.com',
+    name: 'Gonzalo Caceres',
+    email: 'gonzalo.caceres@smartclaim.com',
     role: 'AGENT',
     createdAt: new Date('2023-06-10')
   },
@@ -227,8 +227,8 @@ export const mockClaimResponses: ClaimResponse[] = [
   {
     id: 'response-1',
     claimId: 'claim-1',
-    suggestedResponse: 'Estimada María, lamentamos mucho el inconveniente. Hemos verificado el cargo duplicado en su cuenta. Procederemos a realizar el reembolso de S/ 24.50 inmediatamente. El dinero estará disponible en su cuenta en 3-5 días hábiles. Como compensación, le hemos agregado un cupón de S/ 10.00 para su próximo pedido.',
-    finalResponse: 'Estimada María, lamentamos mucho el inconveniente causado por el cargo duplicado. Hemos verificado la incidencia y confirmo que procederemos inmediatamente con el reembolso de S/ 24.50. El importe estará disponible en su cuenta en un plazo de 3-5 días hábiles. Adicionalmente, como gesto de disculpa, hemos añadido un cupón de S/ 10.00 a su cuenta para su próximo pedido. Gracias por su paciencia y comprensión.',
+    suggestedResponse: 'Estimado Jhan, lamentamos mucho el inconveniente. Hemos verificado el cargo duplicado en su cuenta. Procederemos a realizar el reembolso de S/ 24.50 inmediatamente. El dinero estará disponible en su cuenta en 3-5 días hábiles. Como compensación, le hemos agregado un cupón de S/ 10.00 para su próximo pedido.',
+    finalResponse: 'Estimado Jhan, lamentamos mucho el inconveniente causado por el cargo duplicado. Hemos verificado la incidencia y confirmo que procederemos inmediatamente con el reembolso de S/ 24.50. El importe estará disponible en su cuenta en un plazo de 3-5 días hábiles. Adicionalmente, como gesto de disculpa, hemos añadido un cupón de S/ 10.00 a su cuenta para su próximo pedido. Gracias por su paciencia y comprensión.',
     status: 'EDITED',
     reviewedBy: 'agent-1',
     createdAt: new Date('2024-06-01T19:35:00'),
@@ -237,7 +237,7 @@ export const mockClaimResponses: ClaimResponse[] = [
   {
     id: 'response-2',
     claimId: 'claim-2',
-    suggestedResponse: 'Estimada María, entendemos su frustración por el retraso. Hemos contactado con el repartidor y su pedido llegará en aproximadamente 15 minutos. Le ofrecemos un descuento del 20% en este pedido como compensación por el tiempo de espera.',
+    suggestedResponse: 'Estimado Jhan, entendemos su frustración por el retraso. Hemos contactado con el repartidor y su pedido llegará en aproximadamente 15 minutos. Le ofrecemos un descuento del 20% en este pedido como compensación por el tiempo de espera.',
     status: 'PENDING',
     createdAt: new Date('2024-06-02T14:35:00'),
     updatedAt: new Date('2024-06-02T14:35:00')
