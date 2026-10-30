@@ -363,6 +363,7 @@ def _generar_respuesta_openai(nombre_cliente, codigo_pedido, descripcion, analis
                 "No solicites datos sensibles completos de tarjetas. "
                 "Los casos de cobro, fraude, tarjeta, pedido no recibido o baja confianza requieren revision humana. "
                 "No confirmes responsabilidad de la empresa sin validacion. "
+                "No afirmes pagos, entregas, reembolsos o compensaciones ejecutados ni correos automaticos: el sistema no registra esas operaciones. "
                 "Usa solo el contexto documental entregado cuando exista. "
                 "No incluyas firmas, nombres inventados ni marcadores como [Nombre del agente]; "
                 "el sistema agregara la firma del agente autenticado al momento de enviar."
@@ -433,8 +434,7 @@ def generar_respuesta_sugerida(nombre_cliente, codigo_pedido, descripcion, anali
         f"Según el análisis inicial, el caso fue clasificado como '{categoria}' "
         f"con prioridad '{prioridad}'.\n\n"
         f"{sustento}\n\n"
-        f"{control} Le recomendamos mantenerse atento/a al correo registrado, "
-        f"donde se le informará el avance de la solicitud.\n\n"
+        f"{control} Consulte las novedades en la conversación del reclamo dentro de la aplicación.\n\n"
         f"Gracias por comunicarse con el equipo de soporte de SmartClaim AI."
     )
 
@@ -463,8 +463,7 @@ def generar_respuesta_basica(nombre_cliente, codigo_pedido, descripcion, analisi
         f"con prioridad '{prioridad}'.\n\n"
         "Esta respuesta fue generada sin RAG, por lo que no se consultaron documentos "
         "internos de la base documental para sustentar el mensaje.\n\n"
-        f"{control} Le recomendamos mantenerse atento/a al correo registrado, "
-        "donde se le informará el avance de la solicitud.\n\n"
+        f"{control} Consulte las novedades en la conversación del reclamo dentro de la aplicación.\n\n"
         "Gracias por comunicarse con el equipo de soporte de SmartClaim AI."
     )
 

@@ -75,6 +75,7 @@ export default function OrderDetailPage() {
           <div>
             <h1 className="text-3xl font-bold mb-2">{order.storeName}</h1>
             <p className="text-gray-600">Pedido {order.code}</p>
+            <p className="text-sm text-amber-800">Operación de demostración: pago no verificado. No acredita un cobro ni una entrega real.</p>
           </div>
           <Badge className={`${getStatusColor(order.status)} text-lg px-4 py-2`}>
             {ORDER_STATUS_LABELS[order.status]}
@@ -139,6 +140,7 @@ export default function OrderDetailPage() {
             </CardHeader>
             <CardContent>
               <p>{order.deliveryAddress}</p>
+              {order.deliveryNotes && <p className="mt-2 text-sm">Referencia de entrega: {order.deliveryNotes}</p>}
             </CardContent>
           </Card>
 
@@ -152,7 +154,7 @@ export default function OrderDetailPage() {
             <CardContent>
               <p>{order.paymentMethod}</p>
               <p className="text-sm text-gray-500 mt-1">
-                Total pagado: {formatCurrency(order.total)}
+                Importe del pedido: {formatCurrency(order.total)}
               </p>
             </CardContent>
           </Card>
@@ -168,7 +170,7 @@ export default function OrderDetailPage() {
             </CardHeader>
             <CardContent>
               <p className="font-semibold">{order.deliveryDriver}</p>
-              <p className="text-sm text-gray-500">Tu repartidor asignado</p>
+              <p className="text-sm text-gray-500">Dato de demostración, sin seguimiento de ubicación</p>
             </CardContent>
           </Card>
         )}

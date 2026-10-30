@@ -33,15 +33,17 @@ def test_auth_orders_claims_and_roles(api_client):
     forbidden = api_client.get("/api/dashboard", headers=headers)
     assert forbidden.status_code == 403
 
+    catalog = api_client.get('/api/catalog').json()['items']
+    items = [{"product_id": int(catalog[0]['products'][0]['id']), "quantity": 1}]
+    quote = api_client.post('/api/orders/quote', json={"items": items}).json()
     order = api_client.post(
         "/api/orders",
         headers=headers,
         json={
-            "store_name": "Burger Palace",
-            "store_image": "https://example.com/burger.jpg",
+            "quote_hash": quote['quoteHash'],
             "payment_method": "Tarjeta",
             "delivery_address": "Av. Primavera 123, Lima",
-            "items": [{"name": "Combo clasico", "quantity": 1, "price": 24.5}],
+            "items": items,
         },
     )
     assert order.status_code == 201
@@ -111,7 +113,7 @@ def test_claim_continuous_conversation(api_client):
         json={
             "customer_name": "Jhan Perez",
             "customer_email": "jhan.perez@gmail.com",
-            "order_code": "ORD-CONVERSATION-001",
+            "order_code": api_client.get("/api/orders", headers=client_headers).json()["items"][0]["code"],
             "description": "Mi pedido llegó incompleto y necesito ayuda con el producto faltante.",
             "analyze": False,
         },
@@ -243,7 +245,7 @@ def test_client_message_succeeds_when_notification_fails(api_client, monkeypatch
         json={
             "customer_name": "Jhan Perez",
             "customer_email": "jhan.perez@gmail.com",
-            "order_code": "ORD-NOTIFICATION-FAILURE",
+            "order_code": api_client.get("/api/orders", headers=client_headers).json()["items"][0]["code"],
             "description": "Necesito información adicional sobre la respuesta de soporte.",
             "analyze": False,
         },

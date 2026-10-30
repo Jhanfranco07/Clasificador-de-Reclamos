@@ -240,19 +240,29 @@ def generar_codigo_reclamo():
     total = fetch_one("SELECT COUNT(*) AS total FROM reclamos")["total"] + 1
     return f"RC-{datetime.now().strftime('%Y%m%d')}-{total:04d}"
 
-def crear_reclamo(id_cliente, codigo_pedido, canal_venta, fecha_pedido, descripcion, responsable_asignado='Agente de soporte'):
-    codigo = generar_codigo_reclamo()
-    estado_nuevo_id = get_estado_id("Nuevo")
-    id_reclamo = execute("""
-        INSERT INTO reclamos (
-            codigo_reclamo, id_cliente, codigo_pedido, canal_venta, fecha_pedido,
-            descripcion, id_estado, responsable_asignado
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (codigo, id_cliente, codigo_pedido.strip(), canal_venta, str(fecha_pedido), descripcion.strip(), estado_nuevo_id, responsable_asignado))
-    registrar_historial_estado(id_reclamo, None, "Nuevo", "Registro de reclamo", "El reclamo fue guardado en estado Nuevo.")
-    crear_mensaje_reclamo(id_reclamo, "client", str(id_cliente), descripcion.strip())
-    return id_reclamo
+def crear_reclamo(id_cliente, codigo_pedido, canal_venta, fecha_pedido, descripcion,
+                  responsable_asignado='Agente de soporte', id_pedido=None):
+    # id_pedido=None is retained for historical import fixtures, never for new API claims.
+    from uuid import uuid4
+    from database.transactions import transaction, one, insert, history
+    from modules.domain_errors import DomainError
+    with transaction() as conn:
+        if id_pedido is not None:
+            order = one(conn, "SELECT * FROM pedidos WHERE id_pedido=? AND id_cliente=? AND codigo_pedido=?",
+                        (id_pedido, id_cliente, codigo_pedido))
+            if not order:
+                raise DomainError("Pedido no encontrado para el cliente", 404)
+        code = "RC-" + datetime.now().strftime('%Y%m%d') + "-" + uuid4().hex[:12].upper()
+        state_id = one(conn, "SELECT id_estado FROM estados_reclamo WHERE nombre='Nuevo'")["id_estado"]
+        claim_id = insert(conn, """INSERT INTO reclamos
+            (codigo_reclamo,id_cliente,id_pedido,codigo_pedido,canal_venta,fecha_pedido,descripcion,id_estado,responsable_asignado)
+            VALUES (?,?,?,?,?,?,?,?,?)""", (code,id_cliente,id_pedido,codigo_pedido.strip(),canal_venta,
+                                            str(fecha_pedido),descripcion.strip(),state_id,responsable_asignado))
+        history(conn,claim_id,None,"Nuevo","Registro de reclamo")
+        insert(conn,"""INSERT INTO claim_messages(id_reclamo,sender_type,sender_id,mensaje)
+                       VALUES (?,'client',?,?)""",(claim_id,str(id_cliente),descripcion.strip()))
+        return claim_id
+
 
 def crear_mensaje_reclamo(id_reclamo, sender_type, sender_id, mensaje, is_internal=False, metadata_json=None):
     return execute("""
@@ -280,87 +290,43 @@ def obtener_reclamo_basico(id_reclamo):
     """, (id_reclamo,))
 
 def guardar_analisis(id_reclamo, analisis):
-    reclamo_actual = fetch_one("""
-        SELECT r.id_estado, e.nombre AS estado
-        FROM reclamos r
-        INNER JOIN estados_reclamo e ON e.id_estado = r.id_estado
-        WHERE r.id_reclamo = ?
-    """, (id_reclamo,))
-    estado_anterior = reclamo_actual["estado"] if reclamo_actual else None
-
+    from database.transactions import transaction, one, insert, lock_claim
+    from modules.claim_workflow import transition
     config = get_configuracion_activa() or {"umbral_confianza": 0.85, "revision_humana_obligatoria": 1}
-    prioridad = analisis["prioridad"]
-    requiere = int(
-        analisis["confianza"] < float(config["umbral_confianza"])
-        or analisis["prioridad"] in ["Alta", "Crítica"]
-        or int(config["revision_humana_obligatoria"]) == 1
-    )
-    if prioridad in ["Critica", "Crítica"]:
-        requiere = 1
-    estado_nuevo = "En revisión" if requiere else "Analizado por IA"
-    estado_id = get_estado_id(estado_nuevo)
-    if estado_id is None and requiere:
-        estado_nuevo = "En revision"
-        estado_id = get_estado_id(estado_nuevo)
+    requiere = int(analisis["confianza"] < float(config["umbral_confianza"])
+                   or analisis["prioridad"] in ["Alta", "Cr\u00edtica", "Critica"]
+                   or int(config["revision_humana_obligatoria"]) == 1)
+    with transaction() as conn:
+        claim = lock_claim(conn, id_reclamo)
+        transition(conn, claim, "En revision" if requiere else "Analizado por IA", mode="analysis", role="SYSTEM")
+        category = one(conn, "SELECT id_categoria FROM categorias_reclamo WHERE nombre=?", (analisis["categoria"],))
+        priority = one(conn, "SELECT id_prioridad FROM prioridades WHERE nombre=?", (analisis["prioridad"],))
+        conn.execute("""UPDATE reclamos SET id_categoria=?,id_prioridad=?,requiere_revision_humana=?
+                        WHERE id_reclamo=?""", (category["id_categoria"] if category else None,
+                        priority["id_prioridad"] if priority else None, requiere, id_reclamo))
+        conn.execute("DELETE FROM analisis_ia WHERE id_reclamo=?",(id_reclamo,))
+        insert(conn,"""INSERT INTO analisis_ia(id_reclamo,categoria_detectada,confianza,sentimiento,palabras_clave,
+                       entidades_detectadas,recomendacion,modelo_usado) VALUES (?,?,?,?,?,?,?,?)""",(
+                       id_reclamo,analisis["categoria"],analisis["confianza"],analisis["sentimiento"],
+                       ", ".join(analisis["palabras_clave"]),", ".join(analisis["entidades"]),
+                       analisis["recomendacion"],analisis.get("modelo_usado","modelo_ml_tfidf_logistic_regression")))
 
-    with get_connection() as conn:
-        conn.execute("""
-            UPDATE reclamos
-            SET id_categoria = ?, id_prioridad = ?, id_estado = ?, requiere_revision_humana = ?,
-                fecha_actualizacion = CURRENT_TIMESTAMP
-            WHERE id_reclamo = ?
-        """, (get_categoria_id(analisis["categoria"]), get_prioridad_id(analisis["prioridad"]), estado_id, requiere, id_reclamo))
 
-        conn.execute("DELETE FROM analisis_ia WHERE id_reclamo = ?", (id_reclamo,))
-        conn.execute("""
-            INSERT INTO analisis_ia (
-                id_reclamo, categoria_detectada, confianza, sentimiento, palabras_clave,
-                entidades_detectadas, recomendacion, modelo_usado
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            id_reclamo,
-            analisis["categoria"],
-            analisis["confianza"],
-            analisis["sentimiento"],
-            ", ".join(analisis["palabras_clave"]),
-            ", ".join(analisis["entidades"]),
-            analisis["recomendacion"],
-            analisis.get("modelo_usado", "modelo_ml_tfidf_logistic_regression")
-        ))
-        conn.commit()
+def guardar_respuesta(id_reclamo, respuesta, documentos=None, accion="Generaci\u00f3n de respuesta"):
+    from database.transactions import transaction, insert, lock_claim, history
+    from modules.domain_errors import DomainError
+    with transaction() as conn:
+        claim = lock_claim(conn,id_reclamo)
+        if claim["estado"] == "Cerrado":
+            raise DomainError("Reabre el reclamo antes de generar sugerencias")
+        response_id = insert(conn,"INSERT INTO respuestas_sugeridas(id_reclamo,respuesta_generada) VALUES (?,?)",(id_reclamo,respuesta))
+        for doc in documentos or []:
+            insert(conn,"""INSERT INTO documentos_consultados(id_respuesta,id_documento,score_similitud,fragmento_usado)
+                           VALUES (?,?,?,?)""",(response_id,doc["id_documento"],doc["score"],doc["contenido"][:350]))
+        history(conn,id_reclamo,claim["estado"],claim["estado"],accion,
+                "Se gener\u00f3 una respuesta sugerida con documentos RAG consultados." if documentos else "Se gener\u00f3 una respuesta sugerida sin consulta RAG.")
+        return response_id
 
-    registrar_historial_estado(
-        id_reclamo,
-        estado_anterior,
-        estado_nuevo,
-        "Análisis IA",
-        f"El reclamo fue clasificado como {analisis['categoria']} con prioridad {analisis['prioridad']}."
-    )
-
-def guardar_respuesta(id_reclamo, respuesta, documentos=None, accion="Generación de respuesta"):
-    documentos = documentos or []
-    id_respuesta = execute("""
-        INSERT INTO respuestas_sugeridas (id_reclamo, respuesta_generada)
-        VALUES (?, ?)
-    """, (id_reclamo, respuesta))
-
-    for doc in documentos:
-        execute("""
-            INSERT INTO documentos_consultados (id_respuesta, id_documento, score_similitud, fragmento_usado)
-            VALUES (?, ?, ?, ?)
-        """, (id_respuesta, doc["id_documento"], doc["score"], doc["contenido"][:350]))
-
-    registrar_historial_estado(
-        id_reclamo,
-        obtener_estado_actual(id_reclamo),
-        obtener_estado_actual(id_reclamo),
-        accion,
-        "Se generó una respuesta sugerida con documentos RAG consultados."
-        if documentos else
-        "Se generó una respuesta sugerida sin consulta RAG."
-    )
-    return id_respuesta
 
 def obtener_estado_actual(id_reclamo):
     row = fetch_one("""
@@ -464,86 +430,31 @@ def desactivar_documento_base(id_documento):
         WHERE id_documento = ?
     """, (id_documento,))
 
-def actualizar_estado_reclamo(id_reclamo, estado, accion="Actualización de estado", comentario=None):
-    estado_anterior = obtener_estado_actual(id_reclamo)
-    estado_id = get_estado_id(estado)
-    if estado_id is None:
-        raise ValueError(f"Estado de reclamo no válido: {estado}")
-    execute("""
-        UPDATE reclamos
-        SET id_estado = ?, fecha_actualizacion = CURRENT_TIMESTAMP
-        WHERE id_reclamo = ?
-    """, (estado_id, id_reclamo))
-    registrar_historial_estado(id_reclamo, estado_anterior, estado, accion, comentario)
+def actualizar_estado_reclamo(id_reclamo, estado, accion="Actualizacion de estado", comentario=None, actor=None):
+    from database.transactions import transaction, lock_claim
+    from modules.claim_workflow import transition
+    actor = actor or {"nombre": "Soporte", "rol": "AGENT"}
+    with transaction() as conn:
+        return transition(conn,lock_claim(conn,id_reclamo),estado,actor=actor["nombre"],role=actor["rol"],comment=comentario)
 
-def actualizar_respuesta_final(id_respuesta, respuesta_final, estado_revision="EDITADA"):
-    respuesta = fetch_one("SELECT id_reclamo FROM respuestas_sugeridas WHERE id_respuesta = ?", (id_respuesta,))
-    execute("""
-        UPDATE respuestas_sugeridas
-        SET respuesta_editada = ?, respuesta_final = ?, estado_revision = ?, fecha_revision = CURRENT_TIMESTAMP
-        WHERE id_respuesta = ?
-    """, (respuesta_final, respuesta_final, estado_revision, id_respuesta))
-    if respuesta:
-        registrar_historial_estado(
-            respuesta["id_reclamo"],
-            obtener_estado_actual(respuesta["id_reclamo"]),
-            obtener_estado_actual(respuesta["id_reclamo"]),
-            "Edición de respuesta",
-            f"La respuesta fue actualizada con estado de revisión {estado_revision}."
-        )
 
-def aprobar_respuesta(id_respuesta, respuesta_final=None):
-    respuesta = fetch_one("""
-        SELECT id_reclamo, respuesta_generada
-        FROM respuestas_sugeridas
-        WHERE id_respuesta = ?
-    """, (id_respuesta,))
-    if not respuesta:
-        return
-    final = respuesta_final if respuesta_final is not None and respuesta_final.strip() else respuesta["respuesta_generada"]
-    execute("""
-        UPDATE respuestas_sugeridas
-        SET respuesta_final = ?, estado_revision = 'APROBADA', fecha_revision = CURRENT_TIMESTAMP
-        WHERE id_respuesta = ?
-    """, (final, id_respuesta))
-    registrar_historial_estado(
-        respuesta["id_reclamo"],
-        obtener_estado_actual(respuesta["id_reclamo"]),
-        obtener_estado_actual(respuesta["id_reclamo"]),
-        "Envio de respuesta",
-        "El agente publico la respuesta final para el cliente."
-    )
-    reclamo = obtener_reclamo_basico(respuesta["id_reclamo"])
-    if reclamo:
-        crear_mensaje_reclamo(
-            respuesta["id_reclamo"],
-            "agent",
-            "support",
-            final,
-        )
-        crear_notificacion(
-            reclamo["correo_cliente"],
-            "Respuesta de soporte disponible",
-            f"Tu reclamo {reclamo['codigo_reclamo']} ya tiene una respuesta del equipo de soporte.",
-            "RESPUESTA",
-            respuesta["id_reclamo"],
-        )
+def actualizar_respuesta_final(id_respuesta, respuesta_final, estado_revision="EDITADA", actor="Soporte"):
+    from modules.response_service import edit_draft
+    return edit_draft(id_respuesta, respuesta_final, actor)
 
-def marcar_respondido(id_reclamo, comentario=None):
-    actualizar_estado_reclamo(
-        id_reclamo,
-        "Respondido",
-        "Marcado como respondido",
-        comentario or "El reclamo fue marcado como respondido por el agente."
-    )
 
-def escalar_reclamo(id_reclamo, comentario=None):
-    actualizar_estado_reclamo(
-        id_reclamo,
-        "Escalado",
-        "Escalamiento de reclamo",
-        comentario or "El reclamo fue escalado para revisión superior."
-    )
+def aprobar_respuesta(id_respuesta, respuesta_final=None, actor="Soporte", actor_id="support"):
+    from modules.response_service import publish
+    return publish(id_respuesta, respuesta_final, actor, actor_id)
+
+
+def marcar_respondido(id_reclamo, comentario=None, actor=None):
+    return actualizar_estado_reclamo(id_reclamo,"Respondido",comentario=comentario,actor=actor)
+
+
+def escalar_reclamo(id_reclamo, comentario=None, actor=None):
+    return actualizar_estado_reclamo(id_reclamo,"Escalado",comentario=comentario,actor=actor)
+
 
 def listar_historial_estados(id_reclamo):
     return fetch_all("""
@@ -675,44 +586,18 @@ def calcular_tiempo_atencion_minutos(id_reclamo):
     """, (id_reclamo,))
     return row["minutos"] if row and row["minutos"] is not None else None
 
-def cerrar_reclamo(id_reclamo, estado_final="Cerrado", comentario=None):
-    estado_anterior = obtener_estado_actual(id_reclamo)
-    estado_id = get_estado_id(estado_final)
-    if estado_id is None:
-        raise ValueError(f"Estado de reclamo no válido: {estado_final}")
-    execute("""
-        UPDATE reclamos
-        SET id_estado = ?,
-            fecha_cierre = CURRENT_TIMESTAMP,
-            tiempo_atencion_minutos = CAST((julianday(CURRENT_TIMESTAMP) - julianday(fecha_creacion)) * 24 * 60 AS INTEGER),
-            fecha_actualizacion = CURRENT_TIMESTAMP
-        WHERE id_reclamo = ?
-    """, (estado_id, id_reclamo))
-    registrar_historial_estado(
-        id_reclamo,
-        estado_anterior,
-        estado_final,
-        "Cierre de reclamo",
-        comentario or "El reclamo fue cerrado y se calculó el tiempo de atención."
-    )
-    registrar_log("Reclamos", "Cierre de reclamo", "INFO", f"Reclamo cerrado con estado {estado_final}.", id_reclamo)
+def cerrar_reclamo(id_reclamo, estado_final="Cerrado", comentario=None, actor=None):
+    return actualizar_estado_reclamo(id_reclamo,estado_final,comentario=comentario,actor=actor)
 
-def reabrir_reclamo(id_reclamo, comentario=None):
-    estado_anterior = obtener_estado_actual(id_reclamo)
-    estado_id = get_estado_id("En revision") or get_estado_id("En revisión")
-    execute("""
-        UPDATE reclamos
-        SET id_estado = ?, fecha_cierre = NULL, tiempo_atencion_minutos = NULL,
-            fecha_actualizacion = CURRENT_TIMESTAMP
-        WHERE id_reclamo = ?
-    """, (estado_id, id_reclamo))
-    registrar_historial_estado(
-        id_reclamo,
-        estado_anterior,
-        "En revision",
-        "Reapertura de reclamo",
-        comentario or "El reclamo fue reabierto para continuar la conversación."
-    )
+
+def reabrir_reclamo(id_reclamo, comentario=None, actor=None):
+    from database.transactions import transaction, lock_claim
+    from modules.claim_workflow import transition
+    actor = actor or {"nombre": "Soporte", "rol": "AGENT"}
+    with transaction() as conn:
+        return transition(conn,lock_claim(conn,id_reclamo),"En revision",mode="reopen",
+                          actor=actor["nombre"],role=actor["rol"],comment=comentario)
+
 
 def asignar_responsable(id_reclamo, responsable):
     execute("""

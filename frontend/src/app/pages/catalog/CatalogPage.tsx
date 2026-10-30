@@ -19,6 +19,7 @@ import { formatCurrency } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
 import { ImageWithFallback } from '../../components/figma/ImageWithFallback';
 import { getCatalog } from '../../lib/api';
+import { useOrderQuote } from '../../lib/useOrderQuote';
 
 export type Product = {
   id: string;
@@ -47,191 +48,13 @@ export type CartItem = Product & {
 
 export const CART_KEY = 'smartclaim_pending_cart';
 
-export const fallbackRestaurants: Restaurant[] = [
-  {
-    id: 'burger-palace',
-    name: 'Burger Palace',
-    category: 'Hamburguesas',
-    rating: 4.8,
-    time: '25-35 min',
-    delivery: 4.9,
-    image: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=900',
-    products: [
-      { id: 'bp-1', name: 'Combo clasico', description: 'Hamburguesa, papas y gaseosa.', price: 24.5, image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600' },
-      { id: 'bp-2', name: 'Doble cheese', description: 'Doble carne, cheddar y salsa especial.', price: 29.9, image: 'https://images.unsplash.com/photo-1551782450-a2132b4ba21d?w=600' },
-      { id: 'bp-3', name: 'Crispy chicken burger', description: 'Pollo crocante, lechuga y mayo.', price: 27.5, image: 'https://images.unsplash.com/photo-1615297928064-24977384d0da?w=600' },
-      { id: 'bp-4', name: 'Papas bacon cheddar', description: 'Papas fritas con bacon y queso.', price: 15.9, image: 'https://images.unsplash.com/photo-1630384060421-cb20d0e0649d?w=600' },
-    ],
-  },
-  {
-    id: 'sushi-express',
-    name: 'Sushi Express',
-    category: 'Sushi',
-    rating: 4.7,
-    time: '35-45 min',
-    delivery: 5.9,
-    image: 'https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?w=900',
-    products: [
-      { id: 'se-1', name: 'Roll California', description: '8 piezas con palta y kanikama.', price: 32.9, image: 'https://images.unsplash.com/photo-1617196034796-73dfa7b1fd56?w=600' },
-      { id: 'se-2', name: 'Combo makis', description: '24 piezas surtidas.', price: 45.8, image: 'https://images.unsplash.com/photo-1553621042-f6e147245754?w=600' },
-      { id: 'se-3', name: 'Tempura roll', description: 'Roll crocante con salsa acevichada.', price: 36.5, image: 'https://images.unsplash.com/photo-1611143669185-af224c5e3252?w=600' },
-      { id: 'se-4', name: 'Sashimi salmon', description: 'Cortes frescos de salmon.', price: 39.9, image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600' },
-    ],
-  },
-  {
-    id: 'pizza-napoli',
-    name: 'Pizza Napoli',
-    category: 'Pizzas',
-    rating: 4.6,
-    time: '30-40 min',
-    delivery: 4.5,
-    image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=900',
-    products: [
-      { id: 'pn-1', name: 'Pizza margarita', description: 'Mozzarella, tomate y albahaca.', price: 28.0, image: 'https://images.unsplash.com/photo-1604068549290-dea0e4a305ca?w=600' },
-      { id: 'pn-2', name: 'Pizza pepperoni', description: 'Pepperoni, mozzarella y oregano.', price: 34.0, image: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=600' },
-      { id: 'pn-3', name: 'Pizza americana', description: 'Jamon, queso y salsa napolitana.', price: 31.5, image: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=600' },
-      { id: 'pn-4', name: 'Lasagna bolognesa', description: 'Pasta al horno con salsa de carne.', price: 26.9, image: 'https://images.unsplash.com/photo-1619895092538-128341789043?w=600' },
-    ],
-  },
-  {
-    id: 'pollo-real',
-    name: 'Pollo Real',
-    category: 'Pollos',
-    rating: 4.9,
-    time: '20-30 min',
-    delivery: 3.9,
-    image: 'https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?w=900',
-    products: [
-      { id: 'pr-1', name: '1/4 pollo con papas', description: 'Clasico pollo a la brasa.', price: 21.9, image: 'https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?w=600' },
-      { id: 'pr-2', name: '1/2 pollo familiar', description: 'Papas, ensalada y cremas.', price: 42.5, image: 'https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?w=600' },
-      { id: 'pr-3', name: 'Salchipapa brasa', description: 'Papas, hot dog y pollo trozado.', price: 18.5, image: 'https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?w=600' },
-      { id: 'pr-4', name: 'Anticuchos mixtos', description: 'Brochetas con papas doradas.', price: 24.9, image: 'https://images.unsplash.com/photo-1529193591184-b1d58069ecdd?w=600' },
-    ],
-  },
-  {
-    id: 'taco-loco',
-    name: 'Taco Loco',
-    category: 'Mexicana',
-    rating: 4.5,
-    time: '30-40 min',
-    delivery: 5.5,
-    image: 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=900',
-    products: [
-      { id: 'tl-1', name: 'Tacos al pastor', description: 'Tres tacos con pina y salsas.', price: 22.9, image: 'https://images.unsplash.com/photo-1565299507177-b0ac66763828?w=600' },
-      { id: 'tl-2', name: 'Burrito norteño', description: 'Carne, arroz, frijoles y queso.', price: 25.5, image: 'https://images.unsplash.com/photo-1626700051175-6818013e1d4f?w=600' },
-      { id: 'tl-3', name: 'Nachos supreme', description: 'Queso, guacamole y pico de gallo.', price: 19.9, image: 'https://images.unsplash.com/photo-1513456852971-30c0b8199d4d?w=600' },
-    ],
-  },
-  {
-    id: 'dulce-mania',
-    name: 'Dulce Mania',
-    category: 'Postres',
-    rating: 4.8,
-    time: '20-30 min',
-    delivery: 4.0,
-    image: 'https://images.unsplash.com/photo-1551024601-bec78aea704b?w=900',
-    products: [
-      { id: 'dm-1', name: 'Cheesecake frutos rojos', description: 'Porcion individual cremosa.', price: 16.9, image: 'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?w=600' },
-      { id: 'dm-2', name: 'Brownie con helado', description: 'Brownie tibio y helado vainilla.', price: 18.5, image: 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=600' },
-      { id: 'dm-3', name: 'Tres leches', description: 'Postre humedo con crema batida.', price: 14.9, image: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=600' },
-    ],
-  },
-  {
-    id: 'cafe-andino',
-    name: 'Cafe Andino',
-    category: 'Cafe',
-    rating: 4.7,
-    time: '15-25 min',
-    delivery: 3.5,
-    image: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=900',
-    products: [
-      { id: 'ca-1', name: 'Cafe latte', description: 'Cafe espresso con leche vaporizada.', price: 10.9, image: 'https://images.unsplash.com/photo-1570968915860-54d5c301fa9f?w=600' },
-      { id: 'ca-2', name: 'Sandwich mixto', description: 'Jamon, queso y pan artesanal.', price: 13.9, image: 'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=600' },
-      { id: 'ca-3', name: 'Croissant mantequilla', description: 'Hojaldre fresco de la casa.', price: 8.9, image: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=600' },
-    ],
-  },
-  {
-    id: 'fresh-market',
-    name: 'Fresh Market',
-    category: 'Saludable',
-    rating: 4.6,
-    time: '25-35 min',
-    delivery: 4.9,
-    image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=900',
-    products: [
-      { id: 'fm-1', name: 'Bowl quinoa', description: 'Quinoa, palta, pollo y vegetales.', price: 27.9, image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600' },
-      { id: 'fm-2', name: 'Wrap de pollo', description: 'Tortilla integral con pollo grillado.', price: 22.5, image: 'https://images.unsplash.com/photo-1626700051175-6818013e1d4f?w=600' },
-      { id: 'fm-3', name: 'Jugo detox', description: 'Piña, hierbabuena, apio y limon.', price: 12.9, image: 'https://images.unsplash.com/photo-1622597467836-f3285f2131b8?w=600' },
-      { id: 'fm-4', name: 'Ensalada cesar', description: 'Pollo, parmesano y croutones.', price: 24.9, image: 'https://images.unsplash.com/photo-1550304943-4f24f54ddde9?w=600' },
-    ],
-  },
-  {
-    id: 'cevicheria-la-marina',
-    name: 'Cevicheria La Marina',
-    category: 'Peruana',
-    rating: 4.9,
-    time: '30-45 min',
-    delivery: 5.9,
-    image: 'https://images.unsplash.com/photo-1615141982883-c7ad0e69fd62?w=900',
-    products: [
-      { id: 'clm-1', name: 'Ceviche clasico', description: 'Pescado fresco, limon, camote y choclo.', price: 34.9, image: 'https://images.unsplash.com/photo-1625944230945-1b7dd3b949ab?w=600' },
-      { id: 'clm-2', name: 'Arroz con mariscos', description: 'Arroz norteño con mixtura marina.', price: 38.5, image: 'https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600' },
-      { id: 'clm-3', name: 'Jalea mixta', description: 'Pescado y mariscos crocantes con yuca.', price: 42.9, image: 'https://images.unsplash.com/photo-1562967914-608f82629710?w=600' },
-      { id: 'clm-4', name: 'Leche de tigre', description: 'Concentrado marino con cancha y choclo.', price: 18.9, image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600' },
-    ],
-  },
-  {
-    id: 'criollo-peruano',
-    name: 'Criollo Peruano',
-    category: 'Peruana',
-    rating: 4.8,
-    time: '25-40 min',
-    delivery: 4.9,
-    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=900',
-    products: [
-      { id: 'cp-1', name: 'Lomo saltado', description: 'Carne salteada, papas fritas y arroz.', price: 32.9, image: 'https://images.unsplash.com/photo-1632778149955-e80f8ceca2e8?w=600' },
-      { id: 'cp-2', name: 'Aji de gallina', description: 'Crema de aji amarillo, pollo y arroz.', price: 27.9, image: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=600' },
-      { id: 'cp-3', name: 'Seco con frejoles', description: 'Guiso criollo con arroz y frejoles.', price: 30.5, image: 'https://images.unsplash.com/photo-1600891964599-f61ba0e24092?w=600' },
-      { id: 'cp-4', name: 'Causa limeña', description: 'Papa amarilla, pollo, palta y mayonesa.', price: 22.9, image: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600' },
-    ],
-  },
-  {
-    id: 'chifa-oriental',
-    name: 'Chifa Oriental',
-    category: 'Chifa',
-    rating: 4.7,
-    time: '25-35 min',
-    delivery: 4.5,
-    image: 'https://images.unsplash.com/photo-1526318896980-cf78c088247c?w=900',
-    products: [
-      { id: 'cho-1', name: 'Arroz chaufa especial', description: 'Chaufa con pollo, chancho y tortilla.', price: 28.9, image: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600' },
-      { id: 'cho-2', name: 'Tallarin saltado', description: 'Fideos salteados con verduras y pollo.', price: 26.9, image: 'https://images.unsplash.com/photo-1585032226651-759b368d7246?w=600' },
-      { id: 'cho-3', name: 'Wantanes fritos', description: 'Porcion crocante con salsa tamarindo.', price: 14.9, image: 'https://images.unsplash.com/photo-1625398407796-82650a8c135f?w=600' },
-      { id: 'cho-4', name: 'Kam lu wantan', description: 'Wantan, carnes y verduras en salsa dulce.', price: 36.9, image: 'https://images.unsplash.com/photo-1596797038530-2c107229654b?w=600' },
-    ],
-  },
-  {
-    id: 'sanguche-criollo',
-    name: 'Sanguche Criollo',
-    category: 'Sanguches',
-    rating: 4.6,
-    time: '15-25 min',
-    delivery: 3.9,
-    image: 'https://images.unsplash.com/photo-1553909489-cd47e0907980?w=900',
-    products: [
-      { id: 'sc-1', name: 'Pan con chicharron', description: 'Chicharron, camote y salsa criolla.', price: 18.9, image: 'https://images.unsplash.com/photo-1553909489-cd47e0907980?w=600' },
-      { id: 'sc-2', name: 'Butifarra criolla', description: 'Jamon del pais y salsa criolla.', price: 17.5, image: 'https://images.unsplash.com/photo-1528736235302-52922df5c122?w=600' },
-      { id: 'sc-3', name: 'Triple clasico', description: 'Palta, huevo, tomate y mayonesa.', price: 13.9, image: 'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=600' },
-      { id: 'sc-4', name: 'Emoliente frio', description: 'Bebida herbal con limon y hierbas.', price: 7.9, image: 'https://images.unsplash.com/photo-1622597467836-f3285f2131b8?w=600' },
-    ],
-  },
-];
-
 export default function CatalogPage({ internal = false }: { internal?: boolean }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated, currentUser, logout } = useAuth();
   const [apiRestaurants, setApiRestaurants] = useState<Restaurant[]>([]);
+  const [catalogError, setCatalogError] = useState('');
+  const [catalogLoading, setCatalogLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
@@ -244,20 +67,21 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
   useEffect(() => {
     getCatalog()
       .then((result) => {
-        if (result.items.length > 0) {
-          setApiRestaurants(result.items as Restaurant[]);
-        }
+        setApiRestaurants(result.items as Restaurant[]);
       })
       .catch(() => {
         setApiRestaurants([]);
-      });
+        setCatalogError('No se pudo cargar el catálogo. No se muestran comercios de respaldo.');
+      }).finally(() => setCatalogLoading(false));
   }, []);
 
   useEffect(() => {
     window.localStorage.setItem(CART_KEY, JSON.stringify(cart));
   }, [cart]);
 
-  const restaurants = apiRestaurants.length > 0 ? apiRestaurants : fallbackRestaurants;
+  const restaurants = apiRestaurants;
+  const featuredRestaurant = restaurants.find((restaurant) => restaurant.products.length > 0);
+  const featuredProduct = featuredRestaurant?.products[0];
   const categories = useMemo(
     () => ['Todos', ...Array.from(new Set(restaurants.map((restaurant) => restaurant.category)))],
     [restaurants]
@@ -270,14 +94,12 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
   const visibleRestaurants = useMemo(() => {
     if (selectedCategory === 'Todos') return restaurants;
     return restaurants.filter((restaurant) => restaurant.category === selectedCategory);
-  }, [selectedCategory]);
+  }, [selectedCategory, restaurants]);
 
-  const cartTotal = cart.reduce((total, item) => total + item.price * item.quantity, 0);
-  const deliveryTotal = cart.length ? Math.max(...cart.map((item) => {
-    const restaurant = restaurants.find((current) => current.name === item.restaurantName);
-    return restaurant?.delivery || 0;
-  })) : 0;
-  const finalTotal = cartTotal + deliveryTotal;
+  const { quote, error: quoteError } = useOrderQuote(cart);
+  const cartTotal = quote?.subtotal ?? 0;
+  const deliveryTotal = quote?.delivery;
+  const finalTotal = quote?.total;
 
   const addToCart = (restaurant: Restaurant, product: Product) => {
     setCart((items) => {
@@ -357,7 +179,7 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
           <div className="container mx-auto px-4 py-10 grid lg:grid-cols-[1.05fr_0.95fr] gap-8 items-center">
             <div className="space-y-6">
               <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">
-                Delivery urbano en Lima
+                Proyecto académico · pedidos y pagos de demostración
               </Badge>
               <div>
                 <h1 className="text-4xl md:text-5xl font-bold tracking-normal mb-4">
@@ -391,8 +213,8 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
                   <p className="text-sm text-gray-500">Productos</p>
                 </div>
                 <div className="rounded-lg border bg-white p-3 shadow-sm">
-                  <p className="text-2xl font-bold">24/7</p>
-                  <p className="text-sm text-gray-500">Soporte disponible</p>
+                  <p className="text-2xl font-bold">En la app</p>
+                  <p className="text-sm text-gray-500">Seguimiento del reclamo</p>
                 </div>
               </div>
             </div>
@@ -405,14 +227,15 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
               <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-                <p className="text-sm uppercase tracking-wide text-orange-200">Combo destacado</p>
-                <h2 className="text-3xl font-bold">Combo urbano</h2>
-                <p className="mt-2 text-white/85">Un pedido destacado para probar la experiencia de compra.</p>
+                <p className="text-sm uppercase tracking-wide text-orange-200">Selección del catálogo de demostración</p>
+                <h2 className="text-3xl font-bold">{featuredProduct?.name || 'Sin producto destacado'}</h2>
+                <p className="mt-2 text-white/85">Precio de catálogo; no representa una promoción o descuento.</p>
                 <div className="mt-4 flex items-center justify-between">
-                  <span className="text-2xl font-bold">{formatCurrency(32.9)}</span>
+                  <span className="text-2xl font-bold">{featuredProduct ? formatCurrency(featuredProduct.price) : 'No disponible'}</span>
                   <Button
                     variant="secondary"
-                    onClick={() => addToCart(restaurants[0], restaurants[0].products[0])}
+                    disabled={!featuredProduct}
+                    onClick={() => { if (featuredRestaurant && featuredProduct) addToCart(featuredRestaurant, featuredProduct); }}
                   >
                     Agregar al carrito
                   </Button>
@@ -423,6 +246,9 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
         </section>
 
         <section id="catalogo" className="container mx-auto px-4 py-10">
+          {catalogLoading && <p role="status">Cargando catálogo...</p>}
+          {catalogError && <p role="alert">{catalogError}</p>}
+          {!catalogLoading && !catalogError && restaurants.length === 0 && <p>No hay restaurantes disponibles.</p>}
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
             <div>
               <h2 className="text-3xl font-bold">Restaurantes disponibles</h2>
@@ -537,7 +363,7 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
                                   <Plus className="size-3" />
                                 </Button>
                               </div>
-                              <p className="font-bold">{formatCurrency(item.price * item.quantity)}</p>
+                              <p className="font-bold">{quote ? formatCurrency((quote.items.find((line) => line.productId === Number(item.id))?.price ?? 0) * item.quantity) : 'Cotizando...'}</p>
                             </div>
                           </div>
                         </div>
@@ -552,15 +378,17 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Delivery estimado</span>
-                      <span>{formatCurrency(deliveryTotal)}</span>
+                      <span>{deliveryTotal != null ? formatCurrency(deliveryTotal) : 'Pendiente'}</span>
                     </div>
+                    <div className="flex justify-between"><span>Servicio</span><span>{quote?.service != null ? formatCurrency(quote.service) : 'Pendiente'}</span></div>
                     <div className="flex justify-between text-lg font-bold pt-2">
                       <span>Total</span>
-                      <span>{formatCurrency(finalTotal)}</span>
+                      <span>{finalTotal != null ? formatCurrency(finalTotal) : 'Pendiente'}</span>
                     </div>
                   </div>
 
-                  <Button className="w-full" size="lg" onClick={handleCheckout}>
+                  {(quoteError || quote?.limitation) && <p role="alert" className="text-sm text-red-700">{quoteError || quote?.limitation}</p>}
+                  <Button className="w-full" size="lg" onClick={handleCheckout} disabled={!quote?.canConfirm}>
                     {isAuthenticated ? 'Continuar al pago' : 'Iniciar sesión y pagar'}
                   </Button>
                   <p className="text-xs text-gray-500 text-center">

@@ -219,6 +219,7 @@ def answer_chat(message: str, user: dict[str, Any] | None = None, context: dict[
                 "Usa únicamente los datos del contexto entregado por el backend. No inventes cantidades, "
                 "estados, nombres, montos ni fechas. No uses placeholders. Si faltan datos, dilo claramente. "
                 "No prometas devoluciones, cupones ni compensaciones automáticas."
+                " No confirmes pagos o entregas reales ni comunicaciones automáticas: esta es una demostración sin esas integraciones."
             ),
             input=f"Consulta: {message}\nDatos reales: {safe_context}\nDocumentos internos:\n{knowledge}",
         )

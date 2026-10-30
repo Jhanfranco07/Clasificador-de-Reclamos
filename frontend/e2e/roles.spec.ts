@@ -1,4 +1,5 @@
-import { expect, Page, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './offline-fixture';
 
 async function login(page: Page, email: string) {
   await page.goto('/login');

@@ -107,6 +107,12 @@ class PostgresConnection:
     def commit(self):
         self.conn.commit()
 
+    def rollback(self):
+        self.conn.rollback()
+
+    def close(self):
+        self.conn.close()
+
 
 def get_connection():
     if using_postgres():
@@ -170,7 +176,19 @@ def migrate_db():
         return
 
     with get_connection() as conn:
+        additions = {
+            "pedidos": {"id_restaurante": "INTEGER REFERENCES restaurantes(id_restaurante)",
+                        "notas_entrega": "TEXT", "subtotal": "REAL", "costo_delivery": "REAL", "costo_servicio": "REAL"},
+            "pedido_items": {"id_producto": "INTEGER REFERENCES productos(id_producto)"},
+        }
+        for table, columns in additions.items():
+            if table_exists(table):
+                for column, definition in columns.items():
+                    if not column_exists(table, column):
+                        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
         if table_exists("reclamos"):
+            if not column_exists("reclamos", "id_pedido"):
+                conn.execute("ALTER TABLE reclamos ADD COLUMN id_pedido INTEGER REFERENCES pedidos(id_pedido)")
             if not column_exists("reclamos", "responsable_asignado"):
                 conn.execute("ALTER TABLE reclamos ADD COLUMN responsable_asignado TEXT")
             if not column_exists("reclamos", "fecha_cierre"):

@@ -5,19 +5,19 @@ import { Button } from '../../components/ui/button';
 import { ImageWithFallback } from '../../components/figma/ImageWithFallback';
 import { formatCurrency } from '../../lib/utils';
 import { getCatalog } from '../../lib/api';
-import { CART_KEY, CartItem, fallbackRestaurants, Restaurant } from './CatalogPage';
+import { CART_KEY, CartItem, Restaurant } from './CatalogPage';
 
 export default function RestaurantPage() {
   const { id } = useParams();
-  const [restaurant, setRestaurant] = useState<Restaurant | null>(
-    fallbackRestaurants.find((item) => item.id === id) || null
-  );
+  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     getCatalog().then(({ items }) => {
       const found = items.find((item) => item.id === id) as Restaurant | undefined;
-      if (found) setRestaurant(found);
-    }).catch(() => undefined);
+      setRestaurant(found || null);
+    }).catch(() => setError('No se pudo cargar el restaurante.')).finally(() => setLoading(false));
   }, [id]);
 
   const add = (product: Restaurant['products'][number]) => {
@@ -30,6 +30,8 @@ export default function RestaurantPage() {
     window.localStorage.setItem(CART_KEY, JSON.stringify(next));
   };
 
+  if (loading) return <p role="status">Cargando restaurante...</p>;
+  if (error) return <p role="alert">{error}</p>;
   if (!restaurant) return <div className="p-8 text-center">Restaurante no encontrado.</div>;
 
   return (

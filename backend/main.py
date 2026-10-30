@@ -5,11 +5,12 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr, Field
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 if str(BASE_DIR) not in sys.path:
@@ -78,6 +79,7 @@ from modules.security import create_token, decode_token, hash_password, verify_p
 from modules.chatbot_service import answer_chat
 from modules.config import allow_vercel_previews, cors_origins, validate_runtime_config
 from modules.ai_trace import AITrace, trace_update, trace_append
+from modules.domain_errors import DomainError
 
 
 logger = logging.getLogger(__name__)
@@ -109,6 +111,11 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(DomainError)
+async def domain_error_handler(request, exc):
+    return JSONResponse(status_code=exc.status_code, content={"detail": str(exc)})
+
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=1)
@@ -131,18 +138,26 @@ class ProfileUpdate(BaseModel):
 
 
 class OrderItemCreate(BaseModel):
-    name: str = Field(..., min_length=1)
-    quantity: int = Field(..., ge=1)
-    price: float = Field(..., ge=0)
-    image: str | None = None
+    model_config = ConfigDict(extra="forbid")
+    product_id: int = Field(..., gt=0, strict=True)
+    quantity: int = Field(..., ge=1, le=2147483647, strict=True)
 
 
-class OrderCreate(BaseModel):
-    store_name: str = Field(..., min_length=2)
-    store_image: str | None = None
-    payment_method: str = Field(..., min_length=2)
-    delivery_address: str = Field(..., min_length=5)
+class OrderQuote(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     items: list[OrderItemCreate] = Field(..., min_length=1)
+
+
+class OrderCreate(OrderQuote):
+    quote_hash: str = Field(..., min_length=64, max_length=64)
+    payment_method: Literal['Tarjeta', 'Yape', 'Plin', 'Efectivo']
+    delivery_address: str = Field(..., min_length=5, max_length=500)
+    delivery_notes: str | None = Field(default=None, max_length=500)
+
+    @field_validator('delivery_address', 'delivery_notes', mode='before')
+    @classmethod
+    def strip_text(cls, value):
+        return value.strip() if isinstance(value, str) else value
 
 
 class ClaimCreate(BaseModel):
@@ -164,6 +179,17 @@ class ResponseUpdate(BaseModel):
 class StateUpdate(BaseModel):
     state: str
     comment: str | None = None
+
+
+class CloseRequest(BaseModel):
+    comment: str = Field(..., min_length=1, max_length=2000)
+
+    @field_validator('comment')
+    @classmethod
+    def nonempty_comment(cls, value):
+        if not value.strip():
+            raise ValueError('Indica un motivo de cierre administrativo')
+        return value.strip()
 
 
 class ConfigUpdate(BaseModel):
@@ -353,6 +379,7 @@ def _to_claim_detail(id_reclamo: int) -> dict[str, Any]:
             "customerName": reclamo["cliente"],
             "customerEmail": reclamo["correo_cliente"],
             "orderCode": reclamo["codigo_pedido"],
+            "orderLinkStatus": "LINKED" if reclamo.get("id_pedido") else "LEGACY_UNRESOLVED",
             "channel": reclamo["canal_venta"],
             "orderDate": reclamo.get("fecha_pedido"),
             "description": reclamo["descripcion"],
@@ -374,6 +401,31 @@ def _to_claim_detail(id_reclamo: int) -> dict[str, Any]:
         "documents": [_to_document_reference(doc) for doc in documentos],
         "history": [_to_history_event(item) for item in historial],
     }
+
+
+def _detail_for_user(claim_id, user):
+    detail = _to_claim_detail(claim_id)
+    if user["rol"] != "CLIENT":
+        return detail
+    if detail["claim"]["customerEmail"].lower() != user["correo"].lower():
+        raise HTTPException(status_code=403, detail="No tienes acceso a este reclamo")
+    published = fetch_one("""SELECT * FROM respuestas_sugeridas WHERE id_reclamo=?
+        AND estado_revision IN ('APROBADA','ENVIADA') AND respuesta_final IS NOT NULL
+        ORDER BY id_respuesta DESC LIMIT 1""", (claim_id,))
+    detail["analysis"] = None
+    detail["documents"] = []
+    detail["response"] = ({key: value for key, value in _to_response(published).items()
+                           if key not in {"suggestedResponse", "editedResponse"}} if published else None)
+    public_history = []
+    for event in detail["history"]:
+        action = event["action"]
+        if action in {"Edición de borrador", "Edición de respuesta"} or action.startswith("Generaci"):
+            continue
+        public_history.append({"id": event["id"], "newState": event["newState"],
+            "action": action if action in {"Registro de reclamo", "Envio de respuesta", "Cierre de reclamo", "Reapertura de reclamo"}
+                      else "Actualización del caso", "createdAt": event["createdAt"]})
+    detail["history"] = public_history
+    return detail
 
 
 def _to_analysis(row: dict[str, Any]) -> dict[str, Any]:
@@ -436,6 +488,11 @@ def _to_order(row: dict[str, Any], items: list[dict[str, Any]]) -> dict[str, Any
         "storeImage": row.get("tienda_imagen"),
         "status": row["estado"],
         "total": float(row.get("total") or 0),
+        "subtotal": row.get("subtotal"),
+        "deliveryFee": row.get("costo_delivery"),
+        "serviceFee": row.get("costo_servicio"),
+        "deliveryNotes": row.get("notas_entrega"),
+        "paymentVerified": False,
         "paymentMethod": row.get("metodo_pago"),
         "deliveryAddress": row.get("direccion_entrega"),
         "deliveryDriver": row.get("repartidor"),
@@ -534,6 +591,9 @@ def _analyze_and_generate_traced(id_reclamo: int) -> dict[str, Any]:
     )
     if not reclamo:
         raise HTTPException(status_code=404, detail="Reclamo no encontrado")
+    closed = fetch_one("SELECT id_estado FROM estados_reclamo WHERE nombre='Cerrado'")
+    if closed and reclamo['id_estado'] == closed['id_estado']:
+        raise DomainError("Reabre el reclamo antes de analizarlo")
 
     try:
         analisis = clasificar_reclamo(reclamo["descripcion"])
@@ -575,6 +635,8 @@ def _analyze_and_generate_traced(id_reclamo: int) -> dict[str, Any]:
 
         guardar_respuesta(id_reclamo, respuesta, documentos)
         return _to_claim_detail(id_reclamo)
+    except DomainError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"No se pudo analizar el reclamo: {exc}") from exc
 
@@ -710,18 +772,16 @@ def orders(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
 def create_order(payload: OrderCreate, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     if user["rol"] != "CLIENT":
         raise HTTPException(status_code=403, detail="Solo una cuenta cliente puede crear pedidos")
-    order_id = crear_pedido_cliente(
-        user["correo"],
-        user["nombre"],
-        user.get("telefono"),
-        payload.store_name,
-        payload.store_image,
-        payload.payment_method,
-        payload.delivery_address,
-        [_pydantic_data(item) for item in payload.items],
-        "PREPARING",
-    )
+    from modules.order_service import create_catalog_order
+    order_id = create_catalog_order(user, [_pydantic_data(item) for item in payload.items],
+        payload.quote_hash, payload.payment_method, payload.delivery_address, payload.delivery_notes)
     return {"order": _order_detail_or_404(order_id, user)}
+
+
+@app.post("/api/orders/quote")
+def quote_order(payload: OrderQuote) -> dict[str, Any]:
+    from modules.order_service import quote_order as quote
+    return quote([_pydantic_data(item) for item in payload.items])
 
 
 @app.get("/api/orders/{order_id}")
@@ -783,36 +843,38 @@ def claims(
 def create_claim(payload: ClaimCreate, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     if user["rol"] == "CLIENT" and payload.customer_email.lower() != user["correo"].lower():
         raise HTTPException(status_code=403, detail="No puedes registrar reclamos para otro cliente")
+    owner_email = user["correo"] if user["rol"] == "CLIENT" else str(payload.customer_email)
+    order = fetch_one("""SELECT p.*, c.nombre AS cliente, c.correo, c.telefono
+        FROM pedidos p JOIN clientes c ON c.id_cliente=p.id_cliente
+        WHERE p.codigo_pedido=? AND lower(c.correo)=lower(?)""",
+        (payload.order_code.strip(), owner_email))
+    if not order:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado o no disponible para esta cuenta")
     try:
-        id_cliente = crear_cliente(
-            payload.customer_name,
-            payload.customer_email,
-            payload.customer_phone,
-        )
         id_reclamo = crear_reclamo(
-            id_cliente,
-            payload.order_code,
+            order["id_cliente"],
+            order["codigo_pedido"],
             payload.channel,
-            payload.order_date or "",
+            str(order["fecha_creacion"]),
             payload.description,
-            payload.responsible,
+            "Pendiente de asignación",
+            id_pedido=order["id_pedido"],
         )
         if payload.analyze:
             try:
-                return _analyze_and_generate(id_reclamo)
+                _analyze_and_generate(id_reclamo)
             except HTTPException:
-                return _to_claim_detail(id_reclamo)
-        return _to_claim_detail(id_reclamo)
+                pass
+        return _detail_for_user(id_reclamo, user)
+    except DomainError:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"No se pudo crear el reclamo: {exc}") from exc
 
 
 @app.get("/api/claims/{claim_id}")
 def claim_detail(claim_id: int, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
-    detail = _to_claim_detail(claim_id)
-    if user["rol"] == "CLIENT" and detail["claim"]["customerEmail"].lower() != user["correo"].lower():
-        raise HTTPException(status_code=403, detail="No tienes acceso a este reclamo")
-    return detail
+    return _detail_for_user(claim_id, user)
 
 
 @app.get("/api/claims/{claim_id}/messages")
@@ -845,17 +907,9 @@ def add_claim_message(
         raise HTTPException(status_code=409, detail="El reclamo está cerrado. Reábrelo antes de responder.")
 
     sender_type = "client" if user["rol"] == "CLIENT" else "agent"
-    crear_mensaje_reclamo(claim_id, sender_type, user["id_auth_user"], payload.message)
+    from modules.claim_workflow import record_message
+    record_message(claim_id, payload.message, user)
     if sender_type == "client":
-        try:
-            actualizar_estado_reclamo(
-                claim_id,
-                "En revision",
-                "Respuesta del cliente",
-                "El cliente agregó información al reclamo.",
-            )
-        except Exception:
-            logger.exception("No se pudo actualizar el estado del reclamo %s tras el mensaje del cliente", claim_id)
         try:
             staff_members = fetch_all("SELECT correo FROM auth_users WHERE rol IN ('AGENT', 'ADMIN') AND estado = 'ACTIVO'")
             for staff in staff_members:
@@ -873,10 +927,6 @@ def add_claim_message(
             logger.exception("No se pudieron consultar agentes para notificar sobre el reclamo %s", claim_id)
     else:
         try:
-            marcar_respondido(claim_id, "El agente respondió dentro de la conversación.")
-        except Exception:
-            logger.exception("No se pudo marcar como respondido el reclamo %s", claim_id)
-        try:
             crear_notificacion(
                 detail["claim"]["customerEmail"],
                 "Nuevo mensaje de soporte",
@@ -890,8 +940,8 @@ def add_claim_message(
 
 
 @app.post("/api/claims/{claim_id}/close")
-def close_claim(claim_id: int, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
-    cerrar_reclamo(claim_id, "Cerrado", "El agente cerró el reclamo.")
+def close_claim(claim_id: int, payload: CloseRequest, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
+    cerrar_reclamo(claim_id, "Cerrado", payload.comment, actor=user)
     return _to_claim_detail(claim_id)
 
 
@@ -900,8 +950,8 @@ def reopen_claim(claim_id: int, user: dict[str, Any] = Depends(get_current_user)
     detail = _to_claim_detail(claim_id)
     if user["rol"] == "CLIENT" and detail["claim"]["customerEmail"].lower() != user["correo"].lower():
         raise HTTPException(status_code=403, detail="No tienes acceso a este reclamo")
-    reabrir_reclamo(claim_id)
-    return _to_claim_detail(claim_id)
+    reabrir_reclamo(claim_id, actor=user)
+    return _detail_for_user(claim_id, user)
 
 
 @app.get("/api/claims/{claim_id}/comments")
@@ -933,21 +983,23 @@ def update_claim_state(claim_id: int, payload: StateUpdate, user: dict[str, Any]
         state = "En revision"
     try:
         if state == "Respondido":
-            marcar_respondido(claim_id, payload.comment)
+            marcar_respondido(claim_id, payload.comment, actor=user)
         elif state == "Escalado":
-            escalar_reclamo(claim_id, payload.comment)
+            escalar_reclamo(claim_id, payload.comment, actor=user)
         elif state == "Cerrado":
-            cerrar_reclamo(claim_id, "Cerrado", payload.comment)
+            cerrar_reclamo(claim_id, "Cerrado", payload.comment, actor=user)
         else:
-            actualizar_estado_reclamo(claim_id, state, "Actualizacion desde API", payload.comment)
+            actualizar_estado_reclamo(claim_id, state, "Actualizacion desde API", payload.comment, actor=user)
         return _to_claim_detail(claim_id)
+    except DomainError:
+        raise
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.patch("/api/responses/{response_id}")
 def update_response(response_id: int, payload: ResponseUpdate, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
-    actualizar_respuesta_final(response_id, payload.response_text, "EDITADA")
+    actualizar_respuesta_final(response_id, payload.response_text, "EDITADA", actor=user["nombre"])
     row = fetch_one("SELECT id_reclamo FROM respuestas_sugeridas WHERE id_respuesta = ?", (response_id,))
     if not row:
         raise HTTPException(status_code=404, detail="Respuesta no encontrada")
@@ -957,15 +1009,14 @@ def update_response(response_id: int, payload: ResponseUpdate, user: dict[str, A
 @app.post("/api/responses/{response_id}/approve")
 def approve_response(response_id: int, payload: ResponseUpdate | None = None, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
     row = fetch_one(
-        "SELECT id_reclamo, respuesta_generada FROM respuestas_sugeridas WHERE id_respuesta = ?",
+        "SELECT id_reclamo, respuesta_generada, respuesta_editada FROM respuestas_sugeridas WHERE id_respuesta = ?",
         (response_id,),
     )
     if not row:
         raise HTTPException(status_code=404, detail="Respuesta no encontrada")
-    texto_base = payload.response_text if payload and payload.response_text.strip() else row["respuesta_generada"]
+    texto_base = payload.response_text if payload and payload.response_text.strip() else row["respuesta_editada"] or row["respuesta_generada"]
     respuesta_firmada = _firmar_respuesta_agente(texto_base, user["nombre"])
-    aprobar_respuesta(response_id, respuesta_firmada)
-    marcar_respondido(row["id_reclamo"], "Respuesta enviada al cliente desde el panel de soporte.")
+    aprobar_respuesta(response_id, respuesta_firmada, user["nombre"], user["id_auth_user"])
     return _to_claim_detail(row["id_reclamo"])
 
 

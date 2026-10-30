@@ -105,6 +105,11 @@ export interface ApiOrder {
   storeImage?: string;
   status: 'DELIVERED' | 'IN_TRANSIT' | 'CANCELLED' | 'DELAYED' | 'PREPARING';
   total: number;
+  subtotal?: number;
+  deliveryFee?: number;
+  serviceFee?: number;
+  deliveryNotes?: string;
+  paymentVerified: boolean;
   paymentMethod: string;
   deliveryAddress: string;
   deliveryDriver?: string;
@@ -176,7 +181,7 @@ export interface ClaimDetailResponse {
   } | null;
   response: {
     id: string;
-    suggestedResponse: string;
+    suggestedResponse?: string;
     editedResponse?: string;
     finalResponse?: string;
     status: string;
@@ -333,12 +338,27 @@ export function getOrder(id: string) {
   return request<{ order: ApiOrder }>(`/api/orders/${id}`);
 }
 
+export interface OrderQuote {
+  items: Array<{ productId: number; restaurantId: number; restaurantName: string; name: string; price: number; quantity: number; image?: string }>;
+  subtotal: number;
+  delivery: number | null;
+  service: number | null;
+  total: number | null;
+  canConfirm: boolean;
+  quoteHash: string;
+  limitation: string | null;
+}
+
+export function quoteOrder(items: Array<{ product_id: number; quantity: number }>) {
+  return request<OrderQuote>('/api/orders/quote', { method: 'POST', body: JSON.stringify({ items }) });
+}
+
 export function createOrder(payload: {
-  store_name: string;
-  store_image?: string;
+  quote_hash: string;
   payment_method: string;
   delivery_address: string;
-  items: Array<{ name: string; quantity: number; price: number; image?: string }>;
+  delivery_notes?: string;
+  items: Array<{ product_id: number; quantity: number }>;
 }) {
   return request<{ order: ApiOrder }>('/api/orders', {
     method: 'POST',
@@ -379,8 +399,8 @@ export function sendClaimMessage(id: string, message: string) {
   });
 }
 
-export function closeClaim(id: string) {
-  return request<ClaimDetailResponse>(`/api/claims/${id}/close`, { method: 'POST' });
+export function closeClaim(id: string, comment: string) {
+  return request<ClaimDetailResponse>(`/api/claims/${id}/close`, { method: 'POST', body: JSON.stringify({ comment }) });
 }
 
 export function reopenClaim(id: string) {

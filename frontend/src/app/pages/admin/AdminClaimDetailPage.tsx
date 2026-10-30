@@ -48,6 +48,7 @@ export default function AdminClaimDetailPage() {
   const [comments, setComments] = useState<Array<{ id: string; comment: string; type: string; user: string; createdAt: string }>>([]);
   const [commentText, setCommentText] = useState('');
   const [commentType, setCommentType] = useState('INTERNO');
+  const [closeReason, setCloseReason] = useState('');
 
   const loadClaim = async () => {
     if (!id) return;
@@ -102,7 +103,7 @@ export default function AdminClaimDetailPage() {
 
   const handleSendResponse = async () => {
     if (!response) return;
-    const ok = await runAction(() => approveResponse(response.id, editedResponse || response.suggestedResponse));
+    const ok = await runAction(() => approveResponse(response.id, editedResponse || response.suggestedResponse || ''));
     if (ok) {
       toast.success('Respuesta enviada al cliente correctamente.');
     }
@@ -347,14 +348,15 @@ export default function AdminClaimDetailPage() {
                       </div>
                       <div className="flex flex-wrap gap-3">
                         <Button
-                          disabled={isWorking}
+                          disabled={isWorking || claim.statusKey === 'CLOSED' || ['APROBADA', 'ENVIADA'].includes(response.status)}
                           onClick={handleSendResponse}
+                          aria-disabled={claim.statusKey === 'CLOSED' || ['APROBADA', 'ENVIADA'].includes(response.status)}
                           className="flex-1"
                         >
                           <CheckCircle className="size-4 mr-2" />
                           Enviar respuesta al cliente
                         </Button>
-                        <Button onClick={() => setIsEditing(true)} variant="outline" className="flex-1">
+                        <Button disabled={claim.statusKey === 'CLOSED' || ['APROBADA', 'ENVIADA'].includes(response.status)} onClick={() => setIsEditing(true)} variant="outline" className="flex-1">
                           <Edit className="size-4 mr-2" />
                           Editar respuesta
                         </Button>
@@ -367,8 +369,8 @@ export default function AdminClaimDetailPage() {
                           Escalar
                         </Button>
                         <Button
-                          disabled={isWorking}
-                          onClick={() => id && runAction(() => updateClaimState(id, 'CLOSED', 'Caso cerrado desde panel full stack.'))}
+                          disabled={isWorking || !closeReason.trim() || claim.statusKey === 'CLOSED'}
+                          onClick={() => runAction(() => closeClaim(claim.id, closeReason))}
                           variant="outline"
                         >
                           <Lock className="size-4 mr-2" />
@@ -511,6 +513,11 @@ export default function AdminClaimDetailPage() {
           </div>
         </div>
         <ClaimConversation claimId={claim.id} viewer="agent" closed={claim.statusKey === 'CLOSED'} />
+        {claim.statusKey !== 'CLOSED' && <div className="space-y-2">
+          <label htmlFor="close-reason" className="font-semibold">Motivo de cierre administrativo</label>
+          <Textarea id="close-reason" value={closeReason} onChange={(event) => setCloseReason(event.target.value)} maxLength={2000} />
+          <p className="text-sm text-muted-foreground">Cerrar el caso no acredita una solución económica ni un pago. La aceptación de soluciones y sus plazos quedan pendientes de definir.</p>
+        </div>}
         <div className="flex justify-end">
           {claim.statusKey === 'CLOSED' ? (
             <Button
@@ -523,8 +530,8 @@ export default function AdminClaimDetailPage() {
           ) : (
             <Button
               variant="outline"
-              disabled={isWorking}
-              onClick={() => runAction(() => closeClaim(claim.id))}
+              disabled={isWorking || !closeReason.trim()}
+              onClick={() => runAction(() => closeClaim(claim.id, closeReason))}
             >
               Cerrar reclamo
             </Button>

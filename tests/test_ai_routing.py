@@ -211,10 +211,12 @@ def headers(client, role="CLIENT"):
 def test_formal_claim_keeps_ml_human_review_and_evidence(api, description, category):
     response = api.post("/api/claims", headers=headers(api), json={
         "customer_name": "Jhan Perez", "customer_email": "jhan.perez@gmail.com",
-        "order_code": "ORD-ISOLATED", "description": description, "analyze": True,
+        "order_code": api.get("/api/orders", headers=headers(api)).json()["items"][0]["code"], "description": description, "analyze": True,
     })
     assert response.status_code == 201
-    detail = response.json()
+    public = response.json()
+    assert public["analysis"] is None and public["response"] is None
+    detail = api.get("/api/claims/" + public["claim"]["id"], headers=headers(api, "AGENT")).json()
     assert detail["analysis"] and detail["response"]
     if category:
         assert detail["analysis"]["category"] == category
@@ -264,9 +266,10 @@ def test_claim_edit_approve_close_reopen_regression(api):
     agent_headers = headers(api, "AGENT")
     detail = api.post("/api/claims", headers=client_headers, json={
         "customer_name": "Jhan Perez", "customer_email": "jhan.perez@gmail.com",
-        "order_code": "ORD-LIFECYCLE", "description": "Me cobraron dos veces el mismo pedido",
+        "order_code": api.get("/api/orders", headers=client_headers).json()["items"][0]["code"], "description": "Me cobraron dos veces el mismo pedido",
     }).json()
     claim_id = detail["claim"]["id"]
+    detail = api.get(f"/api/claims/{claim_id}", headers=agent_headers).json()
     response_id = detail["response"]["id"]
     edited = "Revisaremos el cobro duplicado antes de confirmar una solución."
     assert api.patch(f"/api/responses/{response_id}", headers=client_headers,
@@ -278,7 +281,7 @@ def test_claim_edit_approve_close_reopen_regression(api):
     assert approved.status_code == 200
     assert approved.json()["claim"]["statusKey"] == "RESPONDED"
     assert "Gonzalo" in approved.json()["response"]["finalResponse"]
-    assert api.post(f"/api/claims/{claim_id}/close", headers=agent_headers).json()["claim"]["statusKey"] == "CLOSED"
+    assert api.post(f"/api/claims/{claim_id}/close", headers=agent_headers, json={"comment": "Cierre administrativo documentado"}).json()["claim"]["statusKey"] == "CLOSED"
     assert api.post(f"/api/claims/{claim_id}/reopen", headers=client_headers).json()["claim"]["statusKey"] != "CLOSED"
 
 
