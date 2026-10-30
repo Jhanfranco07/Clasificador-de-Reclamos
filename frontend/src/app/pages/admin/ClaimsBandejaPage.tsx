@@ -30,16 +30,21 @@ export default function ClaimsBandejaPage() {
   const [statusFilter, setStatusFilter] = useState<ClaimStatus | 'ALL'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: 10, total: 0, totalPages: 1 });
 
   useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError('');
     const timer = window.setTimeout(() => listClaims({ status: statusFilter, search: searchTerm, dateFrom, dateTo, page: pagination.page, pageSize: pagination.pageSize })
-      .then((data) => { setClaims(data.items); setPagination(data.pagination); })
-      .catch((err) => setError(err instanceof Error ? err.message : 'No se pudieron cargar los reclamos.')),
+      .then((data) => { if (active) { setClaims(data.items); setPagination(data.pagination); } })
+      .catch((err) => { if (active) setError(err instanceof Error ? err.message : 'No se pudieron cargar los reclamos.'); })
+      .finally(() => { if (active) setLoading(false); }),
     250);
-    return () => window.clearTimeout(timer);
+    return () => { active = false; window.clearTimeout(timer); };
   }, [dateFrom, dateTo, pagination.page, pagination.pageSize, searchTerm, statusFilter]);
 
   const filteredClaims = claims;
@@ -111,7 +116,7 @@ export default function ClaimsBandejaPage() {
 
         {error && (
           <Card className="border-red-200 bg-red-50">
-            <CardContent className="py-4 text-red-700">{error}</CardContent>
+            <CardContent role="alert" className="py-4 text-red-700">{error}</CardContent>
           </Card>
         )}
 
@@ -126,7 +131,7 @@ export default function ClaimsBandejaPage() {
               <CardContent className="pt-6">
                 <div className="text-center">
                   <p className={`text-2xl font-bold ${color}`}>
-                    {key === 'REVIEW'
+                    {loading || error ? '—' : key === 'REVIEW'
                       ? claims.filter(c => c.requiresHumanReview).length
                       : key === 'URGENT'
                         ? urgentClaims.length
@@ -144,8 +149,8 @@ export default function ClaimsBandejaPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
-              <CardTitle>Reclamos ({filteredClaims.length})</CardTitle>
-              {urgentClaims.length > 0 && (
+              <CardTitle>Reclamos ({loading || error ? 'no disponibles' : filteredClaims.length})</CardTitle>
+              {!loading && !error && urgentClaims.length > 0 && (
                 <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
                   <AlertTriangle className="size-3 mr-1" />
                   {urgentClaims.length} urgente(s)
@@ -169,7 +174,7 @@ export default function ClaimsBandejaPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredClaims.length === 0 ? (
+                  {loading || error ? <TableRow><TableCell colSpan={8} role={error ? 'alert' : 'status'}>{error ? 'Reclamos no disponibles. Reintenta cambiando el filtro o recargando.' : 'Cargando reclamos...'}</TableCell></TableRow> : filteredClaims.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                         No hay reclamos con este filtro

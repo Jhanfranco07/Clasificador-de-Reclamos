@@ -18,7 +18,7 @@ test('AF-27 corregido por retiro: ayuda sin búsqueda o contactos ficticios', as
   await expect(page.getByRole('button', { name: 'Correo no disponible' })).toBeDisabled();
 });
 
-test('AF-28 pendiente BF-14: configuración persiste al recargar', async ({ page }) => {
+test('AF-28 corregido BF-14: configuración persiste al recargar', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('Email').fill('admin@smartclaim.com');
   await page.getByLabel(/Contraseña/).fill('123456');
@@ -43,7 +43,7 @@ test('AF-12 corregido: catálogo vacío no aparenta restaurantes', async ({ page
   await expect(page.getByRole('link', { name: 'Ver restaurante', exact: true })).toHaveCount(0);
 });
 
-test('AF-13 pendiente BF-16: detalle público anunciado por catálogo', async ({ page }) => {
+test('AF-13 corregido BF-16: detalle público anunciado por catálogo', async ({ page }) => {
   const catalog = await (await page.request.get(`${API}/api/catalog`)).json();
   await page.goto('/');
   await page.getByRole('link', { name: 'Ver restaurante', exact: true }).first().click();
@@ -51,7 +51,7 @@ test('AF-13 pendiente BF-16: detalle público anunciado por catálogo', async ({
   await expect(page).toHaveURL(/\/restaurants\/\d+$/);
 });
 
-test('AF-16 pendiente BF-16: carrito corrupto no deja pantalla vacía', async ({ page }) => {
+test('AF-16 corregido BF-16: carrito corrupto no deja pantalla vacía', async ({ page }) => {
   await login(page);
   await page.evaluate(() => localStorage.setItem('smartclaim_pending_cart', '{invalid-json'));
   const errors: string[] = [];

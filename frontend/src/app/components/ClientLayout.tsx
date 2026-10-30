@@ -92,7 +92,7 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/dashboard" className="flex items-center gap-2">
             <Package className="size-8 text-orange-500" />
-            <span className="font-bold text-xl">SmartClaim AI</span>
+            <span className="sr-only sm:not-sr-only font-bold text-xl">SmartClaim AI</span>
           </Link>
 
           <div className="flex items-center gap-2 sm:gap-4">

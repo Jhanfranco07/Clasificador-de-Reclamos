@@ -193,10 +193,11 @@ class CloseRequest(BaseModel):
 
 
 class ConfigUpdate(BaseModel):
+    config_id: int = Field(..., gt=0, strict=True)
     confidence_threshold: float = Field(..., ge=0, le=1)
     human_review_required: bool
     use_rag: bool
-    max_documents: int = Field(..., ge=1, le=10)
+    max_documents: int = Field(..., ge=1, le=10, strict=True)
 
 
 class DocumentPayload(BaseModel):
@@ -598,6 +599,7 @@ def _analyze_and_generate_traced(id_reclamo: int) -> dict[str, Any]:
     try:
         analisis = clasificar_reclamo(reclamo["descripcion"])
         trace_update(classification_category=analisis["categoria"],
+                     classification_model=analisis["modelo_usado"],
                      classification_confidence=analisis["confianza"])
         guardar_analisis(id_reclamo, analisis)
 
@@ -1054,10 +1056,18 @@ def reindex_documents(user: dict[str, Any] = Depends(require_admin)) -> dict[str
 
 @app.get("/api/config")
 def get_config(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
-    config = _config()
+    from modules.ai_status import execution_status
+    config = get_configuracion_activa()
+    if not config:
+        raise DomainError("No existe una configuración activa editable.")
+    count = fetch_one("SELECT COUNT(*) AS n FROM configuracion_modelo_ia WHERE activo=1")['n']
     return {
+        "id": config['id_configuracion'],
+        "activeCount": count,
+        "selectionPolicy": "highest_active_id",
         "model": config.get("modelo_base"),
-        "confidenceThreshold": float(config.get("umbral_confianza") or 0.85),
+        "runtime": execution_status(),
+        "confidenceThreshold": float(config["umbral_confianza"]),
         "humanReviewRequired": bool(config.get("revision_humana_obligatoria")),
         "useRag": bool(config.get("usar_rag")),
         "maxDocuments": int(config.get("max_documentos_recuperados") or 3),
@@ -1072,8 +1082,9 @@ def put_config(payload: ConfigUpdate, user: dict[str, Any] = Depends(require_adm
         payload.human_review_required,
         payload.use_rag,
         payload.max_documents,
+        payload.config_id,
     )
-    return get_config()
+    return get_config(user)
 
 
 @app.get("/api/reports")

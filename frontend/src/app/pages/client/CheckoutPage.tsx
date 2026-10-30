@@ -10,30 +10,13 @@ import ClientLayout from '../../components/ClientLayout';
 import { createOrder } from '../../lib/api';
 import { formatCurrency } from '../../lib/utils';
 import { useOrderQuote } from '../../lib/useOrderQuote';
-
-const CART_KEY = 'smartclaim_pending_cart';
-
-type PendingCartItem = {
-  id: string;
-  name: string;
-  price: number;
-  image?: string;
-  restaurantName: string;
-  restaurantImage?: string;
-  quantity: number;
-};
-
-const readCart = (): PendingCartItem[] => {
-  try {
-    return JSON.parse(window.localStorage.getItem(CART_KEY) || '[]') as PendingCartItem[];
-  } catch {
-    return [];
-  }
-};
+import { useCart } from '../../lib/useCart';
+import CartNotice from '../../components/CartNotice';
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const [cart] = useState<PendingCartItem[]>(readCart);
+  const cartState = useCart();
+  const cart = cartState.items;
   const [address, setAddress] = useState('Av. Primavera 123, Lima');
   const [paymentMethod, setPaymentMethod] = useState('Tarjeta');
   const [deliveryNotes, setDeliveryNotes] = useState('');
@@ -73,7 +56,7 @@ export default function CheckoutPage() {
         delivery_notes: deliveryNotes.trim() || undefined,
         items: cart.map((item) => ({ product_id: Number(item.id), quantity: item.quantity })),
       });
-      window.localStorage.removeItem(CART_KEY);
+      cartState.reset();
       navigate(`/orders/${result.order.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo crear el pedido.');
@@ -97,7 +80,8 @@ export default function CheckoutPage() {
           <p className="text-gray-600">Revisa tu carrito, dirección y forma de pago antes de finalizar.</p>
         </div>
 
-        {cart.length === 0 ? (
+        <CartNotice warning={cartState.warning} reset={cartState.reset} />
+        {cartState.blocked ? null : cart.length === 0 ? (
           <Card>
             <CardContent className="text-center py-12">
               <ShoppingCart className="size-16 mx-auto mb-4 text-gray-300" />

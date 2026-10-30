@@ -69,7 +69,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               <Package className="size-6" />
             </span>
             <div>
-              <span className="font-bold text-xl">SmartClaim AI</span>
+              <span className="font-bold text-base sm:text-xl">SmartClaim AI</span>
               <span className="text-xs text-gray-400 block">
                 {currentUser?.role === 'ADMIN' ? 'Panel Administrativo' : 'Panel de Soporte'}
               </span>

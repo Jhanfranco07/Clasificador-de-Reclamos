@@ -256,6 +256,13 @@ export interface ReindexResponse {
 }
 
 export interface ConfigResponse {
+  id: number;
+  activeCount: number;
+  selectionPolicy: string;
+  runtime: {
+    classifierArtifactPresent: boolean;
+    lastExecution: { classifierModel: string; generationStrategy: string | null; retrievalStrategy: string | null; openaiUsed: boolean; recordedAt: string; outcome: string } | null;
+  };
   model: string;
   confidenceThreshold: number;
   humanReviewRequired: boolean;
@@ -503,6 +510,7 @@ export function getConfig() {
 }
 
 export function saveConfig(payload: {
+  config_id: number;
   confidence_threshold: number;
   human_review_required: boolean;
   use_rag: boolean;

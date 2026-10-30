@@ -20,6 +20,10 @@ import { useAuth } from '../../contexts/AuthContext';
 import { ImageWithFallback } from '../../components/figma/ImageWithFallback';
 import { getCatalog } from '../../lib/api';
 import { useOrderQuote } from '../../lib/useOrderQuote';
+import { useCart } from '../../lib/useCart';
+import CartNotice from '../../components/CartNotice';
+export { CART_KEY } from '../../lib/cart';
+export type { CartItem } from '../../lib/cart';
 
 export type Product = {
   id: string;
@@ -40,14 +44,6 @@ export type Restaurant = {
   products: Product[];
 };
 
-export type CartItem = Product & {
-  restaurantName: string;
-  restaurantImage?: string;
-  quantity: number;
-};
-
-export const CART_KEY = 'smartclaim_pending_cart';
-
 export default function CatalogPage({ internal = false }: { internal?: boolean }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -56,13 +52,8 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
   const [catalogError, setCatalogError] = useState('');
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('Todos');
-  const [cart, setCart] = useState<CartItem[]>(() => {
-    try {
-      return JSON.parse(window.localStorage.getItem(CART_KEY) || '[]') as CartItem[];
-    } catch {
-      return [];
-    }
-  });
+  const cartState = useCart();
+  const { items: cart, update: setCart } = cartState;
 
   useEffect(() => {
     getCatalog()
@@ -74,10 +65,6 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
         setCatalogError('No se pudo cargar el catálogo. No se muestran comercios de respaldo.');
       }).finally(() => setCatalogLoading(false));
   }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(CART_KEY, JSON.stringify(cart));
-  }, [cart]);
 
   const restaurants = apiRestaurants;
   const featuredRestaurant = restaurants.find((restaurant) => restaurant.products.length > 0);
@@ -127,21 +114,20 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
 
   const handleCheckout = () => {
     if (!cart.length) return;
-    window.localStorage.setItem(CART_KEY, JSON.stringify(cart));
-    navigate(isAuthenticated ? '/checkout' : '/login');
+    navigate(isAuthenticated ? '/checkout' : '/login', isAuthenticated ? undefined : { state: { from: '/checkout' } });
   };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       {!internal && <header className="border-b border-border bg-card/95 backdrop-blur sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="container mx-auto px-4 py-4 flex flex-col gap-3 sm:flex-row items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="flex size-10 items-center justify-center rounded-xl bg-orange-500 text-white shadow-sm">
               <Package className="size-6" />
             </span>
             <span className="font-bold text-2xl">SmartClaim AI</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-center gap-3">
             <a href="#carrito" className="hidden md:block">
               <Button variant="outline" className="gap-2">
                 <ShoppingCart className="size-4" />
@@ -175,10 +161,11 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
       </header>}
 
       <main>
+        <div className="container mx-auto px-4"><CartNotice warning={cartState.warning} reset={cartState.reset} /></div>
         <section className="bg-card">
           <div className="container mx-auto px-4 py-10 grid lg:grid-cols-[1.05fr_0.95fr] gap-8 items-center">
-            <div className="space-y-6">
-              <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">
+            <div className="space-y-6 min-w-0">
+              <Badge className="max-w-full whitespace-normal bg-orange-100 text-orange-700 hover:bg-orange-100">
                 Proyecto académico · pedidos y pagos de demostración
               </Badge>
               <div>
@@ -204,15 +191,15 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
                 </a>
               </div>
               <div className="grid grid-cols-3 gap-3 max-w-xl">
-                <div className="rounded-lg border bg-white p-3 shadow-sm">
+                <div className="min-w-0 break-words rounded-lg border bg-white p-2 sm:p-3 shadow-sm">
                   <p className="text-2xl font-bold">{restaurants.length}</p>
                   <p className="text-sm text-gray-500">Restaurantes</p>
                 </div>
-                <div className="rounded-lg border bg-white p-3 shadow-sm">
+                <div className="min-w-0 break-words rounded-lg border bg-white p-2 sm:p-3 shadow-sm">
                   <p className="text-2xl font-bold">{totalProducts}</p>
                   <p className="text-sm text-gray-500">Productos</p>
                 </div>
-                <div className="rounded-lg border bg-white p-3 shadow-sm">
+                <div className="min-w-0 break-words rounded-lg border bg-white p-2 sm:p-3 shadow-sm">
                   <p className="text-2xl font-bold">En la app</p>
                   <p className="text-sm text-gray-500">Seguimiento del reclamo</p>
                 </div>
@@ -234,7 +221,7 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
                   <span className="text-2xl font-bold">{featuredProduct ? formatCurrency(featuredProduct.price) : 'No disponible'}</span>
                   <Button
                     variant="secondary"
-                    disabled={!featuredProduct}
+                    disabled={!featuredProduct || cartState.blocked}
                     onClick={() => { if (featuredRestaurant && featuredProduct) addToCart(featuredRestaurant, featuredProduct); }}
                   >
                     Agregar al carrito
@@ -312,7 +299,7 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
                             <p className="text-xs text-gray-500 line-clamp-2">{product.description}</p>
                             <p className="text-sm font-bold mt-1">{formatCurrency(product.price)}</p>
                           </div>
-                          <Button size="sm" onClick={() => addToCart(restaurant, product)}>
+                          <Button size="sm" disabled={cartState.blocked} aria-label={`Agregar ${product.name}`} onClick={() => addToCart(restaurant, product)}>
                             <Plus className="size-4" />
                           </Button>
                         </div>
@@ -349,17 +336,17 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
                                 <p className="font-semibold leading-tight">{item.name}</p>
                                 <p className="text-xs text-gray-500">{item.restaurantName}</p>
                               </div>
-                              <button onClick={() => removeItem(item.id)} className="text-gray-400 hover:text-red-600">
+                              <button aria-label={`Eliminar ${item.name}`} onClick={() => removeItem(item.id)} className="text-gray-400 hover:text-red-600">
                                 <Trash2 className="size-4" />
                               </button>
                             </div>
                             <div className="flex items-center justify-between mt-3">
                               <div className="flex items-center gap-2">
-                                <Button size="sm" variant="outline" onClick={() => updateQuantity(item.id, -1)}>
+                                <Button size="sm" variant="outline" aria-label={`Reducir cantidad de ${item.name}`} onClick={() => updateQuantity(item.id, -1)}>
                                   <Minus className="size-3" />
                                 </Button>
                                 <span className="w-6 text-center font-semibold">{item.quantity}</span>
-                                <Button size="sm" variant="outline" onClick={() => updateQuantity(item.id, 1)}>
+                                <Button size="sm" variant="outline" aria-label={`Aumentar cantidad de ${item.name}`} onClick={() => updateQuantity(item.id, 1)}>
                                   <Plus className="size-3" />
                                 </Button>
                               </div>

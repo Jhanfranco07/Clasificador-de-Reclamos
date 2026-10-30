@@ -18,10 +18,14 @@ export default function OrderDetailPage() {
 
   useEffect(() => {
     if (!id) return;
+    let active = true;
+    setIsLoading(true);
+    setError('');
     getOrder(id)
-      .then((result) => setOrder(result.order))
-      .catch((err) => setError(err instanceof Error ? err.message : 'No se pudo cargar el pedido.'))
-      .finally(() => setIsLoading(false));
+      .then((result) => { if (active) setOrder(result.order); })
+      .catch((err) => { if (active) setError(err instanceof Error ? err.message : 'No se pudo cargar el pedido.'); })
+      .finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
   }, [id]);
 
   const getStatusColor = (status: string) => {
@@ -49,8 +53,8 @@ export default function OrderDetailPage() {
     return (
       <ClientLayout>
         <div className="text-center py-12">
-          <h2 className="text-2xl font-bold mb-4">Pedido no encontrado</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
+          <h2 className="text-2xl font-bold mb-4">{error ? 'No se pudo cargar el pedido' : 'Pedido no encontrado'}</h2>
+          <p role={error ? 'alert' : undefined} className="text-gray-600 mb-6">{error}</p>
           <Link to="/orders">
             <Button>Volver a pedidos</Button>
           </Link>

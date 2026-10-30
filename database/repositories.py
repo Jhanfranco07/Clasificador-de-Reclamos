@@ -464,13 +464,9 @@ def listar_historial_estados(id_reclamo):
         ORDER BY fecha_cambio DESC, id_historial DESC
     """, (id_reclamo,))
 
-def actualizar_configuracion(umbral, revision_humana, usar_rag, max_docs):
-    execute("""
-        UPDATE configuracion_modelo_ia
-        SET umbral_confianza = ?, revision_humana_obligatoria = ?, usar_rag = ?,
-            max_documentos_recuperados = ?, fecha_actualizacion = CURRENT_TIMESTAMP
-        WHERE nombre_configuracion = 'Configuración principal'
-    """, (umbral, int(revision_humana), int(usar_rag), int(max_docs)))
+def actualizar_configuracion(umbral, revision_humana, usar_rag, max_docs, config_id):
+    from modules.config_service import save_active_config
+    return save_active_config(config_id, umbral, revision_humana, usar_rag, max_docs)
 
 
 def eliminar_fragmentos_documento():

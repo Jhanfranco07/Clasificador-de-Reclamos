@@ -64,14 +64,14 @@ function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/restaurants/:id" element={<RestaurantPage />} />
+      <Route path="/cart" element={<CartPage />} />
       {/* Client routes */}
       <Route element={<ProtectedRoute />}>
         <Route element={<ClientLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/restaurants" element={<LandingPage internal />} />
-          <Route path="/restaurants/:id" element={<RestaurantPage />} />
           <Route path="/products" element={<LandingPage internal />} />
-          <Route path="/cart" element={<CartPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/orders" element={<OrdersPage />} />

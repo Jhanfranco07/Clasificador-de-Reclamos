@@ -18,12 +18,20 @@ export default function ClaimConversation({
   const [messages, setMessages] = useState<ClaimMessage[]>([]);
   const [message, setMessage] = useState('');
   const [working, setWorking] = useState(false);
-
-  const load = () => listClaimMessages(claimId).then((result) => setMessages(result.items));
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
-    load().catch(() => setMessages([]));
-  }, [claimId]);
+    let active = true;
+    setLoading(true);
+    setError('');
+    listClaimMessages(claimId)
+      .then((result) => { if (active) setMessages(result.items); })
+      .catch(() => { if (active) setError('No se pudo cargar la conversación.'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [claimId, retry]);
 
   const send = async () => {
     if (message.trim().length < 2) return;
@@ -46,13 +54,16 @@ export default function ClaimConversation({
         <MessageSquare className="size-5 text-orange-600" />
         <h2 className="text-lg font-bold">Conversación del reclamo</h2>
       </div>
+      {loading && <p role="status">Cargando conversación...</p>}
+      {error && <div role="alert"><p>{error}</p><Button variant="outline" onClick={() => setRetry((value) => value + 1)}>Reintentar conversación</Button></div>}
+      {!loading && !error && messages.length === 0 && <p>No hay mensajes registrados.</p>}
       <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
-        {messages.map((item) => {
+        {!loading && !error && messages.map((item) => {
           const own = item.senderType === viewer;
           return (
             <div key={item.id} className={`flex ${own ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[85%] rounded-lg px-4 py-3 ${own ? 'bg-orange-500 text-white' : 'bg-muted text-foreground'}`}>
-                <p className="whitespace-pre-line text-sm">{item.message}</p>
+                <p className="whitespace-pre-line break-words text-sm">{item.message}</p>
                 <p className={`mt-2 text-xs ${own ? 'text-white/65' : 'text-gray-500'}`}>
                   {item.senderType === 'client' ? 'Cliente' : item.senderType === 'agent' ? 'Soporte' : 'Sistema'} · {formatDateTime(item.createdAt)}
                 </p>
@@ -72,7 +83,7 @@ export default function ClaimConversation({
             onChange={(event) => setMessage(event.target.value)}
             placeholder={viewer === 'client' ? 'Escribe información adicional para soporte...' : 'Escribe una respuesta para el cliente...'}
           />
-          <Button disabled={working || message.trim().length < 2} onClick={send} className="gap-2">
+          <Button disabled={working || loading || !!error || message.trim().length < 2} onClick={send} className="gap-2">
             <Send className="size-4" />
             Enviar mensaje
           </Button>

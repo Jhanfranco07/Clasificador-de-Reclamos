@@ -16,6 +16,7 @@ export default function KnowledgeBasePage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [isWorking, setIsWorking] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: '',
@@ -25,11 +26,14 @@ export default function KnowledgeBasePage() {
   });
 
   const loadDocuments = async () => {
+    setLoading(true);
     setError('');
     try {
       setData(await getDocuments());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar la base documental.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -116,7 +120,7 @@ export default function KnowledgeBasePage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap gap-3 items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold mb-2">Base documental</h1>
             <p className="text-gray-600">
@@ -131,7 +135,7 @@ export default function KnowledgeBasePage() {
 
         {error && (
           <Card className="border-red-200 bg-red-50">
-            <CardContent className="py-4 text-red-700">{error}</CardContent>
+            <CardContent role="alert" className="py-4 text-red-700">{error}</CardContent>
           </Card>
         )}
         {notice && (
@@ -147,7 +151,7 @@ export default function KnowledgeBasePage() {
               <FileText className="size-4 text-gray-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalDocs}</div>
+              <div className="text-2xl font-bold">{loading || error ? '—' : totalDocs}</div>
               <p className="text-xs text-gray-500 mt-1">En la base de conocimiento</p>
             </CardContent>
           </Card>
@@ -158,7 +162,7 @@ export default function KnowledgeBasePage() {
               <CheckCircle className="size-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{indexedDocs}</div>
+              <div className="text-2xl font-bold text-green-600">{loading || error ? '—' : indexedDocs}</div>
               <p className="text-xs text-gray-500 mt-1">Disponibles para recuperación</p>
             </CardContent>
           </Card>
@@ -169,7 +173,7 @@ export default function KnowledgeBasePage() {
               <RefreshCw className="size-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{data?.index.embeddings || 0}</div>
+              <div className="text-2xl font-bold text-blue-600">{loading || error ? '—' : data?.index.embeddings || 0}</div>
               <p className="text-xs text-gray-500 mt-1">
                 {data?.index.provider === 'supabase_pgvector'
                   ? `${data.index.modelo_embedding || 'OpenAI'} · Supabase pgvector`
@@ -242,17 +246,19 @@ export default function KnowledgeBasePage() {
         </Card>
 
         <div className="space-y-4">
-          {filteredDocs.map((doc) => (
+          {loading && <p role="status">Cargando documentos...</p>}
+          {!loading && !error && filteredDocs.length === 0 && <p>{query ? 'No hay documentos que coincidan con la búsqueda.' : 'No hay documentos registrados.'}</p>}
+          {!loading && !error && filteredDocs.map((doc) => (
             <Card key={doc.id}>
               <CardContent className="p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-4 flex-1">
+                <div className="flex flex-col md:flex-row items-start justify-between gap-4">
+                  <div className="flex items-start gap-3 flex-1 min-w-0 w-full">
                     <div className="size-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
                       <FileText className="size-6 text-blue-600" />
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="font-semibold text-lg">{doc.title}</h3>
+                    <div className="flex-1 min-w-0 break-words">
+                      <div className="flex flex-wrap items-center gap-3 mb-2">
+                        <h3 className="min-w-0 max-w-full break-words font-semibold text-lg">{doc.title}</h3>
                         <Badge variant="secondary">{doc.type}</Badge>
                         {doc.indexStatus === 'INDEXADO' && (
                           <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
@@ -262,7 +268,7 @@ export default function KnowledgeBasePage() {
                         )}
                       </div>
                       <p className="text-gray-700 mb-3">{doc.content}</p>
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                      <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
                         <span>Categoría: {doc.category}</span>
                         <span>·</span>
                         <span>Actualizado: {formatDateTime(doc.updatedAt)}</span>
