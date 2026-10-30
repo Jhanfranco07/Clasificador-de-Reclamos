@@ -187,6 +187,8 @@ def construir_indice_tfidf(forzar=False):
     }
 
 def construir_indice_vectorial(forzar=False):
+    if forzar:
+        reconstruir_fragmentos_desde_documentos()
     if using_postgres() and _pgvector_habilitado():
         try:
             return construir_indice_pgvector(forzar=forzar)
@@ -207,119 +209,132 @@ def cargar_indice_vectorial():
 
     return vectorizer, matrix, metadata
 
-def recuperar_documentos(texto_reclamo, categoria, max_docs=3):
-    """
-    Recupera fragmentos relevantes.
-    En PostgreSQL usa pgvector con embeddings neuronales; en SQLite usa TF-IDF.
-    Devuelve una estructura compatible con el resto del sistema.
-    """
-    try:
-        from modules.openai_embeddings import search
-        semantic = search(
-            " ".join([str(categoria or ""), str(texto_reclamo or "")]),
-            top_k=int(os.getenv("RAG_TOP_K", str(max_docs))),
-            threshold=float(os.getenv("RAG_SIMILARITY_THRESHOLD", "0.70")),
-        )
-        if semantic:
-            return semantic[: int(max_docs)]
-    except Exception:
-        logger.exception("Falló la búsqueda mediante el índice local de embeddings OpenAI")
+def _document_scope(categoria, confianza=None, umbral_confianza=0.85):
+    """Resolve canonical categories against live data; ambiguous requests stay general."""
+    from database.db_connection import fetch_all
+    from modules.ai_trace import trace_append
+    documents = listar_documentos()
+    category = None
+    if confianza is not None and confianza < umbral_confianza:
+        trace_append("fallback_reasons", "low_classification_confidence")
+    elif categoria and normalizar_texto(categoria) != "soporte general":
+        categories = fetch_all("SELECT nombre FROM categorias_reclamo WHERE activo = 1")
+        category = next((row["nombre"] for row in categories
+                         if normalizar_texto(row["nombre"]) == normalizar_texto(categoria)), None)
+        if category is None:
+            trace_append("fallback_reasons", "unknown_category")
+    if category:
+        selected = [doc for doc in documents
+                    if normalizar_texto(doc.get("categoria_asociada") or "") == normalizar_texto(category)]
+        minimum = max(1, int(os.getenv("RAG_MIN_CATEGORY_DOCUMENTS", "1")))
+        if len(selected) >= minimum:
+            return category, [doc["id_documento"] for doc in selected]
+        trace_append("fallback_reasons", "insufficient_category_documents")
+    return None, [doc["id_documento"] for doc in documents]
 
-    if using_postgres() and _pgvector_habilitado():
+
+def recuperar_documentos(texto_reclamo, categoria=None, max_docs=3,
+                         confianza=None, umbral_confianza=0.85):
+    from modules.ai_trace import trace_update, trace_append
+    category, ids = _document_scope(categoria, confianza, umbral_confianza)
+    trace_update(rag_executed=True, category=category)
+    max_docs = max(1, int(max_docs))
+
+    def retrieve(scope_category, document_ids):
+        trace_append("retrieval_attempts", "openai_json")
         try:
-            if contar_embeddings_rag() == 0:
-                return recuperar_documentos_tfidf(texto_reclamo, categoria, max_docs)
-
-            consulta = " ".join([str(categoria or ""), str(texto_reclamo or "")])
-            from modules.openai_embeddings import create_embeddings
-            embedding = create_embeddings([consulta])[0]
-            filas = buscar_embeddings_rag(embedding, max_docs=max_docs)
-
-            resultados = []
-            for fila in filas:
-                score = float(fila.get("score") or 0)
-                resultados.append({
-                    "id_documento": fila["id_documento"],
-                    "id_fragmento": fila["id_fragmento"],
-                    "titulo": fila["titulo"],
-                    "tipo_documento": fila["tipo_documento"],
-                    "categoria_asociada": fila["categoria_asociada"],
-                    "contenido": fila["texto_fragmento"],
-                    "fragmento": fila["texto_fragmento"],
-                    "score": round(score, 4),
-                    "embedding_id": f"pgvector_{fila['id_fragmento']}",
-                    "modelo_embedding": fila.get("modelo_embedding"),
-                    "vector_store": "supabase_pgvector",
-                })
-            if resultados:
-                return resultados
+            from modules.openai_embeddings import search
+            semantic = search(
+                str(texto_reclamo or ""),
+                top_k=max(max_docs, int(os.getenv("RAG_TOP_K", str(max_docs)))),
+                threshold=float(os.getenv("RAG_SIMILARITY_THRESHOLD", "0.70")),
+                category=scope_category, document_ids=document_ids,
+            )
+            if semantic:
+                trace_update(retrieval_strategy="openai_json")
+                return semantic[:max_docs]
         except Exception:
-            logger.exception("Falló la recuperación mediante Supabase pgvector; se utilizará TF-IDF")
+            trace_append("fallback_reasons", "openai_json_unavailable")
+            logger.warning("Indice local de embeddings no disponible; se intenta respaldo")
 
-    return recuperar_documentos_tfidf(texto_reclamo, categoria, max_docs)
+        if using_postgres() and _pgvector_habilitado():
+            trace_append("retrieval_attempts", "pgvector")
+            try:
+                if contar_embeddings_rag() > 0:
+                    from modules.openai_embeddings import create_embeddings
+                    embedding = create_embeddings([str(texto_reclamo or "")])[0]
+                    rows = buscar_embeddings_rag(embedding, max_docs=max_docs,
+                                                categoria=scope_category, document_ids=document_ids)
+                    results = [{
+                        "id_documento": row["id_documento"], "id_fragmento": row["id_fragmento"],
+                        "titulo": row["titulo"], "tipo_documento": row["tipo_documento"],
+                        "categoria_asociada": row["categoria_asociada"],
+                        "contenido": row["texto_fragmento"], "fragmento": row["texto_fragmento"],
+                        "score": round(float(row.get("score") or 0), 4),
+                        "embedding_id": f"pgvector_{row['id_fragmento']}",
+                        "modelo_embedding": row.get("modelo_embedding"), "vector_store": "supabase_pgvector",
+                    } for row in rows if float(row.get("score") or 0) > 0]
+                    if results:
+                        trace_update(retrieval_strategy="pgvector")
+                        return results
+            except Exception:
+                trace_append("fallback_reasons", "pgvector_unavailable")
+                logger.warning("pgvector no disponible; se intenta TF-IDF con el mismo filtro")
 
-def recuperar_documentos_tfidf(texto_reclamo, categoria, max_docs=3):
+        trace_append("retrieval_attempts", "tfidf")
+        results = recuperar_documentos_tfidf(texto_reclamo, scope_category, max_docs,
+                                            document_ids=document_ids)
+        trace_update(retrieval_strategy="tfidf")
+        return results
+
+    results = retrieve(category, ids) if ids else []
+    if category and not results:
+        trace_append("fallback_reasons", "no_relevant_category_results")
+        category = None
+        trace_update(category=None)
+        all_ids = [doc["id_documento"] for doc in listar_documentos()]
+        results = retrieve(None, all_ids) if all_ids else []
+    trace_update(document_count=len(results))
+    return results
+
+
+def recuperar_documentos_tfidf(texto_reclamo, categoria=None, max_docs=3, document_ids=None):
     vectorizer, matrix, metadata = cargar_indice_vectorial()
-
-    consulta = " ".join([
-        str(categoria or ""),
-        str(texto_reclamo or "")
-    ])
-
-    consulta_vector = vectorizer.transform([consulta])
-    scores = cosine_similarity(consulta_vector, matrix).flatten()
-
-    resultados = []
-    usados = set()
-
-    for idx in scores.argsort()[::-1]:
-        frag = metadata[idx]
-        score = float(scores[idx])
-
+    if document_ids is None:
+        categoria, document_ids = _document_scope(categoria)
+    # Select candidate rows BEFORE cosine ranking; fallback cannot silently bypass scope.
+    candidates = [idx for idx, frag in enumerate(metadata)
+                  if frag["id_documento"] in document_ids
+                  and (not categoria or normalizar_texto(frag.get("categoria_asociada") or "")
+                       == normalizar_texto(categoria))]
+    if not candidates:
+        return []
+    query_vector = vectorizer.transform([str(texto_reclamo or "")])
+    scores = cosine_similarity(query_vector, matrix[candidates]).flatten()
+    results = []
+    for position in scores.argsort()[::-1]:
+        score = float(scores[position])
         if score <= 0:
             continue
-
-        clave = (frag["id_documento"], frag["id_fragmento"])
-        if clave in usados:
-            continue
-
-        usados.add(clave)
-
-        resultados.append({
-            "id_documento": frag["id_documento"],
-            "id_fragmento": frag["id_fragmento"],
-            "titulo": frag["titulo"],
-            "tipo_documento": frag["tipo_documento"],
+        frag = metadata[candidates[position]]
+        results.append({
+            "id_documento": frag["id_documento"], "id_fragmento": frag["id_fragmento"],
+            "titulo": frag["titulo"], "tipo_documento": frag["tipo_documento"],
             "categoria_asociada": frag["categoria_asociada"],
-            "contenido": frag["texto_fragmento"],
-            "fragmento": frag["texto_fragmento"],
-            "score": round(score, 4),
-            "embedding_id": frag.get("embedding_id")
+            "contenido": frag["texto_fragmento"], "fragmento": frag["texto_fragmento"],
+            "score": round(score, 4), "embedding_id": frag.get("embedding_id"),
+            "vector_store": "tfidf",
         })
-
-        if len(resultados) >= int(max_docs):
+        if len(results) >= int(max_docs):
             break
+    # No arbitrary first-document fallback: zero similarity means no evidence.
+    return results
 
-    # Respaldo si la consulta no encontró similitud suficiente
-    if not resultados:
-        documentos = listar_documentos()
-        for doc in documentos[:int(max_docs)]:
-            resultados.append({
-                "id_documento": doc["id_documento"],
-                "id_fragmento": None,
-                "titulo": doc["titulo"],
-                "tipo_documento": doc["tipo_documento"],
-                "categoria_asociada": doc["categoria_asociada"],
-                "contenido": doc["contenido"][:450],
-                "fragmento": doc["contenido"][:450],
-                "score": 0.01,
-                "embedding_id": None
-            })
-
-    return resultados
 
 def _generar_respuesta_openai(nombre_cliente, codigo_pedido, descripcion, analisis, documentos, historial=None):
     if not os.getenv("OPENAI_API_KEY"):
+        from modules.ai_trace import trace_append
+        trace_append("fallback_reasons", "openai_not_configured")
         return None
 
     try:
@@ -336,6 +351,8 @@ def _generar_respuesta_openai(nombre_cliente, codigo_pedido, descripcion, analis
             for item in (historial or [])[-10:]
         ) or "Sin mensajes previos."
 
+        from modules.ai_trace import trace_update
+        trace_update(openai_used=True)
         client = OpenAI(timeout=20.0, max_retries=1)
         response = client.responses.create(
             model=OPENAI_MODEL,
@@ -364,7 +381,9 @@ def _generar_respuesta_openai(nombre_cliente, codigo_pedido, descripcion, analis
         texto = getattr(response, "output_text", None)
         return texto.strip() if texto else None
     except Exception:
-        logger.exception("Falló la generación de respuesta con OpenAI; se utilizará la plantilla local")
+        from modules.ai_trace import trace_append
+        trace_append("fallback_reasons", "generation_unavailable")
+        logger.warning("Generación OpenAI no disponible; se utiliza plantilla local")
         return None
 
 def generar_respuesta_sugerida(nombre_cliente, codigo_pedido, descripcion, analisis, documentos, historial=None):
@@ -376,8 +395,12 @@ def generar_respuesta_sugerida(nombre_cliente, codigo_pedido, descripcion, anali
         nombre_cliente, codigo_pedido, descripcion, analisis, documentos, historial
     )
     if respuesta_llm:
+        from modules.ai_trace import trace_update
+        trace_update(generation_strategy="openai")
         return respuesta_llm
 
+    from modules.ai_trace import trace_update
+    trace_update(generation_strategy="local_template")
     categoria = analisis.get("categoria", "Soporte general")
     prioridad = analisis.get("prioridad", "Media")
 
@@ -420,6 +443,8 @@ def generar_respuesta_basica(nombre_cliente, codigo_pedido, descripcion, analisi
     Genera una respuesta sugerida sin consultar documentos RAG.
     Se usa cuando la configuración activa deshabilita la recuperación documental.
     """
+    from modules.ai_trace import trace_update
+    trace_update(generation_strategy="local_template")
     categoria = analisis.get("categoria", "Soporte general")
     prioridad = analisis.get("prioridad", "Media")
 

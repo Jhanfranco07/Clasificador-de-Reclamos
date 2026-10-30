@@ -77,6 +77,7 @@ from modules.rag_engine import (
 from modules.security import create_token, decode_token, hash_password, verify_password
 from modules.chatbot_service import answer_chat
 from modules.config import allow_vercel_previews, cors_origins, validate_runtime_config
+from modules.ai_trace import AITrace, trace_update, trace_append
 
 
 logger = logging.getLogger(__name__)
@@ -517,6 +518,11 @@ def _pydantic_data(model: BaseModel) -> dict[str, Any]:
 
 
 def _analyze_and_generate(id_reclamo: int) -> dict[str, Any]:
+    with AITrace("clasificacion", claim_id=id_reclamo):
+        return _analyze_and_generate_traced(id_reclamo)
+
+
+def _analyze_and_generate_traced(id_reclamo: int) -> dict[str, Any]:
     reclamo = fetch_one(
         """
         SELECT r.*, c.nombre AS cliente, c.correo AS correo_cliente
@@ -531,15 +537,25 @@ def _analyze_and_generate(id_reclamo: int) -> dict[str, Any]:
 
     try:
         analisis = clasificar_reclamo(reclamo["descripcion"])
+        trace_update(classification_category=analisis["categoria"],
+                     classification_confidence=analisis["confianza"])
         guardar_analisis(id_reclamo, analisis)
 
         config = _config()
+        threshold = float(config.get("umbral_confianza", 0.85))
+        if (analisis["confianza"] < threshold
+                or analisis["prioridad"] in {"Alta", "Crítica", "Critica"}
+                or bool(config.get("revision_humana_obligatoria"))):
+            trace_update(route="atencion_humana", human_review_required=True)
+            trace_append("fallback_reasons", "human_review_required")
         documentos = []
         if bool(config.get("usar_rag")):
             documentos = recuperar_documentos(
                 reclamo["descripcion"],
                 analisis["categoria"],
                 int(config.get("max_documentos_recuperados") or 3),
+                confianza=analisis["confianza"],
+                umbral_confianza=threshold,
             )
             respuesta = generar_respuesta_sugerida(
                 reclamo["cliente"],

@@ -107,6 +107,8 @@ def _predict_with_ml(texto):
             return None
 
         model = joblib.load(MODEL_PATH)
+        from modules.ai_trace import trace_update
+        trace_update(ml_executed=True)
         categoria = model.predict([texto])[0]
 
         confianza = 0.70

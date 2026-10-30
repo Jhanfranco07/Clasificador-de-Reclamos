@@ -627,22 +627,35 @@ def crear_embedding_rag(fragmento, modelo_embedding, dimension, embedding):
     ))
 
 
-def buscar_embeddings_rag(embedding, max_docs=3):
+def buscar_embeddings_rag(embedding, max_docs=3, categoria=None, document_ids=None):
     vector_literal = "[" + ",".join(str(float(value)) for value in embedding) + "]"
+    conditions = ["db.activo = 1"]
+    params = [vector_literal]
+    if categoria:
+        conditions.append("db.categoria_asociada = ?")
+        params.append(categoria)
+    if document_ids is not None:
+        if not document_ids:
+            return []
+        conditions.append("db.id_documento IN (" + ",".join("?" for _ in document_ids) + ")")
+        params.extend(document_ids)
+    params.extend([vector_literal, int(max_docs)])
     return fetch_all("""
         SELECT
-            id_documento,
-            id_fragmento,
-            titulo,
-            tipo_documento,
-            categoria_asociada,
-            texto_fragmento,
-            modelo_embedding,
-            1 - (embedding <=> ?::vector) AS score
-        FROM rag_embeddings
-        ORDER BY embedding <=> ?::vector
+            re.id_documento,
+            re.id_fragmento,
+            db.titulo,
+            db.tipo_documento,
+            db.categoria_asociada,
+            re.texto_fragmento,
+            re.modelo_embedding,
+            1 - (re.embedding <=> ?::vector) AS score
+        FROM rag_embeddings re
+        JOIN documentos_base db ON db.id_documento = re.id_documento
+        WHERE """ + " AND ".join(conditions) + """
+        ORDER BY re.embedding <=> ?::vector
         LIMIT ?
-    """, (vector_literal, vector_literal, int(max_docs)))
+    """, tuple(params))
 
 
 def contar_embeddings_rag():
