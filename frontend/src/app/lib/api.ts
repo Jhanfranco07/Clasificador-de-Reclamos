@@ -22,12 +22,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(options.headers || {}),
       },
-      ...options,
       signal: controller.signal,
     });
   } catch (error) {
@@ -448,6 +448,15 @@ export function approveResponse(id: string, responseText: string) {
 
 export function getDashboard() {
   return request<DashboardResponse>('/api/dashboard');
+}
+
+export function previewDocumentPdf(file: File, signal?: AbortSignal) {
+  return request<{ content: string }>('/api/documents/pdf-preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/pdf' },
+    body: file,
+    signal,
+  });
 }
 
 export function getDocuments() {

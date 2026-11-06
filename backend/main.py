@@ -7,16 +7,20 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from starlette.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-from database.db_connection import fetch_all, fetch_one, init_db, using_postgres
+from database.db_connection import (allows_automatic_database_setup, ensure_pgvector_embedding_dimension,
+                                    fetch_all, fetch_one, init_db, using_postgres)
 from database.repositories import (
+    DuplicateDocument,
+    get_categoria_id,
     actualizar_configuracion,
     actualizar_perfil_usuario,
     actualizar_documento_base,
@@ -74,6 +78,7 @@ from modules.rag_engine import (
     obtener_resumen_indice,
     recuperar_documentos,
 )
+from modules.pdf_documents import PDF_MAX_BYTES, PDF_MAX_TEXT, extract_pdf_text
 from modules.security import create_token, decode_token, hash_password, verify_password
 from modules.chatbot_service import answer_chat
 from modules.config import allow_vercel_previews, cors_origins, validate_runtime_config
@@ -85,9 +90,14 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     validate_runtime_config()
-    init_db()
-    asegurar_usuarios_auth_base()
-    asegurar_pedidos_demo_base()
+    if allows_automatic_database_setup():
+        init_db()
+        asegurar_usuarios_auth_base()
+        asegurar_pedidos_demo_base()
+        if not using_postgres():
+            construir_indice_vectorial(forzar=True)
+    elif using_postgres():
+        ensure_pgvector_embedding_dimension()
     yield
 
 
@@ -173,10 +183,12 @@ class ConfigUpdate(BaseModel):
 
 
 class DocumentPayload(BaseModel):
-    title: str = Field(..., min_length=3)
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    title: str = Field(..., min_length=3, max_length=250)
     type: str = Field(..., pattern="^(POLITICA|FAQ|PROCEDIMIENTO|MANUAL)$")
     category: str = Field(..., min_length=3)
-    content: str = Field(..., min_length=20)
+    content: str = Field(..., min_length=20, max_length=PDF_MAX_TEXT)
 
 
 class AgentCommentPayload(BaseModel):
@@ -373,6 +385,24 @@ def _to_claim_detail(id_reclamo: int) -> dict[str, Any]:
         "documents": [_to_document_reference(doc) for doc in documentos],
         "history": [_to_history_event(item) for item in historial],
     }
+
+
+def _visible_claim_detail(detail, user):
+    if user["rol"] != "CLIENT":
+        return detail
+    response = detail["response"]
+    public_response = None
+    if response and response["status"] == "APROBADA" and response["finalResponse"]:
+        public_response = {**response, "suggestedResponse": None, "editedResponse": None}
+    history = []
+    for event in reversed(detail["history"]):
+        if event["action"] == "Edición de respuesta":
+            continue
+        if (event["action"] == "Marcado como respondido" and history
+                and history[-1]["action"] == "Envio de respuesta"):
+            continue
+        history.append({**event, "comment": None, "user": None})
+    return {**detail, "response": public_response, "analysis": None, "documents": [], "history": list(reversed(history))}
 
 
 def _to_analysis(row: dict[str, Any]) -> dict[str, Any]:
@@ -783,12 +813,13 @@ def create_claim(payload: ClaimCreate, user: dict[str, Any] = Depends(get_curren
         )
         if payload.analyze:
             try:
-                return _analyze_and_generate(id_reclamo)
+                return _visible_claim_detail(_analyze_and_generate(id_reclamo), user)
             except HTTPException:
-                return _to_claim_detail(id_reclamo)
-        return _to_claim_detail(id_reclamo)
+                return _visible_claim_detail(_to_claim_detail(id_reclamo), user)
+        return _visible_claim_detail(_to_claim_detail(id_reclamo), user)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"No se pudo crear el reclamo: {exc}") from exc
+        logger.exception("No se pudo crear el reclamo")
+        raise HTTPException(status_code=500, detail="No se pudo crear el reclamo.") from exc
 
 
 @app.get("/api/claims/{claim_id}")
@@ -796,7 +827,7 @@ def claim_detail(claim_id: int, user: dict[str, Any] = Depends(get_current_user)
     detail = _to_claim_detail(claim_id)
     if user["rol"] == "CLIENT" and detail["claim"]["customerEmail"].lower() != user["correo"].lower():
         raise HTTPException(status_code=403, detail="No tienes acceso a este reclamo")
-    return detail
+    return _visible_claim_detail(detail, user)
 
 
 @app.get("/api/claims/{claim_id}/messages")
@@ -885,7 +916,7 @@ def reopen_claim(claim_id: int, user: dict[str, Any] = Depends(get_current_user)
     if user["rol"] == "CLIENT" and detail["claim"]["customerEmail"].lower() != user["correo"].lower():
         raise HTTPException(status_code=403, detail="No tienes acceso a este reclamo")
     reabrir_reclamo(claim_id)
-    return _to_claim_detail(claim_id)
+    return _visible_claim_detail(_to_claim_detail(claim_id), user)
 
 
 @app.get("/api/claims/{claim_id}/comments")
@@ -941,12 +972,12 @@ def update_response(response_id: int, payload: ResponseUpdate, user: dict[str, A
 @app.post("/api/responses/{response_id}/approve")
 def approve_response(response_id: int, payload: ResponseUpdate | None = None, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
     row = fetch_one(
-        "SELECT id_reclamo, respuesta_generada FROM respuestas_sugeridas WHERE id_respuesta = ?",
+        "SELECT id_reclamo, respuesta_generada, respuesta_editada FROM respuestas_sugeridas WHERE id_respuesta = ?",
         (response_id,),
     )
     if not row:
         raise HTTPException(status_code=404, detail="Respuesta no encontrada")
-    texto_base = payload.response_text if payload and payload.response_text.strip() else row["respuesta_generada"]
+    texto_base = payload.response_text if payload and payload.response_text.strip() else (row["respuesta_editada"] or row["respuesta_generada"])
     respuesta_firmada = _firmar_respuesta_agente(texto_base, user["nombre"])
     aprobar_respuesta(response_id, respuesta_firmada)
     marcar_respondido(row["id_reclamo"], "Respuesta enviada al cliente desde el panel de soporte.")
@@ -959,22 +990,57 @@ def documents(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
     return {"items": docs, "index": obtener_resumen_indice()}
 
 
+@app.post("/api/documents/pdf-preview")
+async def preview_document_pdf(request: Request, user: dict[str, Any] = Depends(require_admin)) -> dict[str, str]:
+    if request.headers.get("content-type", "").split(";")[0].lower() != "application/pdf":
+        raise HTTPException(415, "Selecciona un archivo PDF.")
+    data = bytearray()
+    async for chunk in request.stream():
+        if len(data) + len(chunk) > PDF_MAX_BYTES:
+            raise HTTPException(413, "El PDF supera el tamaño permitido.")
+        data.extend(chunk)
+    try:
+        return {"content": await run_in_threadpool(extract_pdf_text, bytes(data))}
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+def require_document_maintenance():
+    if not allows_automatic_database_setup():
+        raise HTTPException(
+            503, "El mantenimiento documental debe ejecutarse mediante una migración controlada."
+        )
+
+
 @app.post("/api/documents", status_code=201)
 def create_document(payload: DocumentPayload, user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
-    crear_documento_base(payload.title, payload.type, payload.category, payload.content)
+    require_document_maintenance()
+    if get_categoria_id(payload.category) is None:
+        raise HTTPException(422, "Selecciona una categoría documental válida.")
+    try:
+        crear_documento_base(payload.title, payload.type, payload.category, payload.content)
+    except DuplicateDocument as exc:
+        raise HTTPException(409, str(exc)) from exc
     construir_indice_vectorial(forzar=True)
     return documents(user)
 
 
 @app.put("/api/documents/{document_id}")
 def update_document(document_id: int, payload: DocumentPayload, user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
-    actualizar_documento_base(document_id, payload.title, payload.type, payload.category, payload.content)
+    require_document_maintenance()
+    if get_categoria_id(payload.category) is None:
+        raise HTTPException(422, "Selecciona una categoría documental válida.")
+    try:
+        actualizar_documento_base(document_id, payload.title, payload.type, payload.category, payload.content)
+    except DuplicateDocument as exc:
+        raise HTTPException(409, str(exc)) from exc
     construir_indice_vectorial(forzar=True)
     return documents(user)
 
 
 @app.delete("/api/documents/{document_id}")
 def delete_document(document_id: int, user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+    require_document_maintenance()
     desactivar_documento_base(document_id)
     construir_indice_vectorial(forzar=True)
     return documents(user)
@@ -982,6 +1048,7 @@ def delete_document(document_id: int, user: dict[str, Any] = Depends(require_adm
 
 @app.post("/api/documents/reindex")
 def reindex_documents(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+    require_document_maintenance()
     return construir_indice_vectorial(forzar=True)
 
 
