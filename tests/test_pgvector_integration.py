@@ -104,3 +104,34 @@ def test_vector_dimension_mismatch_preserves_existing_data(vector_db):
         db.ensure_pgvector_embedding_dimension()
     assert repo.contar_embeddings_rag() == 1
     assert db.fetch_one("SELECT vector_dims(embedding) AS n FROM rag_embeddings")["n"] == 2
+
+
+def test_read_only_migration_plan_preserves_versions_and_identifies_vectors(vector_db, tmp_path):
+    from scripts.plan_document_migration import plan_document_migration
+
+    catalog = json.loads(Path("data/documentos_academicos.json").read_text(encoding="utf-8"))
+    target = next(doc for doc in catalog if doc["version"] == "2.0")
+    original = {**target, "version": "1.0", "content": "Texto académico anterior para verificar el cambio de versión sin modificar la base de datos."}
+    path = tmp_path / "old.json"
+    path.write_text(json.dumps([original]), encoding="utf-8")
+    assert import_documents(None, path, postgres_dsn=vector_db)[0]["status"] == "created"
+    rag_engine.construir_indice_tfidf(forzar=True)
+    local = db.fetch_one("SELECT id_documento FROM documentos_importados WHERE external_id = ?", (target["id"],))
+    fragment = next(frag for frag in repo.listar_fragmentos_documento() if frag["id_documento"] == local["id_documento"])
+    repo.crear_embedding_rag(fragment, "sintetico", 1536, [1.0] + [0.0] * 1535)
+    final = tmp_path / "new.json"
+    final.write_text(json.dumps(catalog), encoding="utf-8")
+    before = repo.listar_documentos()
+    plan = plan_document_migration(vector_db, final)
+    assert plan["counts"] == {"create": 41, "review_upgrade": 1}
+    revision = next(row for row in plan["results"] if row["action"] == "review_upgrade")
+    assert revision["local_id"] == local["id_documento"]
+    assert revision["obsolete_fragment_ids"] == [fragment["id_fragmento"]]
+    assert revision["embedding_orders_to_regenerate"] == [1]
+    assert len(revision["invalidated_embedding_ids"]) == 1
+    assert repo.listar_documentos() == before
+    assert repo.contar_embeddings_rag() == 1
+
+    db.execute("UPDATE documentos_base SET contenido = ? WHERE id_documento = ?",
+               ("Edición manual fuera del catálogo.", local["id_documento"]))
+    assert plan_document_migration(vector_db, final)["counts"]["conflict"] == 1

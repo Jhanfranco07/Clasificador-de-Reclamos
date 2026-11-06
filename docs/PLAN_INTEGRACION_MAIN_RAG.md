@@ -66,3 +66,59 @@ GitHub registra despliegues de producción para SHAs de main y previews para la 
 - TF-IDF híbrido: 60 documentos y 76 fragmentos íntegros. Recall@3 de 69,64 % y 71,43 % en los conjuntos original y adicional. Abstención correcta 4/4 y 6/7. Se conserva el falso positivo ya conocido.
 - GitHub Actions: cero workflows y cero ejecuciones registrados al auditar. Vercel informó éxito para la Preview del commit de origen y para el registro de Production del SHA actual de main. La última Preview y los checks del candidato se consultan en el PR. El backend remoto, sus permisos y la base de destino no se validaron.
 - [PR #1](https://github.com/Jhanfranco07/Clasificador-de-Reclamos/pull/1), en borrador. Sin merge. SHA de main: `86691f7da69554ab5173afd5cb0bd5464d5169e4`. La decisión de despliegue sigue condicionada al preflight y al rollback ensayado.
+
+
+## Fase 5. Validación operativa del PR #1
+
+La auditoría partió de `e3469cd6332c84532cdd8ea44dad6f4f235b1860` en el PR y `86691f7da69554ab5173afd5cb0bd5464d5169e4` en main. No había commits remotos adicionales. El PR seguía abierto, en borrador y sin conflictos. La rama de cinco roles seguía en `eb8dd2d91b4d5db220554ad065e00bacc07521bd` con sus 35 cambios locales. GitHub Actions no tenía workflows registrados.
+
+### Render, Vercel y base de destino
+
+| Control | Declarado o verificado | Pendiente |
+|---|---|---|
+| Render | `render.yaml` declara el servicio `smartclaim-api`, instalación mediante `pip install -r requirements.txt`, Uvicorn en `$PORT`, health check `/health`, origen del frontend actual y previews Vercel desactivadas. | Sin acceso al panel ni credencial de lectura. Falta confirmar rama, modo de autodeploy, filtros, política de redeploy, comandos efectivos, health check, origen CORS y el SHA activo. |
+| Configuración de backend | El candidato desactiva seeds y reindexación automática en entornos alojados. El mantenimiento documental queda bloqueado en esos entornos. | Confirmar presencia y alcance de `APP_ENV`, `DB_PROVIDER`, `DATABASE_URL`, `AUTH_SECRET`, `CORS_ORIGINS`, `ALLOW_VERCEL_PREVIEWS` y controles de OpenAI sin revelar sus valores. Comprobar conectividad y privilegios en una instancia aislada. |
+| Vercel | GitHub registra Preview exitosa para el commit de origen y Production exitosa para el SHA actual de main. `vercel.json` declara Vite y el fallback SPA. | Verificar rama de producción y alcance de `VITE_API_URL` en el panel antes de publicar. El check de Preview solo acredita el frontend. |
+| Supabase | PostgreSQL 16.15 y pgvector 0.8.6 se verificaron localmente. | Falta una instancia de destino identificada y con acceso autorizado. No se consultaron metadatos, tablas ni credenciales de producción. |
+| Respaldo de destino | Sin respaldo autorizado disponible. | Obtener un respaldo restaurable aprobado y probarlo en una instancia aislada. El ensayo sintético no reemplaza ese control. |
+
+Si el servicio Render está vinculado a main con auto-deploy, un cambio de esa rama puede activar un redeploy según su política efectiva. GitHub acredita una publicación anterior de Vercel, pero el repositorio por sí solo no determina la configuración efectiva de ambos proveedores. [Despliegues en Render](https://render.com/docs/deploys) · [Integración Git de Vercel](https://vercel.com/docs/git) · [Respaldos de Supabase](https://supabase.com/docs/guides/platform/backups)
+
+### Respaldo, migración y rollback ensayados
+
+Se creó una base local nueva con el catálogo 1.0 de la fase 2, 60 documentos, 42 asociaciones de metadatos, 76 fragmentos y 76 vectores sintéticos de 1536 dimensiones. Se generó un archivo de formato custom con `pg_dump` y se restauró con `pg_restore --single-transaction --exit-on-error` en otra base local vacía. Coincidieron los conteos y las huellas de las cuatro tablas, además del valor y estado de la secuencia documental. El respaldo sintético era desechable y no contenía una copia del servicio publicado.
+
+El plan de lectura clasificó 37 registros importados sin cambios y cinco revisiones 1.0 → 2.0. Detectó cinco fragmentos y cinco vectores obsoletos. Aplicar las cinco revisiones por ID en una transacción conservó 60 documentos y 76 fragmentos, e invalidó exactamente cinco vectores. Un fallo inducido antes de confirmar restauró las huellas previas de documentos, metadatos, fragmentos y vectores. La secuencia documental quedó intacta. Las secuencias de filas nuevas de PostgreSQL pueden dejar saltos aun cuando se revierta una transacción. Después de confirmar el ensayo en la copia sintética, una restauración del mismo respaldo en una tercera base volvió a las huellas previas.
+
+### Procedimiento de migración documental
+
+1. Confirmar el destino autorizado, detener las escrituras documentales y obtener un respaldo de formato custom. Restaurarlo en una base local nueva con pgvector y un nombre de prueba permitido. Verificar extensión, dimensión, relaciones y secuencias. Conservar conteos, huellas y el SHA del catálogo antes de modificar filas.
+2. Ejecutar el plan de lectura contra la copia. Revisa `create`, `keep`, `review_upgrade` y `conflict`. Los conflictos de identidad, metadatos divergentes, duplicados, versiones iguales con cambios o versiones anteriores se resuelven antes de aplicar. El reporte incluye IDs de fragmentos obsoletos, órdenes nuevas, vectores invalidados y órdenes que requieren regeneración. Las filas ajenas al catálogo se conservan.
+
+```powershell
+$env:SMARTCLAIM_TEST_PG_DSN = 'host=127.0.0.1 port=55479 dbname=smartclaim_test_restored user=smartclaim_test'
+python -m scripts.plan_document_migration --catalog data/documentos_academicos.json
+```
+
+3. En una transacción de mantenimiento explícita, bloquear en orden documentos, metadatos, fragmentos y embeddings. Volver a comprobar el ID, la versión y los campos de origen contra la simulación. Asignar IDs nuevos mediante la secuencia verificada. Para revisiones aprobadas, actualizar documento y metadatos juntos y conservar el ID. Sustituir solo fragmentos incluidos en la lista aprobada y revisar por adelantado qué vectores se eliminan por cascada. Si el estado diverge, hacer rollback y repetir el plan.
+4. Antes del commit, comprobar unicidad, referencias, conteos, categoría, orden y texto, lista real de vectores retirados, IDs conservados y secuencias. Verificar después recuperación TF-IDF y abstención. La regeneración pagada de vectores requiere una aprobación separada.
+5. Si falla antes del commit, revertir la transacción. Si se detecta un fallo después, detener escrituras, preservar una copia del estado fallido y restaurar el respaldo en otra base aislada. Confirmar huellas y probar el par de versiones de frontend y backend antes de redirigir tráfico. El corte productivo requiere autorización.
+
+### Matriz de decisión
+
+| Control | Estado | Evidencia o condición de salida |
+|---|---|---|
+| Verificación de Render | Bloqueante | Revisar configuración efectiva y SHA del servicio con acceso de lectura autorizado. |
+| Riesgo de despliegue automático | Bloqueante | Confirmar ramas vinculadas y políticas efectivas de Render y Vercel antes de tocar main. |
+| Compatibilidad de Supabase | Bloqueante | Inventariar esquema, permisos, versiones y dimensiones sobre una copia autorizada. |
+| Respaldo probado | Bloqueante | Restauración sintética aprobada. Falta restaurar un respaldo real autorizado. |
+| Migración ensayada | Bloqueante | Cinco revisiones sintéticas aprobadas. Falta ensayarlas sobre la copia de destino. |
+| Rollback validado | Bloqueante | Rollback transaccional y restauración sintéticos aprobados. Falta ensayo del destino. |
+| Pruebas funcionales | Aprobado | Preview local con frontend, backend y PostgreSQL separados. |
+| Pruebas de seguridad | Aprobado | Controles de rol, borradores privados, límites PDF y guardas de escritura verificados localmente. |
+| Estado de Vercel | Aprobado | Build Preview para el origen auditado. La última comprobación del candidato está en el PR. |
+| Estado de GitHub | Aprobado | PR abierto, sin conflictos y en borrador. Merge y cambio de estado requieren autorización explícita. |
+
+La repetición crítica aprobó 47 pruebas de pytest y 7 de Playwright, con 0 fallidas y 0 omitidas en ambas suites completas. Pasaron TypeScript y Vite. La prueba nueva confirmó que la simulación conserva versiones y vectores, distingue altas y revisiones, y rechaza un documento editado fuera de sus metadatos. La suite Chromium cubrió compra, reclamo, borrador privado, publicación, historial, permisos, PDF, reindexación y reportes PDF/CSV.
+
+El PR sigue bloqueado para integración. La demostración local usó CORS específico, una base académica nueva y OpenAI deshabilitado. No se contrató ni configuró un servicio remoto adicional. La revisión del PR y de main se repetirá antes de cualquier operación autorizada.
