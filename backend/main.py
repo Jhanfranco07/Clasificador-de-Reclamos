@@ -7,9 +7,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from starlette.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 if str(BASE_DIR) not in sys.path:
@@ -74,6 +75,7 @@ from modules.rag_engine import (
     obtener_resumen_indice,
     recuperar_documentos,
 )
+from modules.pdf_documents import PDF_MAX_BYTES, PDF_MAX_TEXT, extract_pdf_text
 from modules.security import create_token, decode_token, hash_password, verify_password
 from modules.chatbot_service import answer_chat
 from modules.config import allow_vercel_previews, cors_origins, validate_runtime_config
@@ -88,6 +90,8 @@ async def lifespan(_: FastAPI):
     init_db()
     asegurar_usuarios_auth_base()
     asegurar_pedidos_demo_base()
+    if not using_postgres():
+        construir_indice_vectorial(forzar=True)
     yield
 
 
@@ -173,10 +177,12 @@ class ConfigUpdate(BaseModel):
 
 
 class DocumentPayload(BaseModel):
-    title: str = Field(..., min_length=3)
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    title: str = Field(..., min_length=3, max_length=250)
     type: str = Field(..., pattern="^(POLITICA|FAQ|PROCEDIMIENTO|MANUAL)$")
     category: str = Field(..., min_length=3)
-    content: str = Field(..., min_length=20)
+    content: str = Field(..., min_length=20, max_length=PDF_MAX_TEXT)
 
 
 class AgentCommentPayload(BaseModel):
@@ -957,6 +963,21 @@ def approve_response(response_id: int, payload: ResponseUpdate | None = None, us
 def documents(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
     docs = [_to_document(doc) for doc in listar_documentos()]
     return {"items": docs, "index": obtener_resumen_indice()}
+
+
+@app.post("/api/documents/pdf-preview")
+async def preview_document_pdf(request: Request, user: dict[str, Any] = Depends(require_admin)) -> dict[str, str]:
+    if request.headers.get("content-type", "").split(";")[0].lower() != "application/pdf":
+        raise HTTPException(415, "Selecciona un archivo PDF.")
+    data = bytearray()
+    async for chunk in request.stream():
+        if len(data) + len(chunk) > PDF_MAX_BYTES:
+            raise HTTPException(413, "El PDF supera el tamaño permitido.")
+        data.extend(chunk)
+    try:
+        return {"content": await run_in_threadpool(extract_pdf_text, bytes(data))}
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @app.post("/api/documents", status_code=201)

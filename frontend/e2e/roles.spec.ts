@@ -41,6 +41,8 @@ test('agente gestiona reclamos sin acceder a configuración administrativa', asy
   await expect(page).toHaveURL(/\/admin/);
   await expect(page.getByRole('link', { name: 'Bandeja de reclamos' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Configuración IA' })).toHaveCount(0);
+  await page.goto('/admin/knowledge');
+  await expect(page).toHaveURL(/\/admin$/);
   await page.goto('/admin/ai-config');
   await expect(page).toHaveURL(/\/admin$/);
 });
@@ -52,4 +54,63 @@ test('administrador accede a reportes y base documental', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'PDF' })).toBeVisible();
   await page.getByRole('link', { name: 'Base documental' }).click();
   await expect(page.getByRole('heading', { name: 'Base documental' })).toBeVisible();
+});
+
+
+function textPdf() {
+  const text = 'BT /F1 12 Tf 20 200 Td (Revisar el recibo por un producto faltante.) Tj ET';
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    '<< /Length ' + text.length + ' >>\nstream\n' + text + '\nendstream',
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = objects.map((object, index) => {
+    const offset = pdf.length;
+    pdf += (index + 1) + ' 0 obj\n' + object + '\nendobj\n';
+    return offset;
+  });
+  const xref = pdf.length;
+  pdf += 'xref\n0 6\n0000000000 65535 f \n';
+  for (const offset of offsets) pdf += String(offset).padStart(10, '0') + ' 00000 n \n';
+  return Buffer.from(pdf + 'trailer\n<< /Root 1 0 R /Size 6 >>\nstartxref\n' + xref + '\n%%EOF\n');
+}
+
+test('administrador registra texto y revisa PDF desde un móvil', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page, 'admin@smartclaim.com');
+  await expect(page).toHaveURL(/\/admin/);
+  await page.goto('/admin/knowledge');
+  const file = page.getByLabel('Importar PDF para revisión');
+  const title = page.getByPlaceholder('Titulo del documento');
+  const content = page.getByPlaceholder('Contenido que alimentara las respuestas del sistema');
+  const save = page.getByRole('button', { name: 'Agregar documento' });
+  const runId = Date.now();
+  const manualTitle = 'Registro manual Playwright ' + runId;
+  const pdfTitle = 'PDF importado Playwright ' + runId;
+  await title.fill(manualTitle);
+  await content.fill('Contenido manual para la prueba de registro administrativo.');
+  await save.click();
+  await expect(page.getByText(manualTitle, { exact: true })).toBeVisible();
+
+  await file.setInputFiles({ name: 'dañado.pdf', mimeType: 'application/pdf', buffer: Buffer.from('bad') });
+  await expect(page.getByText(/cabecera PDF válida/)).toBeVisible();
+
+  let releasePreview!: () => void;
+  const previewGate = new Promise<void>((resolve) => { releasePreview = resolve; });
+  await page.route('**/api/documents/pdf-preview', async (route) => {
+    await previewGate;
+    await route.continue();
+  }, { times: 1 });
+  await file.setInputFiles({ name: 'ejemplo.pdf', mimeType: 'application/pdf', buffer: textPdf() });
+  await expect(save).toBeDisabled();
+  releasePreview();
+  await expect(content).toHaveValue('Revisar el recibo por un producto faltante.');
+  await title.fill(pdfTitle);
+  await save.click();
+  await expect(page.getByText(pdfTitle, { exact: true })).toBeVisible();
+  await page.getByPlaceholder(/Buscar/).fill(pdfTitle);
+  await expect(page.getByText(manualTitle, { exact: true })).toHaveCount(0);
 });

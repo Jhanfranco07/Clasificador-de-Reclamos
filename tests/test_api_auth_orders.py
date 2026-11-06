@@ -5,15 +5,9 @@ from fastapi.testclient import TestClient
 @pytest.fixture()
 def api_client(monkeypatch, tmp_path):
     import database.db_connection as db_connection
-    import modules.rag_engine as rag_engine
 
     monkeypatch.setattr(db_connection, "DB_PATH", tmp_path / "smartclaim_api_test.db")
 
-    vector_dir = tmp_path / "vector_store"
-    monkeypatch.setattr(rag_engine, "VECTOR_DIR", vector_dir)
-    monkeypatch.setattr(rag_engine, "VECTORIZER_PATH", vector_dir / "rag_tfidf_vectorizer.joblib")
-    monkeypatch.setattr(rag_engine, "MATRIX_PATH", vector_dir / "rag_tfidf_matrix.joblib")
-    monkeypatch.setattr(rag_engine, "METADATA_PATH", vector_dir / "rag_metadata.joblib")
 
     from backend.main import app
 
@@ -348,3 +342,48 @@ def test_profile_update_and_claim_pagination(api_client):
     assert claims.status_code == 200
     assert claims.json()["pagination"]["pageSize"] == 1
     assert len(claims.json()["items"]) <= 1
+
+
+def test_document_pdf_preview_requires_admin_and_can_be_saved(api_client):
+    import io
+    from pypdf import PdfWriter
+    from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
+
+    def headers(email):
+        response = api_client.post("/api/auth/login", json={"email": email, "password": "123456"})
+        return {"Authorization": f"Bearer {response.json()['token']}"}
+
+    path = "/api/documents/pdf-preview"
+    admin = headers("admin@smartclaim.com")
+    client = headers("jhan.perez@gmail.com")
+    assert api_client.post(path, content=b"bad").status_code == 401
+    assert api_client.post(path, content=b"bad", headers=client).status_code == 403
+    assert api_client.post(path, content=b"bad", headers=admin).status_code == 415
+    pdf_headers = {**admin, "Content-Type": "application/pdf"}
+    assert api_client.post(path, content=b"%PDF-1.7\ntruncated", headers=pdf_headers).status_code == 422
+
+    writer = PdfWriter()
+    page = writer.add_blank_page(300, 300)
+    buffer = io.BytesIO()
+    writer.write(buffer)
+    assert api_client.post(path, content=buffer.getvalue(), headers=pdf_headers).status_code == 422
+
+    font = DictionaryObject({
+        NameObject("/Type"): NameObject("/Font"),
+        NameObject("/Subtype"): NameObject("/Type1"),
+        NameObject("/BaseFont"): NameObject("/Helvetica"),
+    })
+    page[NameObject("/Resources")] = DictionaryObject({
+        NameObject("/Font"): DictionaryObject({NameObject("/F1"): font}),
+    })
+    stream = DecodedStreamObject()
+    stream.set_data(b"BT /F1 12 Tf 20 200 Td (Revisar recibo y pedido incompleto.) Tj ET")
+    page[NameObject("/Contents")] = writer._add_object(stream)
+    buffer = io.BytesIO()
+    writer.write(buffer)
+    preview = api_client.post(path, content=buffer.getvalue(), headers=pdf_headers)
+    assert preview.json() == {"content": "Revisar recibo y pedido incompleto."}
+    document = {"title": "PDF de prueba", "type": "FAQ", "category": "Producto incompleto", **preview.json()}
+    saved = api_client.post("/api/documents", json=document, headers=admin)
+    assert saved.status_code == 201
+    assert any(item["title"] == document["title"] for item in saved.json()["items"])

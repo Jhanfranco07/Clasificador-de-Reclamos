@@ -121,13 +121,7 @@ INSERT INTO documentos_base (id_documento, titulo, tipo_documento, categoria_aso
 (18, 'Criterios de cierre de reclamos', 'PROCEDIMIENTO', 'Soporte general',
 'Un reclamo puede cerrarse cuando se envio respuesta final, se ejecuto la compensacion aprobada, se confirmo que no procede accion adicional o el cliente no entrego informacion requerida despues del periodo definido por soporte. Antes de cerrar, el agente debe registrar comentario final, estado de respuesta y motivo. Si el caso fue escalado, solo supervisor o area responsable debe cerrarlo. La IA puede sugerir cierre, pero no debe cerrar automaticamente casos de Alta o Critica prioridad.',
 'INDEXADO')
-ON CONFLICT (id_documento) DO UPDATE SET
-titulo = EXCLUDED.titulo,
-tipo_documento = EXCLUDED.tipo_documento,
-categoria_asociada = EXCLUDED.categoria_asociada,
-contenido = EXCLUDED.contenido,
-estado_indexacion = EXCLUDED.estado_indexacion,
-fecha_actualizacion = CURRENT_TIMESTAMP;
+ON CONFLICT (id_documento) DO NOTHING;
 
 INSERT INTO fragmentos_documento (id_documento, texto_fragmento, orden_fragmento, embedding_id)
 SELECT id_documento, contenido, 1, 'emb_doc_' || id_documento

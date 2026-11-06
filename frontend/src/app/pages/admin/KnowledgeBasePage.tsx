@@ -6,7 +6,7 @@ import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { FileText, RefreshCw, CheckCircle, Search, Plus, Pencil, Trash2 } from 'lucide-react';
-import { createDocument, deleteDocument, getDocuments, reindexDocuments, updateDocument, DocumentsResponse } from '../../lib/api';
+import { createDocument, deleteDocument, getDocuments, previewDocumentPdf, reindexDocuments, updateDocument, DocumentsResponse } from '../../lib/api';
 import { formatDateTime } from '../../lib/utils';
 import AdminLayout from '../../components/AdminLayout';
 
@@ -44,15 +44,9 @@ export default function KnowledgeBasePage() {
     try {
       const result = await reindexDocuments();
       await loadDocuments();
-      if (result.fallback_reason) {
-        setError(`No se pudieron generar embeddings de OpenAI. Se mantuvo TF-IDF como respaldo: ${result.fallback_reason}`);
-      } else {
-        setNotice(
-          result.provider === 'pgvector'
-            ? `Índice reconstruido correctamente con ${result.fragmentos || 0} embeddings en Supabase pgvector.`
-            : `Índice TF-IDF reconstruido correctamente con ${result.fragmentos || 0} fragmentos.`
-        );
-      }
+      setNotice(
+        `Índice TF-IDF reconstruido correctamente con ${result.fragmentos || 0} fragmentos.`
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo reindexar.');
     } finally {
@@ -63,6 +57,21 @@ export default function KnowledgeBasePage() {
   const resetForm = () => {
     setEditingId(null);
     setForm({ title: '', type: 'FAQ', category: 'Soporte general', content: '' });
+  };
+
+  const handlePreviewPdf = async (file: File) => {
+    setIsWorking(true);
+    setError('');
+    setNotice('');
+    try {
+      const preview = await previewDocumentPdf(file);
+      setForm((current) => ({ ...current, content: preview.content }));
+      setNotice('Vista previa lista. Revisa el texto y completa los datos antes de guardar.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo extraer el texto del PDF.');
+    } finally {
+      setIsWorking(false);
+    }
   };
 
   const handleSaveDocument = async () => {
@@ -198,6 +207,21 @@ export default function KnowledgeBasePage() {
             <CardTitle>{editingId ? 'Editar documento' : 'Agregar documento'}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {!editingId && (
+              <label className="block space-y-2 text-sm">
+                <span>Importar PDF para revisión</span>
+                <Input
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  disabled={isWorking}
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    event.currentTarget.value = '';
+                    if (file) void handlePreviewPdf(file);
+                  }}
+                />
+              </label>
+            )}
             <div className="grid md:grid-cols-3 gap-4">
               <Input
                 value={form.title}
@@ -289,7 +313,7 @@ export default function KnowledgeBasePage() {
           <CardContent className="pt-6">
             <h3 className="font-semibold text-blue-900 mb-2">Sobre el sistema RAG</h3>
             <p className="text-sm text-blue-800">
-              La recuperación documental usa Supabase pgvector con embeddings neuronales cuando PostgreSQL está activo.
+              La reindexación administrativa sincroniza los fragmentos y reconstruye TF-IDF localmente.
               En modo local conserva TF-IDF como respaldo para que la demo funcione sin servicios externos.
               Puedes agregar o editar documentos y luego reindexar para que el motor RAG los use en nuevas respuestas.
             </p>

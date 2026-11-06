@@ -423,12 +423,20 @@ def obtener_detalle_reclamo(id_reclamo):
     documentos = []
     if respuesta:
         documentos = fetch_all("""
-            SELECT dc.*, db.titulo, db.tipo_documento, db.categoria_asociada
+            SELECT dc.*, db.titulo, db.tipo_documento, db.categoria_asociada, db.contenido
             FROM documentos_consultados dc
             INNER JOIN documentos_base db ON db.id_documento = dc.id_documento
             WHERE dc.id_respuesta = ?
             ORDER BY dc.score_similitud DESC
         """, (respuesta["id_respuesta"],))
+    # Las referencias históricas guardan texto, pero el título proviene del catálogo actual.
+    # Omitir citas que ya no se pueden vincular al contenido de ese documento.
+    documentos = [
+        {key: value for key, value in doc.items() if key != "contenido"}
+        for doc in documentos
+        if doc["fragmento_usado"] and " ".join(doc["fragmento_usado"].split())
+        in " ".join(doc["contenido"].split())
+    ]
     historial = listar_historial_estados(id_reclamo)
     return reclamo, analisis, respuesta, documentos, historial
 
@@ -571,8 +579,8 @@ def crear_fragmento_documento(id_documento, texto_fragmento, orden_fragmento, em
         VALUES (?, ?, ?, ?)
     """, (id_documento, texto_fragmento, orden_fragmento, embedding_id))
 
-def listar_fragmentos_documento():
-    return fetch_all("""
+def listar_fragmentos_documento(conn=None):
+    query = """
         SELECT
             fd.id_fragmento,
             fd.id_documento,
@@ -583,12 +591,14 @@ def listar_fragmentos_documento():
             db.tipo_documento,
             db.categoria_asociada,
             db.estado_indexacion,
-            db.fecha_actualizacion
+            db.fecha_actualizacion,
+            db.contenido AS contenido_documento
         FROM fragmentos_documento fd
         INNER JOIN documentos_base db ON db.id_documento = fd.id_documento
         WHERE db.activo = 1
-        ORDER BY fd.id_documento, fd.orden_fragmento
-    """)
+        ORDER BY fd.id_documento, fd.orden_fragmento, fd.id_fragmento
+    """
+    return fetch_all(query) if conn is None else [dict(row) for row in conn.execute(query).fetchall()]
 
 def contar_fragmentos_documento():
     row = fetch_one("SELECT COUNT(*) AS total FROM fragmentos_documento")
@@ -606,9 +616,10 @@ def eliminar_embeddings_rag():
     execute("DELETE FROM rag_embeddings")
 
 
-def crear_embedding_rag(fragmento, modelo_embedding, dimension, embedding):
+def crear_embedding_rag(fragmento, modelo_embedding, dimension, embedding, conn=None):
     vector_literal = "[" + ",".join(str(float(value)) for value in embedding) + "]"
-    return execute("""
+    write = execute if conn is None else conn.execute
+    return write("""
         INSERT INTO rag_embeddings (
             id_fragmento, id_documento, modelo_embedding, dimension, embedding,
             texto_fragmento, titulo, tipo_documento, categoria_asociada
@@ -627,9 +638,11 @@ def crear_embedding_rag(fragmento, modelo_embedding, dimension, embedding):
     ))
 
 
-def buscar_embeddings_rag(embedding, max_docs=3):
+def buscar_embeddings_rag(embedding, max_docs=3, categoria=None):
     vector_literal = "[" + ",".join(str(float(value)) for value in embedding) + "]"
-    return fetch_all("""
+    filtro = "WHERE categoria_asociada = ?" if categoria else ""
+    parametros = (categoria,) if categoria else ()
+    return fetch_all(f"""
         SELECT
             id_documento,
             id_fragmento,
@@ -640,9 +653,10 @@ def buscar_embeddings_rag(embedding, max_docs=3):
             modelo_embedding,
             1 - (embedding <=> ?::vector) AS score
         FROM rag_embeddings
+        {filtro}
         ORDER BY embedding <=> ?::vector
         LIMIT ?
-    """, (vector_literal, vector_literal, int(max_docs)))
+    """, (vector_literal, *parametros, vector_literal, int(max_docs)))
 
 
 def contar_embeddings_rag():
