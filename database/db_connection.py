@@ -52,6 +52,29 @@ def using_postgres():
     return provider == "postgres" or app_env == "production"
 
 
+def allows_automatic_database_setup():
+    """Restrict automatic seeds and document synchronization to local databases."""
+    from modules.config import is_production
+
+    if is_production() or any(os.getenv(name) for name in ("RENDER", "VERCEL")):
+        return False
+    if not using_postgres():
+        return True
+
+    from psycopg import ProgrammingError
+    from psycopg.conninfo import conninfo_to_dict
+
+    try:
+        config = conninfo_to_dict(os.environ["DATABASE_URL"])
+    except ProgrammingError:
+        return False
+    loopback = {"127.0.0.1", "::1"}
+    host = config.get("host")
+    address = config.get("hostaddr") or os.getenv("PGHOSTADDR") or host
+    return (host in loopback and address == host
+            and not config.get("service") and not os.getenv("PGSERVICE"))
+
+
 def _adapt_query_for_postgres(query):
     adapted = query.replace("?", "%s")
     adapted = adapted.replace("INSERT OR IGNORE", "INSERT")

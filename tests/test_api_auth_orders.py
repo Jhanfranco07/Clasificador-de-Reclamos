@@ -552,6 +552,45 @@ def test_production_startup_does_not_create_demo_accounts(monkeypatch, tmp_path)
     monkeypatch.setenv("AUTH_SECRET", "test-only-production-secret-longer-than-32")
     monkeypatch.setenv("DATABASE_URL", "")
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "startup.db")
+    db.init_db()
     with TestClient(app):
         assert db.fetch_one("SELECT COUNT(*) AS total FROM auth_users")["total"] == 0
         assert db.fetch_one("SELECT COUNT(*) AS total FROM pedidos")["total"] == 0
+
+def test_hosted_startup_and_document_mutations_leave_database_intact(api_client, monkeypatch):
+    from backend import main
+    from database import db_connection as db
+
+    admin = api_client.post("/api/auth/login", json={"email": "admin@smartclaim.com", "password": "123456"})
+    headers = {"Authorization": f"Bearer {admin.json()['token']}"}
+    before = db.fetch_all("SELECT * FROM fragmentos_documento ORDER BY id_fragmento")
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("El entorno alojado intentó modificar el catálogo automáticamente")
+
+    monkeypatch.setenv("RENDER", "true")
+    for name in ("init_db", "asegurar_usuarios_auth_base", "asegurar_pedidos_demo_base", "construir_indice_vectorial"):
+        monkeypatch.setattr(main, name, forbidden)
+    payload = {"title": "Documento de auditoría", "type": "FAQ", "category": "Soporte general",
+               "content": "Contenido académico para verificar los controles de escritura."}
+    with TestClient(main.app) as hosted:
+        assert hosted.get("/api/documents", headers=headers).status_code == 200
+        for method, path in (
+            ("POST", "/api/documents"), ("PUT", "/api/documents/4"),
+            ("DELETE", "/api/documents/4"), ("POST", "/api/documents/reindex"),
+        ):
+            assert hosted.request(method, path, headers=headers, json=payload).status_code == 503
+    assert db.fetch_all("SELECT * FROM fragmentos_documento ORDER BY id_fragmento") == before
+
+
+@pytest.mark.parametrize("dsn", [
+    "host=example.invalid dbname=smartclaim",
+    "host=127.0.0.1 hostaddr=198.51.100.1 dbname=smartclaim",
+    "host=127.0.0.1 service=external dbname=smartclaim",
+])
+def test_remote_database_disables_automatic_setup(monkeypatch, dsn):
+    from database.db_connection import allows_automatic_database_setup
+
+    monkeypatch.setenv("DB_PROVIDER", "postgres")
+    monkeypatch.setenv("DATABASE_URL", dsn)
+    assert not allows_automatic_database_setup()

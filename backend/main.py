@@ -16,7 +16,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-from database.db_connection import fetch_all, fetch_one, init_db, using_postgres
+from database.db_connection import (allows_automatic_database_setup, ensure_pgvector_embedding_dimension,
+                                    fetch_all, fetch_one, init_db, using_postgres)
 from database.repositories import (
     DuplicateDocument,
     get_categoria_id,
@@ -80,7 +81,7 @@ from modules.rag_engine import (
 from modules.pdf_documents import PDF_MAX_BYTES, PDF_MAX_TEXT, extract_pdf_text
 from modules.security import create_token, decode_token, hash_password, verify_password
 from modules.chatbot_service import answer_chat
-from modules.config import allow_vercel_previews, cors_origins, is_production, validate_runtime_config
+from modules.config import allow_vercel_previews, cors_origins, validate_runtime_config
 
 
 logger = logging.getLogger(__name__)
@@ -89,12 +90,14 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     validate_runtime_config()
-    init_db()
-    if not is_production():
+    if allows_automatic_database_setup():
+        init_db()
         asegurar_usuarios_auth_base()
         asegurar_pedidos_demo_base()
-    if not using_postgres():
-        construir_indice_vectorial(forzar=True)
+        if not using_postgres():
+            construir_indice_vectorial(forzar=True)
+    elif using_postgres():
+        ensure_pgvector_embedding_dimension()
     yield
 
 
@@ -1002,8 +1005,16 @@ async def preview_document_pdf(request: Request, user: dict[str, Any] = Depends(
         raise HTTPException(422, str(exc)) from exc
 
 
+def require_document_maintenance():
+    if not allows_automatic_database_setup():
+        raise HTTPException(
+            503, "El mantenimiento documental debe ejecutarse mediante una migración controlada."
+        )
+
+
 @app.post("/api/documents", status_code=201)
 def create_document(payload: DocumentPayload, user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+    require_document_maintenance()
     if get_categoria_id(payload.category) is None:
         raise HTTPException(422, "Selecciona una categoría documental válida.")
     try:
@@ -1016,6 +1027,7 @@ def create_document(payload: DocumentPayload, user: dict[str, Any] = Depends(req
 
 @app.put("/api/documents/{document_id}")
 def update_document(document_id: int, payload: DocumentPayload, user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+    require_document_maintenance()
     if get_categoria_id(payload.category) is None:
         raise HTTPException(422, "Selecciona una categoría documental válida.")
     try:
@@ -1028,6 +1040,7 @@ def update_document(document_id: int, payload: DocumentPayload, user: dict[str, 
 
 @app.delete("/api/documents/{document_id}")
 def delete_document(document_id: int, user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+    require_document_maintenance()
     desactivar_documento_base(document_id)
     construir_indice_vectorial(forzar=True)
     return documents(user)
@@ -1035,6 +1048,7 @@ def delete_document(document_id: int, user: dict[str, Any] = Depends(require_adm
 
 @app.post("/api/documents/reindex")
 def reindex_documents(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+    require_document_maintenance()
     return construir_indice_vectorial(forzar=True)
 
 
