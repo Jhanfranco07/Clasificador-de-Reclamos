@@ -41,7 +41,7 @@ _isolation = pytest.MonkeyPatch()
 def pytest_configure(config):
     # Before collection/imports. Changes are process-local and restored on exit.
     for key, value in {
-        "PYTHON_DOTENV_DISABLED": "1", "APP_ENV": "development", "DB_PROVIDER": "sqlite",
+        "SMARTCLAIM_BOOTSTRAP_DEMO": "1", "PYTHON_DOTENV_DISABLED": "1", "APP_ENV": "development", "DB_PROVIDER": "sqlite",
         "DATABASE_URL": "", "OPENAI_API_KEY": "", "USE_OPENAI_EMBEDDINGS": "false",
         "ENABLE_PGVECTOR_RAG": "false", "AUTH_SECRET": "isolated-tests-secret-never-used-in-production",
     }.items():

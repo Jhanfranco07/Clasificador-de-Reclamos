@@ -46,6 +46,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { path: '/admin/claims', label: 'Bandeja de reclamos', icon: Inbox },
     ...(currentUser?.role === 'ADMIN'
       ? [
+          { path: '/admin/orders', label: 'Pedidos', icon: Package },
+          { path: '/admin/operations', label: 'Comercios y operadores', icon: UserRound },
           { path: '/admin/knowledge', label: 'Base documental', icon: FileText },
           { path: '/admin/ai-config', label: 'Configuración IA', icon: Settings },
           { path: '/admin/reports', label: 'Reportes', icon: BarChart3 },

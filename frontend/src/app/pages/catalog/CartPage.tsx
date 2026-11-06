@@ -38,6 +38,15 @@ export default function CartPage() {
       </article>)}
       <div className="flex flex-wrap gap-3 justify-between border-t pt-5 text-xl font-bold"><span>Total cotizado con cargos</span><span>{quote?.total != null ? formatCurrency(quote.total) : 'Pendiente'}</span></div>
       {(error || quote?.limitation) && <p role="alert" className="text-sm text-red-700">{error || quote?.limitation}</p>}
+      {quote && !quote.canConfirm && [...new Set(quote.items.map(line => line.restaurantId))].map(restaurantId => {
+        const name = quote.items.find(line => line.restaurantId === restaurantId)?.restaurantName;
+        return <Button key={restaurantId} variant="outline" className="w-full h-auto whitespace-normal" onClick={() => {
+          if (window.confirm(`Comprar los artículos de ${name} en un pedido separado. Los demás artículos permanecerán en el carrito. ¿Continuar?`)) {
+            const destination = `/checkout?restaurant=${restaurantId}`;
+            navigate(isAuthenticated ? destination : '/login', isAuthenticated ? undefined : { state: { from: destination } });
+          }
+        }}>Comprar por separado · {name}</Button>;
+      })}
       <Button disabled={!quote?.canConfirm} className="w-full" size="lg" onClick={() => navigate(isAuthenticated ? '/checkout' : '/login', isAuthenticated ? undefined : { state: { from: '/checkout' } })}>{isAuthenticated ? 'Continuar al pago' : 'Iniciar sesión y pagar'}</Button>
     </div>}
   </div></Layout>;

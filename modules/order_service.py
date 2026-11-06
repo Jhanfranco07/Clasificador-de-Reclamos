@@ -53,7 +53,7 @@ def _quote(conn, requested):
                 service=float(SERVICE_FEE) if confirmable else None,
                 total=float(subtotal + delivery + SERVICE_FEE) if confirmable else None,
                 canConfirm=confirmable, quoteHash=hashlib.sha256(fingerprint.encode()).hexdigest(),
-                limitation=None if confirmable else "La confirmación con varios establecimientos requiere una política de cargos y pedidos aún no definida.")
+                limitation=None if confirmable else "Este MVP admite un establecimiento por pedido. Confirma la compra de cada establecimiento por separado. Tus artículos se conservan.")
 
 
 def quote_order(items):
@@ -61,8 +61,17 @@ def quote_order(items):
         return _quote(conn, items)
 
 
-def create_catalog_order(user, items, quote_hash, payment_method, address, notes=None):
+def create_catalog_order(user, items, quote_hash, payment_method, address, notes=None, request_id=None):
+    request_id = request_id or str(uuid4())
+    payload = json.dumps([items, quote_hash, payment_method, address, notes], sort_keys=True)
     with transaction() as conn:
+        from modules.order_workflow import live_actor
+        user = live_actor(conn, user)
+        previous = one(conn, "SELECT * FROM pedido_eventos WHERE request_id=?", (request_id,))
+        if previous:
+            if previous["actor_id"] != user["id_auth_user"] or previous["accion"] != "CREATED" or previous["payload_json"] != payload:
+                raise DomainError("Clave de solicitud reutilizada con contenido diferente")
+            return previous["id_pedido"]
         quote = _quote(conn, items)
         if not quote["canConfirm"]:
             raise DomainError(quote["limitation"])
@@ -75,7 +84,7 @@ def create_catalog_order(user, items, quote_hash, payment_method, address, notes
         order_id = insert(conn, """INSERT INTO pedidos
             (codigo_pedido,id_cliente,id_restaurante,tienda_nombre,tienda_imagen,estado,total,metodo_pago,
              direccion_entrega,notas_entrega,subtotal,costo_delivery,costo_servicio,fecha_entrega_estimada)
-            VALUES (?,?,?,?,?,'PREPARING',?,?,?,?,?,?,?,?)""", (
+            VALUES (?,?,?,?,?,'RECEIVED',?,?,?,?,?,?,?,?)""", (
                 "ORD-" + datetime.now().strftime("%Y%m%d") + "-" + uuid4().hex[:12].upper(), customer_id,
                 first["restaurantId"], first["restaurantName"], first["restaurantImage"], quote["total"],
                 payment_method, address, notes, quote["subtotal"], quote["delivery"], quote["service"],
@@ -83,4 +92,6 @@ def create_catalog_order(user, items, quote_hash, payment_method, address, notes
         for line in quote["items"]:
             insert(conn, """INSERT INTO pedido_items(id_pedido,id_producto,nombre_producto,cantidad,precio,imagen)
                            VALUES (?,?,?,?,?,?)""", (order_id,line["productId"],line["name"],line["quantity"],line["price"],line["image"]))
+        from modules.order_workflow import record_created
+        record_created(conn, order_id, user, request_id, payload)
         return order_id

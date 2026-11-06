@@ -1,5 +1,11 @@
 # Backlog de mejoras funcionales — SmartClaim AI
 
+## Decisiones posteriores para Fase 2B
+
+La solicitud del 6 de noviembre de 2026 autoriza cinco roles y reemplaza la propuesta inicial de ADMIN como operador habitual del MVP. MERCHANT prepara pedidos de establecimientos expresamente autorizados, COURIER recoge/entrega asignados y ADMIN supervisa e interviene excepcionalmente con motivo. Se confirma un establecimiento por pedido, con confirmación explícita para compras separadas y conservación del carrito restante. DELAYED nuevo se registra como incidencia separada. Los registros históricos permanecen sujetos a conciliación sin inferir eventos físicos.
+
+La implementación y sus resultados se registran en [IMPLEMENTACION_FASE_2B.md](IMPLEMENTACION_FASE_2B.md). Se mantienen los tickets BF-06/07/12/13/17 originales y sus dependencias. Esta ampliación de roles y operación de pedidos no completa por sí misma BF-12, la administración comercial integral BF-13 ni la conciliación histórica BF-17. Los criterios y evidencia originales que siguen abajo conservan su carácter histórico.
+
 Fecha: 30 de octubre de 2026. Base: [Auditoría funcional integral](AUDITORIA_FUNCIONAL_INTEGRAL.md). Rama auditada: `feature/optimizacion-flujo-ia`.
 
 Este documento propone trabajo futuro. **No autoriza ni acredita implementación, migraciones o despliegue.** Los IDs AF enlazan evidencia, severidad, causas y reproducción del informe. Prioridad P0 antes de otra demostración con datos sensibles; P1 necesaria para un MVP integrado; P2 consolidación. Tamaños S/M/L son estimaciones relativas de alcance, no plazos comprometidos.

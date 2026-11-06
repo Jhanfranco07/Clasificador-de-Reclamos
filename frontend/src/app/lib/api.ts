@@ -79,7 +79,7 @@ export interface AuthUser {
   id: string;
   name: string;
   email: string;
-  role: 'CLIENT' | 'AGENT' | 'ADMIN';
+  role: 'CLIENT' | 'AGENT' | 'ADMIN' | 'MERCHANT' | 'COURIER';
   phone?: string;
   createdAt: string;
 }
@@ -103,7 +103,7 @@ export interface ApiOrder {
   userId: string;
   storeName: string;
   storeImage?: string;
-  status: 'DELIVERED' | 'IN_TRANSIT' | 'CANCELLED' | 'DELAYED' | 'PREPARING';
+  status: 'DELIVERED' | 'IN_TRANSIT' | 'CANCELLED' | 'DELAYED' | 'PREPARING' | 'RECEIVED' | 'ACCEPTED' | 'READY_FOR_PICKUP';
   total: number;
   subtotal?: number;
   deliveryFee?: number;
@@ -113,9 +113,48 @@ export interface ApiOrder {
   paymentMethod: string;
   deliveryAddress: string;
   deliveryDriver?: string;
+  driverVerified?: boolean;
   items: ApiOrderItem[];
   createdAt: string;
   estimatedDelivery?: string;
+  restaurantId?: number;
+  pickupAddress?: string;
+  version: number;
+  pickedUpAt?: string;
+  deliveredAt?: string;
+  reconciliationRequired?: boolean;
+  events: OrderEvent[];
+}
+
+export interface OrderEvent {
+  accion: string;
+  estado_anterior?: string;
+  estado_nuevo: string;
+  fecha: string;
+  actor_nombre?: string;
+  actor_rol?: string;
+  motivo?: string;
+  courier_id?: number;
+}
+
+export type ManagedUser = { id_auth_user: number; nombre: string; correo: string; rol: AuthUser['role']; estado: string };
+export type ManagedRestaurant = { id_restaurante: number; nombre: string; direccion?: string; responsable?: string; activo: number };
+export type ManagedProduct = { id_producto: number; nombre: string; precio: number; disponible: number; restaurante: string; puede_editar_productos: number };
+export type OperationsOverview = {
+  users: ManagedUser[]; restaurants: ManagedRestaurant[];
+  operators: Array<{ id_auth_user: number; id_restaurante: number; activo: number; puede_editar_productos: number }>;
+  couriers: Array<{ id_auth_user: number; nombre: string; estado: string; disponible: number; active_deliveries: number }>;
+  audit: Array<{ request_id: string; actor_nombre: string; actor_rol: string; accion: string; recurso_id: number; detalle: string; fecha: string }>;
+};
+
+export function getOperations() { return request<OperationsOverview>('/api/operations/admin'); }
+export function operationalWrite(path: string, data: object, method = 'POST') {
+  return request<{ ok?: boolean; order?: ApiOrder }>(path, { method, body: JSON.stringify(data) });
+}
+export function getOperationalProducts() { return request<{ items: ManagedProduct[] }>('/api/operations/products'); }
+export function getAvailability() { return request<{ available: boolean }>('/api/operations/availability'); }
+export function getClaimOrderContext(id: string) {
+  return request<{ order: ApiOrder | null; financialStatus: string }>(`/api/claims/${id}/order-context`);
 }
 
 export interface CatalogProduct {
@@ -361,6 +400,7 @@ export function quoteOrder(items: Array<{ product_id: number; quantity: number }
 }
 
 export function createOrder(payload: {
+  request_id?: string;
   quote_hash: string;
   payment_method: string;
   delivery_address: string;

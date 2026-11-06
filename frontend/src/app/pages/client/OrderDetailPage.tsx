@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import OrderHistory from '../../components/OrderHistory';
 import { useParams, Link } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -174,12 +175,14 @@ export default function OrderDetailPage() {
             </CardHeader>
             <CardContent>
               <p className="font-semibold">{order.deliveryDriver}</p>
-              <p className="text-sm text-gray-500">Dato de demostración, sin seguimiento de ubicación</p>
+              <p className="text-sm text-gray-500">{order.driverVerified ? 'Asignación registrada, sin seguimiento de ubicación' : 'Texto histórico sin asignación de repartidor verificada'}</p>
             </CardContent>
           </Card>
         )}
 
-        {(order.status === 'DELIVERED' || order.status === 'DELAYED') && (
+        <OrderHistory order={order} />
+        {order.deliveredAt && <p>Entrega registrada · {order.deliveredAt}</p>}
+        {(
           <Card className="bg-orange-50 border-orange-200">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between gap-4">

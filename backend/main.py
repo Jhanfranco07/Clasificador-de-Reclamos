@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import logging
+import os
 import re
 import sys
 from pathlib import Path
@@ -88,9 +89,12 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     validate_runtime_config()
-    init_db()
-    asegurar_usuarios_auth_base()
-    asegurar_pedidos_demo_base()
+    if os.getenv("SMARTCLAIM_BOOTSTRAP_DEMO") == "1":
+        if os.getenv("APP_ENV", "").lower() == "production" or using_postgres():
+            raise RuntimeError("Bootstrap demo permitido solamente en SQLite de desarrollo")
+        init_db()
+        asegurar_usuarios_auth_base()
+        asegurar_pedidos_demo_base()
     yield
 
 
@@ -149,6 +153,7 @@ class OrderQuote(BaseModel):
 
 
 class OrderCreate(OrderQuote):
+    request_id: str | None = Field(None, min_length=8, max_length=100)
     quote_hash: str = Field(..., min_length=64, max_length=64)
     payment_method: Literal['Tarjeta', 'Yape', 'Plin', 'Efectivo']
     delivery_address: str = Field(..., min_length=5, max_length=500)
@@ -158,6 +163,57 @@ class OrderCreate(OrderQuote):
     @classmethod
     def strip_text(cls, value):
         return value.strip() if isinstance(value, str) else value
+
+
+class OperationalRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    request_id: str = Field(..., min_length=8, max_length=100)
+
+
+class OrderTransition(OperationalRequest):
+    state: str
+    expected_version: int = Field(..., ge=0, strict=True)
+    reason: str | None = Field(None, max_length=1000)
+
+
+class CourierAssignment(OperationalRequest):
+    courier_id: int = Field(..., gt=0, strict=True)
+    expected_version: int = Field(..., ge=0, strict=True)
+    reason: str = Field(..., min_length=1, max_length=1000)
+
+
+class DelayReport(OperationalRequest):
+    expected_version: int = Field(..., ge=0, strict=True)
+    reason: str = Field(..., min_length=1, max_length=1000)
+
+
+class UserRoleUpdate(OperationalRequest):
+    role: Literal['CLIENT', 'AGENT', 'ADMIN', 'MERCHANT', 'COURIER']
+    active: bool
+    reason: str = Field(..., min_length=1, max_length=1000)
+
+
+class OperatorGrant(OperationalRequest):
+    user_id: int = Field(..., gt=0, strict=True)
+    active: bool
+    edit_products: bool = False
+    reason: str = Field(..., min_length=1, max_length=1000)
+
+
+class CourierAvailability(OperationalRequest):
+    available: bool
+
+
+class ProductUpdate(OperationalRequest):
+    name: str = Field(..., min_length=1, max_length=150)
+    price: float = Field(..., ge=0, allow_inf_nan=False)
+    available: bool
+
+
+class RestaurantUpdate(OperationalRequest):
+    address: str = Field(..., min_length=1, max_length=500)
+    responsible: str = Field(..., min_length=1, max_length=150)
+    active: bool
 
 
 class ClaimCreate(BaseModel):
@@ -405,6 +461,8 @@ def _to_claim_detail(id_reclamo: int) -> dict[str, Any]:
 
 
 def _detail_for_user(claim_id, user):
+    from modules.order_workflow import require_role
+    require_role(user, {"CLIENT", "AGENT", "ADMIN"})
     detail = _to_claim_detail(claim_id)
     if user["rol"] != "CLIENT":
         return detail
@@ -564,9 +622,24 @@ def _order_detail_or_404(order_id: int, user: dict[str, Any]) -> dict[str, Any]:
     row, items = obtener_pedido(order_id)
     if not row:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
-    if user["rol"] == "CLIENT" and row["correo_cliente"].lower() != user["correo"].lower():
-        raise HTTPException(status_code=403, detail="No tienes acceso a este pedido")
-    return _to_order(row, items)
+    from database.db_connection import get_connection
+    from modules.order_workflow import authorize_order, events
+    with get_connection() as conn:
+        authorize_order(conn, row, user)
+    result = _to_order(row, items)
+    restaurant = fetch_one("SELECT direccion FROM restaurantes WHERE id_restaurante=?", (row.get("id_restaurante"),))
+    assignment = fetch_one("SELECT id_courier FROM pedido_asignaciones WHERE id_pedido=?", (order_id,))
+    result.update(restaurantId=row.get("id_restaurante"), version=row["version_operativa"],
+                  driverVerified=assignment is not None,
+                  pickupAddress=restaurant["direccion"] if restaurant else None,
+                  pickedUpAt=row.get("recogido_at"), deliveredAt=row.get("entregado_at"),
+                  events=events(order_id, user["rol"] in {"ADMIN", "AGENT"}),
+                  reconciliationRequired=row.get("id_restaurante") is None or row["estado"] == "DELAYED")
+    if user["rol"] == "COURIER":
+        # Courier DTO contains only dispatch context. No finance, customer email or claim drafts.
+        result = {key: result[key] for key in ("id", "code", "storeName", "status", "deliveryAddress",
+            "deliveryNotes", "version", "pickedUpAt", "deliveredAt", "events", "restaurantId", "createdAt", "pickupAddress")}
+    return result
 
 
 def _pydantic_data(model: BaseModel) -> dict[str, Any]:
@@ -760,14 +833,8 @@ def read_notifications(user: dict[str, Any] = Depends(get_current_user)) -> dict
 
 @app.get("/api/orders")
 def orders(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
-    if user["rol"] != "CLIENT":
-        return {"items": []}
-    rows = listar_pedidos_por_correo(user["correo"])
-    items = []
-    for row in rows:
-        order, order_items = obtener_pedido(row["id_pedido"])
-        items.append(_to_order(order, order_items))
-    return {"items": items}
+    from modules.order_workflow import visible_order_ids
+    return {"items": [_order_detail_or_404(row["id_pedido"], user) for row in visible_order_ids(user)]}
 
 
 @app.post("/api/orders", status_code=201)
@@ -776,7 +843,7 @@ def create_order(payload: OrderCreate, user: dict[str, Any] = Depends(get_curren
         raise HTTPException(status_code=403, detail="Solo una cuenta cliente puede crear pedidos")
     from modules.order_service import create_catalog_order
     order_id = create_catalog_order(user, [_pydantic_data(item) for item in payload.items],
-        payload.quote_hash, payload.payment_method, payload.delivery_address, payload.delivery_notes)
+        payload.quote_hash, payload.payment_method, payload.delivery_address, payload.delivery_notes, payload.request_id)
     return {"order": _order_detail_or_404(order_id, user)}
 
 
@@ -803,6 +870,92 @@ def dashboard(user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
     }
 
 
+@app.post("/api/orders/{order_id}/transition")
+def transition_order(order_id: int, payload: OrderTransition, user=Depends(get_current_user)):
+    from modules.order_workflow import transition
+    transition(order_id, user, payload.state, payload.expected_version, payload.request_id, payload.reason)
+    return {"order": _order_detail_or_404(order_id, user)}
+
+
+@app.post("/api/orders/{order_id}/assignment")
+def assign_courier(order_id: int, payload: CourierAssignment, user=Depends(require_admin)):
+    from modules.order_workflow import assign
+    assign(order_id, user, payload.courier_id, payload.expected_version, payload.request_id, payload.reason)
+    return {"order": _order_detail_or_404(order_id, user)}
+
+
+@app.post("/api/orders/{order_id}/delay")
+def order_delay(order_id: int, payload: DelayReport, user=Depends(get_current_user)):
+    from modules.order_workflow import report_delay
+    report_delay(order_id, user, payload.expected_version, payload.request_id, payload.reason)
+    return {"order": _order_detail_or_404(order_id, user)}
+
+
+@app.get("/api/operations/admin")
+def operations_overview(user=Depends(require_admin)):
+    from modules.operations_admin import overview
+    return overview(user)
+
+
+@app.patch("/api/operations/users/{user_id}")
+def operations_user(user_id: int, payload: UserRoleUpdate, user=Depends(require_admin)):
+    from modules.operations_admin import update_user
+    update_user(user, user_id, payload.role, payload.active, payload.request_id, payload.reason)
+    # A self-demotion takes effect immediately, including for the next request.
+    return {"ok": True}
+
+
+@app.put("/api/operations/restaurants/{restaurant_id}/operator")
+def operations_grant(restaurant_id: int, payload: OperatorGrant, user=Depends(require_admin)):
+    from modules.operations_admin import grant
+    grant(user, restaurant_id, payload.user_id, payload.active, payload.edit_products, payload.request_id, payload.reason)
+    return {"ok": True}
+
+
+@app.patch("/api/operations/restaurants/{restaurant_id}")
+def operations_restaurant(restaurant_id: int, payload: RestaurantUpdate, user=Depends(require_admin)):
+    from modules.operations_admin import update_restaurant
+    update_restaurant(user, restaurant_id, payload.address, payload.responsible, payload.active, payload.request_id)
+    return {"ok": True}
+
+
+@app.get("/api/operations/products")
+def operations_products(user=Depends(get_current_user)):
+    from modules.operations_admin import products
+    return {"items": products(user)}
+
+
+@app.patch("/api/operations/products/{product_id}")
+def operations_product(product_id: int, payload: ProductUpdate, user=Depends(get_current_user)):
+    from modules.operations_admin import update_product
+    update_product(user, product_id, payload.name, payload.price, payload.available, payload.request_id)
+    return {"ok": True}
+
+
+@app.get("/api/operations/availability")
+def courier_availability(user=Depends(get_current_user)):
+    from modules.order_workflow import require_role
+    require_role(user, {"COURIER"})
+    row = fetch_one("SELECT disponible FROM courier_profiles WHERE id_auth_user=?", (user["id_auth_user"],))
+    return {"available": bool(row and row["disponible"])}
+
+
+@app.put("/api/operations/availability")
+def set_courier_availability(payload: CourierAvailability, user=Depends(get_current_user)):
+    from modules.operations_admin import availability
+    availability(user, payload.available, payload.request_id)
+    return {"available": payload.available}
+
+
+@app.get("/api/claims/{claim_id}/order-context")
+def claim_order_context(claim_id: int, user=Depends(require_staff)):
+    claim = fetch_one("SELECT id_pedido FROM reclamos WHERE id_reclamo=?", (claim_id,))
+    if not claim:
+        raise HTTPException(404, "Reclamo no encontrado")
+    return {"order": _order_detail_or_404(claim["id_pedido"], user) if claim["id_pedido"] else None,
+            "financialStatus": "Pago y devoluciones no verificados"}
+
+
 @app.get("/api/claims")
 def claims(
     user: dict[str, Any] = Depends(get_current_user),
@@ -813,6 +966,8 @@ def claims(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
 ) -> dict[str, Any]:
+    from modules.order_workflow import require_role
+    require_role(user, {"CLIENT", "AGENT", "ADMIN"})
     rows = listar_reclamos_por_correo(user["correo"]) if user["rol"] == "CLIENT" else listar_reclamos()
     items = [_to_claim_summary(row) for row in rows]
     query = (search or "").strip().lower()
@@ -843,6 +998,8 @@ def claims(
 
 @app.post("/api/claims", status_code=201)
 def create_claim(payload: ClaimCreate, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    from modules.order_workflow import require_role
+    require_role(user, {"CLIENT", "AGENT", "ADMIN"})
     if user["rol"] == "CLIENT" and payload.customer_email.lower() != user["correo"].lower():
         raise HTTPException(status_code=403, detail="No puedes registrar reclamos para otro cliente")
     owner_email = user["correo"] if user["rol"] == "CLIENT" else str(payload.customer_email)
@@ -881,6 +1038,7 @@ def claim_detail(claim_id: int, user: dict[str, Any] = Depends(get_current_user)
 
 @app.get("/api/claims/{claim_id}/messages")
 def claim_messages(claim_id: int, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    _detail_for_user(claim_id, user)
     detail = _to_claim_detail(claim_id)
     if user["rol"] == "CLIENT" and detail["claim"]["customerEmail"].lower() != user["correo"].lower():
         raise HTTPException(status_code=403, detail="No tienes acceso a este reclamo")
@@ -902,6 +1060,7 @@ def add_claim_message(
     payload: ClaimMessagePayload,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
+    _detail_for_user(claim_id, user)
     detail = _to_claim_detail(claim_id)
     if user["rol"] == "CLIENT" and detail["claim"]["customerEmail"].lower() != user["correo"].lower():
         raise HTTPException(status_code=403, detail="No tienes acceso a este reclamo")
@@ -949,6 +1108,7 @@ def close_claim(claim_id: int, payload: CloseRequest, user: dict[str, Any] = Dep
 
 @app.post("/api/claims/{claim_id}/reopen")
 def reopen_claim(claim_id: int, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    _detail_for_user(claim_id, user)
     detail = _to_claim_detail(claim_id)
     if user["rol"] == "CLIENT" and detail["claim"]["customerEmail"].lower() != user["correo"].lower():
         raise HTTPException(status_code=403, detail="No tienes acceso a este reclamo")

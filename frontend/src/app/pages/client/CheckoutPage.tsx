@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -15,8 +15,13 @@ import CartNotice from '../../components/CartNotice';
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const cartState = useCart();
-  const cart = cartState.items;
+  const fullCart = cartState.items;
+  const { quote: fullQuote, error: fullQuoteError } = useOrderQuote(fullCart);
+  const selectedRestaurant = params.get('restaurant');
+  const selectedIds = new Set(fullQuote?.items.filter(item => String(item.restaurantId) === selectedRestaurant).map(item => String(item.productId)));
+  const cart = selectedRestaurant ? fullCart.filter(item => selectedIds.has(item.id)) : fullCart;
   const [address, setAddress] = useState('Av. Primavera 123, Lima');
   const [paymentMethod, setPaymentMethod] = useState('Tarjeta');
   const [deliveryNotes, setDeliveryNotes] = useState('');
@@ -24,6 +29,7 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { quote, error: quoteError } = useOrderQuote(cart);
+  const requestId = useMemo(() => crypto.randomUUID(), [quote?.quoteHash, address, paymentMethod, deliveryNotes]);
   const subtotal = quote?.subtotal ?? 0;
   const deliveryFee = quote?.delivery;
   const serviceFee = quote?.service;
@@ -50,13 +56,15 @@ export default function CheckoutPage() {
     setIsSubmitting(true);
     try {
       const result = await createOrder({
+        request_id: requestId,
         quote_hash: quote.quoteHash,
         payment_method: paymentMethod,
         delivery_address: address.trim(),
         delivery_notes: deliveryNotes.trim() || undefined,
         items: cart.map((item) => ({ product_id: Number(item.id), quantity: item.quantity })),
       });
-      cartState.reset();
+      const purchasedIds = new Set(cart.map(item => item.id));
+      cartState.update(fullCart.filter(item => !purchasedIds.has(item.id)));
       navigate(`/orders/${result.order.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo crear el pedido.');
@@ -81,7 +89,11 @@ export default function CheckoutPage() {
         </div>
 
         <CartNotice warning={cartState.warning} reset={cartState.reset} />
-        {cartState.blocked ? null : cart.length === 0 ? (
+        {cartState.blocked ? null : selectedRestaurant && fullCart.length > 0 && !fullQuote ? (
+          fullQuoteError ? <p role="alert" className="text-red-700">{fullQuoteError}</p> : <p role="status">Cotizando los artículos del establecimiento...</p>
+        ) : selectedRestaurant && fullQuote && cart.length === 0 ? (
+          <p role="alert">No hay artículos de este establecimiento en el carrito. Revisa la selección desde el carrito.</p>
+        ) : cart.length === 0 ? (
           <Card>
             <CardContent className="text-center py-12">
               <ShoppingCart className="size-16 mx-auto mb-4 text-gray-300" />

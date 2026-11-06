@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import ClaimOrderContext from '../../components/ClaimOrderContext';
 import { useParams, Link } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -512,7 +513,8 @@ export default function AdminClaimDetailPage() {
             </Card>
           </div>
         </div>
-        <ClaimConversation claimId={claim.id} viewer="agent" closed={claim.statusKey === 'CLOSED'} />
+        <ClaimOrderContext claimId={detail.claim.id} />
+          <ClaimConversation claimId={claim.id} viewer="agent" closed={claim.statusKey === 'CLOSED'} />
         {claim.statusKey !== 'CLOSED' && <div className="space-y-2">
           <label htmlFor="close-reason" className="font-semibold">Motivo de cierre administrativo</label>
           <Textarea id="close-reason" value={closeReason} onChange={(event) => setCloseReason(event.target.value)} maxLength={2000} />
