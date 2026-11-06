@@ -216,7 +216,7 @@ def test_reindex_revierte_los_cambios_si_falla_el_indice(temp_app, monkeypatch):
     actualizar_documento_base(4, "FAQ modificada", "FAQ", "Producto incompleto",
                              "Un documento modificado requiere nuevos fragmentos en el índice.")
 
-    def fail(_corpus):
+    def fail(_corpus, _mode):
         raise RuntimeError("Fallo de indexación simulado")
 
     monkeypatch.setattr(rag_engine, "_ajustar_tfidf", fail)

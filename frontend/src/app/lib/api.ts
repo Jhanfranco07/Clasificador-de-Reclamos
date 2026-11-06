@@ -450,11 +450,12 @@ export function getDashboard() {
   return request<DashboardResponse>('/api/dashboard');
 }
 
-export function previewDocumentPdf(file: File) {
+export function previewDocumentPdf(file: File, signal?: AbortSignal) {
   return request<{ content: string }>('/api/documents/pdf-preview', {
     method: 'POST',
     headers: { 'Content-Type': 'application/pdf' },
     body: file,
+    signal,
   });
 }
 

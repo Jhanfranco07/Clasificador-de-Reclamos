@@ -18,6 +18,8 @@ if str(BASE_DIR) not in sys.path:
 
 from database.db_connection import fetch_all, fetch_one, init_db, using_postgres
 from database.repositories import (
+    DuplicateDocument,
+    get_categoria_id,
     actualizar_configuracion,
     actualizar_perfil_usuario,
     actualizar_documento_base,
@@ -982,14 +984,24 @@ async def preview_document_pdf(request: Request, user: dict[str, Any] = Depends(
 
 @app.post("/api/documents", status_code=201)
 def create_document(payload: DocumentPayload, user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
-    crear_documento_base(payload.title, payload.type, payload.category, payload.content)
+    if get_categoria_id(payload.category) is None:
+        raise HTTPException(422, "Selecciona una categoría documental válida.")
+    try:
+        crear_documento_base(payload.title, payload.type, payload.category, payload.content)
+    except DuplicateDocument as exc:
+        raise HTTPException(409, str(exc)) from exc
     construir_indice_vectorial(forzar=True)
     return documents(user)
 
 
 @app.put("/api/documents/{document_id}")
 def update_document(document_id: int, payload: DocumentPayload, user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
-    actualizar_documento_base(document_id, payload.title, payload.type, payload.category, payload.content)
+    if get_categoria_id(payload.category) is None:
+        raise HTTPException(422, "Selecciona una categoría documental válida.")
+    try:
+        actualizar_documento_base(document_id, payload.title, payload.type, payload.category, payload.content)
+    except DuplicateDocument as exc:
+        raise HTTPException(409, str(exc)) from exc
     construir_indice_vectorial(forzar=True)
     return documents(user)
 

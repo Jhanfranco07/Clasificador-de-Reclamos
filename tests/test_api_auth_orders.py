@@ -387,3 +387,125 @@ def test_document_pdf_preview_requires_admin_and_can_be_saved(api_client):
     saved = api_client.post("/api/documents", json=document, headers=admin)
     assert saved.status_code == 201
     assert any(item["title"] == document["title"] for item in saved.json()["items"])
+
+
+
+def test_pdf_limits_multipage_encryption_and_image_only(api_client, monkeypatch):
+    import io
+    from pypdf import PdfWriter
+    from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject, NumberObject
+    from modules import pdf_documents
+    from backend import main
+
+    def pdf(texts=(), *, image=False, encrypted=False):
+        writer = PdfWriter()
+        for text in texts or ("",):
+            page = writer.add_blank_page(300, 300)
+            if image:
+                xobject = DecodedStreamObject()
+                xobject.set_data(b"\xff\xff\xff")
+                xobject.update({NameObject("/Type"): NameObject("/XObject"),
+                                NameObject("/Subtype"): NameObject("/Image"),
+                                NameObject("/Width"): NumberObject(1), NameObject("/Height"): NumberObject(1),
+                                NameObject("/ColorSpace"): NameObject("/DeviceRGB"),
+                                NameObject("/BitsPerComponent"): NumberObject(8)})
+                resources = {NameObject("/XObject"): DictionaryObject({NameObject("/Im0"): writer._add_object(xobject)})}
+                command = b"q 100 0 0 100 10 10 cm /Im0 Do Q"
+            else:
+                font = DictionaryObject({
+                    NameObject("/Type"): NameObject("/Font"),
+                    NameObject("/Subtype"): NameObject("/Type1"),
+                    NameObject("/BaseFont"): NameObject("/Helvetica"),
+                    NameObject("/Encoding"): NameObject("/WinAnsiEncoding"),
+                })
+                resources = {NameObject("/Font"): DictionaryObject({NameObject("/F1"): font})}
+                encoded = text.encode("cp1252")
+                command = b"BT /F1 12 Tf 20 200 Td (" + encoded + b") Tj ET"
+            page[NameObject("/Resources")] = DictionaryObject(resources)
+            stream = DecodedStreamObject()
+            stream.set_data(command)
+            page[NameObject("/Contents")] = writer._add_object(stream)
+        if encrypted:
+            writer.encrypt("demo-password")
+        buffer = io.BytesIO()
+        writer.write(buffer)
+        return buffer.getvalue()
+
+    login = api_client.post("/api/auth/login", json={"email": "admin@smartclaim.com", "password": "123456"})
+    headers = {"Authorization": f"Bearer {login.json()['token']}", "Content-Type": "application/pdf"}
+    path = "/api/documents/pdf-preview"
+    pages = ["Primera página: número y acentuación.", "Segunda página: revisión del pedido."]
+    valid = pdf(pages)
+    assert api_client.post(path, content=valid, headers=headers).json() == {"content": "\n\n".join(pages)}
+    for data, error in (
+        (pdf(pages, encrypted=True), "contraseña"),
+        (pdf(image=True), "texto legible"),
+        (b"PK\x03\x04", "cabecera PDF"),
+    ):
+        response = api_client.post(path, content=data, headers=headers)
+        assert response.status_code == 422
+        assert error in response.json()["detail"]
+    monkeypatch.setattr(pdf_documents, "PDF_MAX_PAGES", 1)
+    assert "límite de páginas" in api_client.post(path, content=valid, headers=headers).json()["detail"]
+    monkeypatch.setattr(main, "PDF_MAX_BYTES", len(valid) - 1)
+    assert api_client.post(path, content=valid, headers=headers).status_code == 413
+
+
+def test_document_api_rejects_duplicates_and_agent_writes(api_client):
+    def headers(email):
+        response = api_client.post("/api/auth/login", json={"email": email, "password": "123456"})
+        return {"Authorization": f"Bearer {response.json()['token']}"}
+
+    agent = headers("gonzalo.caceres@smartclaim.com")
+    admin = headers("admin@smartclaim.com")
+    document = {"title": "Política de prueba documental", "type": "FAQ", "category": "Producto incompleto",
+                "content": "Revisar los artículos del pedido según el comprobante indicado."}
+    for method, path in (
+        ("POST", "/api/documents"), ("POST", "/api/documents/pdf-preview"),
+        ("PUT", "/api/documents/4"), ("DELETE", "/api/documents/4"),
+        ("POST", "/api/documents/reindex"),
+    ):
+        assert api_client.request(method, path, json=document, headers=agent).status_code == 403
+    assert api_client.post("/api/documents", json={**document, "category": "Otra"}, headers=admin).status_code == 422
+    assert api_client.post("/api/documents", json=document, headers=admin).status_code == 201
+    assert api_client.post("/api/documents", json={**document, "title": document["title"].upper(),
+                                                   "content": "Una variante distinta del texto de la política."},
+                           headers=admin).status_code == 409
+    assert api_client.post("/api/documents", json={**document, "title": "Título nuevo para contenido repetido"},
+                           headers=admin).status_code == 409
+
+
+
+def test_claim_rag_draft_edit_escalation_and_send(api_client):
+    def headers(email):
+        auth = api_client.post("/api/auth/login", json={"email": email, "password": "123456"})
+        return {"Authorization": f"Bearer {auth.json()['token']}"}
+
+    client = headers("jhan.perez@gmail.com")
+    agent = headers("gonzalo.caceres@smartclaim.com")
+    assert api_client.get("/api/catalog").status_code == 200
+    claim = api_client.post("/api/claims", headers=client, json={
+        "customer_name": "Cliente demo",
+        "customer_email": "jhan.perez@gmail.com",
+        "order_code": "ORD-DRAFT-001",
+        "description": "Recibí un pedido incompleto. Faltan productos pagados y tengo el recibo.",
+        "analyze": False,
+    })
+    assert claim.status_code == 201
+    claim_id = claim.json()["claim"]["id"]
+    analyzed = api_client.post(f"/api/claims/{claim_id}/analyze", headers=agent).json()
+    assert analyzed["analysis"]
+    assert analyzed["documents"]
+    response_id = analyzed["response"]["id"]
+    escalation = api_client.patch(f"/api/claims/{claim_id}/state", headers=agent,
+                                  json={"state": "Escalado", "comment": "Revisión de un pedido incompleto."})
+    assert escalation.status_code == 200
+    assert len(escalation.json()["history"]) > len(analyzed["history"])
+    text = "Confirmamos la recepción de tu reclamo y revisaremos el comprobante."
+    payload = {"response_text": text}
+    edited = api_client.patch(f"/api/responses/{response_id}", headers=agent, json=payload)
+    assert edited.json()["response"]["editedResponse"] == text
+    sent = api_client.post(f"/api/responses/{response_id}/approve", headers=agent, json=payload)
+    assert sent.status_code == 200
+    assert text in sent.json()["response"]["finalResponse"]
+    assert len(sent.json()["history"]) > len(escalation.json()["history"])

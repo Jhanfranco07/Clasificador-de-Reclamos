@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
-from database.db_connection import execute, fetch_all, fetch_one, get_connection
+from database.db_connection import execute, fetch_all, fetch_one, get_connection, using_postgres
 from modules.security import hash_password
+from modules.text_processing import normalizar_documento
 
 def get_estado_id(nombre):
     row = fetch_one("SELECT id_estado FROM estados_reclamo WHERE nombre = ?", (nombre,))
@@ -449,21 +450,49 @@ def listar_documentos():
         ORDER BY id_documento
     """)
 
+class DuplicateDocument(ValueError):
+    pass
+
+
+def _guardar_documento_base(titulo, tipo, categoria, contenido, id_documento=None):
+    campos = tuple(value.strip() for value in (titulo, tipo, categoria, contenido))
+    clave_titulo, clave_texto = map(normalizar_documento, (titulo, contenido))
+    with get_connection() as conn:
+        if using_postgres():
+            conn.execute("LOCK TABLE documentos_base IN SHARE ROW EXCLUSIVE MODE")
+        else:
+            conn.execute("BEGIN IMMEDIATE")
+        for doc in conn.execute("SELECT id_documento, titulo, contenido FROM documentos_base WHERE activo = 1"):
+            if doc["id_documento"] == id_documento:
+                continue
+            if normalizar_documento(doc["titulo"]) == clave_titulo:
+                raise DuplicateDocument("Ya existe un documento activo con ese título.")
+            if normalizar_documento(doc["contenido"]) == clave_texto:
+                raise DuplicateDocument("Ya existe un documento activo con ese contenido.")
+        if id_documento is None:
+            row = conn.execute("""
+                INSERT INTO documentos_base (titulo, tipo_documento, categoria_asociada, contenido, estado_indexacion, activo)
+                VALUES (?, ?, ?, ?, 'PENDIENTE', 1) RETURNING id_documento
+            """, campos).fetchone()
+            id_documento = row["id_documento"]
+        else:
+            conn.execute("""
+                UPDATE documentos_base
+                SET titulo = ?, tipo_documento = ?, categoria_asociada = ?, contenido = ?,
+                    estado_indexacion = 'PENDIENTE', fecha_actualizacion = CURRENT_TIMESTAMP
+                WHERE id_documento = ?
+            """, (*campos, id_documento))
+        conn.commit()
+    return id_documento
+
+
 def crear_documento_base(titulo, tipo_documento, categoria_asociada, contenido):
-    return execute("""
-        INSERT INTO documentos_base (
-            titulo, tipo_documento, categoria_asociada, contenido, estado_indexacion, activo
-        )
-        VALUES (?, ?, ?, ?, 'PENDIENTE', 1)
-    """, (titulo.strip(), tipo_documento.strip(), categoria_asociada.strip(), contenido.strip()))
+    return _guardar_documento_base(titulo, tipo_documento, categoria_asociada, contenido)
+
 
 def actualizar_documento_base(id_documento, titulo, tipo_documento, categoria_asociada, contenido):
-    execute("""
-        UPDATE documentos_base
-        SET titulo = ?, tipo_documento = ?, categoria_asociada = ?, contenido = ?,
-            estado_indexacion = 'PENDIENTE', fecha_actualizacion = CURRENT_TIMESTAMP
-        WHERE id_documento = ?
-    """, (titulo.strip(), tipo_documento.strip(), categoria_asociada.strip(), contenido.strip(), id_documento))
+    _guardar_documento_base(titulo, tipo_documento, categoria_asociada, contenido, id_documento)
+
 
 def desactivar_documento_base(id_documento):
     execute("""
@@ -638,33 +667,39 @@ def crear_embedding_rag(fragmento, modelo_embedding, dimension, embedding, conn=
     ))
 
 
-def buscar_embeddings_rag(embedding, max_docs=3, categoria=None):
+def buscar_embeddings_rag(embedding, max_docs=3, categoria=None, modelo=None):
     vector_literal = "[" + ",".join(str(float(value)) for value in embedding) + "]"
-    filtro = "WHERE categoria_asociada = ?" if categoria else ""
-    parametros = (categoria,) if categoria else ()
-    return fetch_all(f"""
-        SELECT
-            id_documento,
-            id_fragmento,
-            titulo,
-            tipo_documento,
-            categoria_asociada,
-            texto_fragmento,
-            modelo_embedding,
-            1 - (embedding <=> ?::vector) AS score
-        FROM rag_embeddings
-        {filtro}
-        ORDER BY embedding <=> ?::vector
+    return fetch_all("""
+        WITH candidatos AS (
+            SELECT f.id_documento, f.id_fragmento, d.titulo, d.tipo_documento,
+                   d.categoria_asociada, f.texto_fragmento, e.modelo_embedding,
+                   e.embedding <=> ?::vector AS distancia
+            FROM rag_embeddings e
+            JOIN fragmentos_documento f
+              ON f.id_fragmento = e.id_fragmento AND f.id_documento = e.id_documento
+            JOIN documentos_base d ON d.id_documento = f.id_documento
+            WHERE d.activo = 1
+              AND (?::text IS NULL OR d.categoria_asociada = ?)
+              AND (?::text IS NULL OR e.modelo_embedding = ?)
+              AND e.texto_fragmento = f.texto_fragmento
+              AND e.titulo IS NOT DISTINCT FROM d.titulo
+              AND e.tipo_documento IS NOT DISTINCT FROM d.tipo_documento
+              AND e.categoria_asociada IS NOT DISTINCT FROM d.categoria_asociada
+        ), ordenados AS (
+            SELECT *, ROW_NUMBER() OVER (PARTITION BY id_documento ORDER BY distancia, id_fragmento) AS orden
+            FROM candidatos
+        )
+        SELECT *, 1 - distancia AS score
+        FROM ordenados
+        WHERE orden = 1
+        ORDER BY distancia, id_fragmento
         LIMIT ?
-    """, (vector_literal, *parametros, vector_literal, int(max_docs)))
+    """, (vector_literal, categoria, categoria, modelo, modelo, int(max_docs)))
 
 
 def contar_embeddings_rag():
-    try:
-        row = fetch_one("SELECT COUNT(*) AS total FROM rag_embeddings")
-        return row["total"] if row else 0
-    except Exception:
-        return 0
+    row = fetch_one("SELECT COUNT(*) AS total FROM rag_embeddings")
+    return row["total"] if row else 0
 
 
 def calcular_tiempo_atencion_minutos(id_reclamo):

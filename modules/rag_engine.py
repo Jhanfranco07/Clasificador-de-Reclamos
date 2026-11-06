@@ -3,6 +3,7 @@ import os
 import re
 from functools import lru_cache
 
+from psycopg import OperationalError
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -13,6 +14,7 @@ from database.repositories import (
     contar_embeddings_rag,
 )
 from database.db_connection import get_connection, using_postgres
+from modules.text_processing import STOPWORDS, normalizar_texto
 
 OPENAI_MODEL = os.getenv("OPENAI_CHAT_MODEL", os.getenv("OPENAI_MODEL", "gpt-4.1-mini"))
 logger = logging.getLogger(__name__)
@@ -89,8 +91,13 @@ def reconstruir_fragmentos_desde_documentos():
 
 def _fragmentos_vigentes(conn=None):
     fragmentos = {}
+    por_documento = {}
     for fila in listar_fragmentos_documento(conn):
-        partes = dividir_en_fragmentos(fila.pop("contenido_documento"))
+        documento = fila["id_documento"]
+        contenido = fila.pop("contenido_documento")
+        if documento not in por_documento:
+            por_documento[documento] = dividir_en_fragmentos(contenido)
+        partes = por_documento[documento]
         orden = fila["orden_fragmento"]
         if 0 < orden <= len(partes) and fila["texto_fragmento"] == partes[orden - 1]:
             fragmentos[(fila["id_documento"], fila["id_fragmento"])] = fila
@@ -135,10 +142,29 @@ def construir_indice_pgvector(forzar=False):
             "modelo_embedding": MODEL, "fragmentos": len(snapshot)}
 
 
-@lru_cache(maxsize=1)
-def _ajustar_tfidf(corpus):
-    vectorizer = TfidfVectorizer(strip_accents="unicode", ngram_range=(1, 2))
-    return vectorizer, vectorizer.fit_transform(corpus)
+# El umbral corresponde a cada representación y no se comparte con pgvector.
+TFIDF_MODES = {"baseline": 0.05, "words": 0.08, "hybrid": 0.075, "hybrid-strict": 0.10}
+TFIDF_DEFAULT = "hybrid"
+
+
+def _normalizar_consulta(texto):
+    return " ".join(token for token in normalizar_texto(texto).split()
+                    if token not in STOPWORDS or token == "no")
+
+
+@lru_cache(maxsize=3)
+def _ajustar_tfidf(corpus, mode=TFIDF_DEFAULT):
+    words = TfidfVectorizer(strip_accents="unicode", ngram_range=(1, 2))
+    if mode == "baseline":
+        return (words, words.fit_transform(corpus)), None
+
+    clean = tuple(map(_normalizar_consulta, corpus))
+    word_index = (words, words.fit_transform(clean))
+    if mode == "words":
+        return word_index, None
+
+    chars = TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5))
+    return word_index, (chars, chars.fit_transform(clean))
 
 
 def construir_indice_tfidf(forzar=False):
@@ -153,16 +179,16 @@ def construir_indice_vectorial(forzar=False):
     return construir_indice_tfidf(forzar=forzar)
 
 
-def cargar_indice_vectorial():
-    return _indice_desde_fragmentos(list(_fragmentos_vigentes().values()))
+def cargar_indice_vectorial(mode=TFIDF_DEFAULT):
+    return _indice_desde_fragmentos(list(_fragmentos_vigentes().values()), mode)
 
 
-def _indice_desde_fragmentos(metadata):
+def _indice_desde_fragmentos(metadata, mode=TFIDF_DEFAULT):
     if not metadata:
         return None, None, metadata
     corpus = tuple(f"{fila['titulo']} {fila['texto_fragmento']}" for fila in metadata)
-    vectorizer, matrix = _ajustar_tfidf(corpus)
-    return vectorizer, matrix, metadata
+    words, chars = _ajustar_tfidf(corpus, mode)
+    return words, chars, metadata
 
 
 def _validar_resultados(resultados, vigentes, categoria, max_docs):
@@ -185,7 +211,13 @@ def recuperar_documentos(texto_reclamo, categoria, max_docs=3):
     max_docs = int(max_docs)
     if max_docs <= 0 or not str(texto_reclamo or "").strip():
         return []
-    vigentes = _fragmentos_vigentes()
+    try:
+        vigentes = _fragmentos_vigentes()
+    except OperationalError:
+        logger.exception("Catálogo documental no disponible; la recuperación requiere revisión humana")
+        return []
+    if not vigentes:
+        return []
     try:
         from modules.openai_embeddings import search
         resultados = search(
@@ -203,9 +235,9 @@ def recuperar_documentos(texto_reclamo, categoria, max_docs=3):
     if using_postgres() and _pgvector_habilitado():
         try:
             if contar_embeddings_rag():
-                from modules.openai_embeddings import create_embeddings
+                from modules.openai_embeddings import MODEL, create_embeddings
                 embedding = create_embeddings([texto_reclamo])[0]
-                filas = buscar_embeddings_rag(embedding, max_docs=max_docs, categoria=categoria)
+                filas = buscar_embeddings_rag(embedding, max_docs=max_docs, categoria=categoria, modelo=MODEL)
                 umbral = float(os.getenv("RAG_SIMILARITY_THRESHOLD", "0.70"))
                 resultados = [
                     {**fila, "contenido": fila["texto_fragmento"], "fragmento": fila["texto_fragmento"],
@@ -218,21 +250,31 @@ def recuperar_documentos(texto_reclamo, categoria, max_docs=3):
         except Exception:
             logger.exception("Falló pgvector; se utilizará TF-IDF")
 
-    return recuperar_documentos_tfidf(texto_reclamo, categoria, max_docs)
+    return _rank_tfidf(texto_reclamo, categoria, max_docs, list(vigentes.values()), TFIDF_DEFAULT)
 
 
-def recuperar_documentos_tfidf(texto_reclamo, categoria, max_docs=3):
-    vectorizer, matrix, metadata = cargar_indice_vectorial()
+def recuperar_documentos_tfidf(texto_reclamo, categoria, max_docs=3, *, mode=TFIDF_DEFAULT):
+    return _rank_tfidf(texto_reclamo, categoria, max_docs, list(_fragmentos_vigentes().values()), mode)
+
+
+def _rank_tfidf(texto_reclamo, categoria, max_docs, metadata, mode):
     if not metadata or int(max_docs) <= 0:
         return []
-    consulta = vectorizer.transform([str(texto_reclamo or "")])
-    scores = cosine_similarity(consulta, matrix).flatten()
+    words, chars, _ = _indice_desde_fragmentos(metadata, mode)
+    texto = str(texto_reclamo or "")
+    if mode != "baseline":
+        texto = _normalizar_consulta(texto)
+    vectorizer, matrix = words
+    scores = cosine_similarity(vectorizer.transform([texto]), matrix).ravel()
+    if chars:
+        vectorizer, matrix = chars
+        scores = 0.6 * scores + 0.4 * cosine_similarity(vectorizer.transform([texto]), matrix).ravel()
     resultados = []
     usados = set()
     for idx in scores.argsort()[::-1]:
         fila = metadata[idx]
         score = float(scores[idx])
-        if score < 0.05 or (categoria and fila["categoria_asociada"] != categoria):
+        if score < TFIDF_MODES[mode] or (categoria and fila["categoria_asociada"] != categoria):
             continue
         if fila["id_documento"] in usados:
             continue

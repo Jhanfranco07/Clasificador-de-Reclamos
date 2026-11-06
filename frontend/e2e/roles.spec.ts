@@ -91,10 +91,12 @@ test('administrador registra texto y revisa PDF desde un móvil', async ({ page 
   const manualTitle = 'Registro manual Playwright ' + runId;
   const pdfTitle = 'PDF importado Playwright ' + runId;
   await title.fill(manualTitle);
-  await content.fill('Contenido manual para la prueba de registro administrativo.');
+  await content.fill('Contenido manual para la prueba de registro administrativo. ' + runId);
   await save.click();
   await expect(page.getByText(manualTitle, { exact: true })).toBeVisible();
 
+  await file.setInputFiles({ name: 'texto.txt', mimeType: 'application/pdf', buffer: textPdf() });
+  await expect(page.getByText(/extensión \.pdf/)).toBeVisible();
   await file.setInputFiles({ name: 'dañado.pdf', mimeType: 'application/pdf', buffer: Buffer.from('bad') });
   await expect(page.getByText(/cabecera PDF válida/)).toBeVisible();
 
@@ -106,11 +108,21 @@ test('administrador registra texto y revisa PDF desde un móvil', async ({ page 
   }, { times: 1 });
   await file.setInputFiles({ name: 'ejemplo.pdf', mimeType: 'application/pdf', buffer: textPdf() });
   await expect(save).toBeDisabled();
+  await expect(page.getByRole('status')).toContainText('Extrayendo texto del PDF');
   releasePreview();
   await expect(content).toHaveValue('Revisar el recibo por un producto faltante.');
+  await page.getByRole('button', { name: 'Cancelar PDF' }).click();
+  await expect(content).toHaveValue('');
+  await file.setInputFiles({ name: 'ejemplo.pdf', mimeType: 'application/pdf', buffer: textPdf() });
+  await expect(content).toHaveValue('Revisar el recibo por un producto faltante.');
+  await page.getByRole('combobox', { name: 'Categoría documental' }).click();
+  await page.getByRole('option', { name: 'Producto incompleto', exact: true }).click();
+  await content.fill('Revisar el recibo por un producto faltante. ' + runId);
   await title.fill(pdfTitle);
   await save.click();
   await expect(page.getByText(pdfTitle, { exact: true })).toBeVisible();
   await page.getByPlaceholder(/Buscar/).fill(pdfTitle);
   await expect(page.getByText(manualTitle, { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Reindexar', exact: true }).click();
+  await expect(page.getByText(/Índice TF-IDF reconstruido correctamente/)).toBeVisible();
 });

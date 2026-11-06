@@ -80,11 +80,11 @@ def _insert_returning_pk(query):
 
 
 class PostgresConnection:
-    def __init__(self):
+    def __init__(self, dsn=None):
         import psycopg
         from psycopg.rows import dict_row
 
-        self.conn = psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row)
+        self.conn = psycopg.connect(dsn if dsn is not None else os.environ["DATABASE_URL"], row_factory=dict_row)
 
     def __enter__(self):
         return self

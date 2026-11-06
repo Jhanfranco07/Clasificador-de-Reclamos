@@ -66,6 +66,8 @@ VALUES
 (14, 6, 'Pizza pepperoni', 'Pepperoni, mozzarella y oregano.', 34.00, 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=600', 1)
 ON CONFLICT (id_producto) DO NOTHING;
 
+LOCK TABLE documentos_base IN SHARE ROW EXCLUSIVE MODE;
+
 INSERT INTO documentos_base (id_documento, titulo, tipo_documento, categoria_asociada, contenido, estado_indexacion) VALUES
 (1, 'Politica de reembolsos por retraso de pedido', 'POLITICA', 'Retraso de pedido',
 'Aplica cuando el pedido supera de forma significativa la hora estimada de entrega. El agente debe validar hora de creacion, hora prometida, estado logistico, intentos de contacto y evidencia del repartidor. La compensacion no debe prometerse automaticamente. Si la demora es menor a 15 minutos, se informa seguimiento y disculpa. Si la demora esta entre 15 y 45 minutos, se puede ofrecer prioridad de revision y cupon sujeto a politica vigente. Si la demora supera 45 minutos o el pedido llega frio, incompleto o en mal estado, se debe revisar compensacion o reembolso parcial. Todo reembolso requiere validacion humana antes de confirmarse al cliente.',
@@ -122,6 +124,12 @@ INSERT INTO documentos_base (id_documento, titulo, tipo_documento, categoria_aso
 'Un reclamo puede cerrarse cuando se envio respuesta final, se ejecuto la compensacion aprobada, se confirmo que no procede accion adicional o el cliente no entrego informacion requerida despues del periodo definido por soporte. Antes de cerrar, el agente debe registrar comentario final, estado de respuesta y motivo. Si el caso fue escalado, solo supervisor o area responsable debe cerrarlo. La IA puede sugerir cierre, pero no debe cerrar automaticamente casos de Alta o Critica prioridad.',
 'INDEXADO')
 ON CONFLICT (id_documento) DO NOTHING;
+
+SELECT setval(
+    pg_get_serial_sequence('documentos_base', 'id_documento'),
+    GREATEST((SELECT MAX(id_documento) FROM documentos_base),
+             (SELECT last_value FROM documentos_base_id_documento_seq))
+);
 
 INSERT INTO fragmentos_documento (id_documento, texto_fragmento, orden_fragmento, embedding_id)
 SELECT id_documento, contenido, 1, 'emb_doc_' || id_documento

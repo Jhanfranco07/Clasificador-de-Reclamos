@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
@@ -10,12 +10,20 @@ import { createDocument, deleteDocument, getDocuments, previewDocumentPdf, reind
 import { formatDateTime } from '../../lib/utils';
 import AdminLayout from '../../components/AdminLayout';
 
+const categories = [
+  'Producto incompleto', 'Producto incorrecto', 'Retraso de pedido',
+  'Cobro indebido', 'Fraude o seguridad', 'Problema con tarjeta', 'Soporte general',
+];
+
 export default function KnowledgeBasePage() {
   const [data, setData] = useState<DocumentsResponse | null>(null);
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [isWorking, setIsWorking] = useState(false);
+  const [pdfState, setPdfState] = useState<'idle' | 'extracting' | 'preview'>('idle');
+  const pdfRequest = useRef<AbortController | null>(null);
+  const busy = isWorking || pdfState === 'extracting';
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: '',
@@ -56,22 +64,38 @@ export default function KnowledgeBasePage() {
 
   const resetForm = () => {
     setEditingId(null);
+    setPdfState('idle');
     setForm({ title: '', type: 'FAQ', category: 'Soporte general', content: '' });
   };
 
   const handlePreviewPdf = async (file: File) => {
-    setIsWorking(true);
+    if (!/\.pdf$/i.test(file.name)) {
+      setError('Selecciona un archivo con extensión .pdf.');
+      return;
+    }
+    const controller = new AbortController();
+    pdfRequest.current = controller;
+    setPdfState('extracting');
     setError('');
     setNotice('');
     try {
-      const preview = await previewDocumentPdf(file);
+      const preview = await previewDocumentPdf(file, controller.signal);
+      if (controller.signal.aborted) return;
       setForm((current) => ({ ...current, content: preview.content }));
+      setPdfState('preview');
       setNotice('Vista previa lista. Revisa el texto y completa los datos antes de guardar.');
     } catch (err) {
+      if (controller.signal.aborted) return;
+      setPdfState('idle');
       setError(err instanceof Error ? err.message : 'No se pudo extraer el texto del PDF.');
-    } finally {
-      setIsWorking(false);
     }
+  };
+
+  const cancelPdf = () => {
+    pdfRequest.current?.abort();
+    if (pdfState === 'preview') setForm((current) => ({ ...current, content: '' }));
+    setPdfState('idle');
+    setNotice('');
   };
 
   const handleSaveDocument = async () => {
@@ -98,6 +122,7 @@ export default function KnowledgeBasePage() {
   };
 
   const handleEditDocument = (doc: DocumentsResponse['items'][number]) => {
+    setPdfState('idle');
     setEditingId(doc.id);
     setForm({ title: doc.title, type: doc.type, category: doc.category, content: doc.content });
   };
@@ -132,7 +157,7 @@ export default function KnowledgeBasePage() {
               Documentos internos usados para fundamentar respuestas y procedimientos de soporte.
             </p>
           </div>
-          <Button variant="outline" onClick={handleReindex} disabled={isWorking}>
+          <Button variant="outline" onClick={handleReindex} disabled={busy}>
             <RefreshCw className="size-4 mr-2" />
             {isWorking ? 'Reindexando...' : 'Reindexar'}
           </Button>
@@ -213,7 +238,7 @@ export default function KnowledgeBasePage() {
                 <Input
                   type="file"
                   accept=".pdf,application/pdf"
-                  disabled={isWorking}
+                  disabled={busy}
                   onChange={(event) => {
                     const file = event.currentTarget.files?.[0];
                     event.currentTarget.value = '';
@@ -221,6 +246,12 @@ export default function KnowledgeBasePage() {
                   }}
                 />
               </label>
+            )}
+            {pdfState === 'extracting' && <p role="status">Extrayendo texto del PDF…</p>}
+            {pdfState !== 'idle' && (
+              <Button variant="outline" onClick={cancelPdf} disabled={isWorking}>
+                Cancelar PDF
+              </Button>
             )}
             <div className="grid md:grid-cols-3 gap-4">
               <Input
@@ -239,11 +270,14 @@ export default function KnowledgeBasePage() {
                   <SelectItem value="MANUAL">Manual</SelectItem>
                 </SelectContent>
               </Select>
-              <Input
-                value={form.category}
-                onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
-                placeholder="Categoria asociada"
-              />
+              <Select value={form.category} onValueChange={(category) => setForm((current) => ({ ...current, category }))}>
+                <SelectTrigger aria-label="Categoría documental">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <Textarea
               value={form.content}
@@ -252,7 +286,7 @@ export default function KnowledgeBasePage() {
               rows={5}
             />
             <div className="flex flex-wrap gap-3">
-              <Button onClick={handleSaveDocument} disabled={isWorking}>
+              <Button onClick={handleSaveDocument} disabled={busy}>
                 <Plus className="size-4 mr-2" />
                 {editingId ? 'Guardar cambios' : 'Agregar documento'}
               </Button>
