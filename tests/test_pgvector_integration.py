@@ -1,40 +1,14 @@
 """Pruebas optativas contra PostgreSQL con pgvector en loopback."""
 import json
-import os
 from pathlib import Path
-from uuid import uuid4
 
 import psycopg
-from psycopg import sql
-from psycopg.conninfo import make_conninfo
 import pytest
 
 from database import db_connection as db
 from database import repositories as repo
 from modules import openai_embeddings, rag_engine
 from scripts.import_documents import import_documents, local_test_dsn
-
-
-@pytest.fixture
-def vector_db(monkeypatch):
-    base = os.getenv("SMARTCLAIM_TEST_PG_DSN")
-    if not base:
-        pytest.skip("SMARTCLAIM_TEST_PG_DSN no configurado.")
-    base = local_test_dsn(base)
-    name = "smartclaim_test_" + uuid4().hex
-    with psycopg.connect(base, autocommit=True) as admin:
-        admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
-        try:
-            dsn = make_conninfo(base, dbname=name)
-            monkeypatch.setenv("DATABASE_URL", dsn)
-            monkeypatch.setenv("DB_PROVIDER", "postgres")
-            monkeypatch.setenv("APP_ENV", "test")
-            monkeypatch.setenv("ENABLE_PGVECTOR_RAG", "true")
-            monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-            db.init_db()
-            yield dsn
-        finally:
-            admin.execute(sql.SQL("DROP DATABASE {}").format(sql.Identifier(name)))
 
 
 def test_local_dsn_guard_rejects_external_or_ambiguous_target():
@@ -120,3 +94,13 @@ def test_pgvector_filters_stale_rows_and_falls_back(vector_db, monkeypatch):
     assert replacement["id_documento"] == 4
     assert replacement["id_fragmento"] != missing["id_fragmento"]
     assert replacement["vector_store"] == "tfidf"
+
+
+def test_vector_dimension_mismatch_preserves_existing_data(vector_db):
+    db.execute("ALTER TABLE rag_embeddings ALTER COLUMN embedding TYPE vector(2)")
+    fragment = repo.listar_fragmentos_documento()[0]
+    repo.crear_embedding_rag(fragment, "sintetico", 2, [1, 0])
+    with pytest.raises(RuntimeError, match="vector\\(1536\\)"):
+        db.ensure_pgvector_embedding_dimension()
+    assert repo.contar_embeddings_rag() == 1
+    assert db.fetch_one("SELECT vector_dims(embedding) AS n FROM rag_embeddings")["n"] == 2

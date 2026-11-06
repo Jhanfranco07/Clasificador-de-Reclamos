@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { expect, Page, test } from '@playwright/test';
 
 async function login(page: Page, email: string) {
@@ -49,9 +50,20 @@ test('agente gestiona reclamos sin acceder a configuración administrativa', asy
 
 test('administrador accede a reportes y base documental', async ({ page }) => {
   await login(page, 'admin@smartclaim.com');
+  const reportsRequest = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/reports' && response.request().method() === 'GET');
   await page.getByRole('link', { name: 'Reportes' }).click();
+  expect((await reportsRequest).ok()).toBeTruthy();
   await expect(page.getByRole('heading', { name: 'Reportes y Analytics' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'PDF' })).toBeVisible();
+  const pdfDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'PDF', exact: true }).click();
+  const pdf = await pdfDownload;
+  expect(pdf.suggestedFilename()).toMatch(/\.pdf$/);
+  expect((await readFile((await pdf.path())!)).subarray(0, 5).toString()).toBe('%PDF-');
+  const csvDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'CSV', exact: true }).click();
+  const csv = await csvDownload;
+  expect(csv.suggestedFilename()).toMatch(/\.csv$/);
+  expect((await readFile((await csv.path())!, 'utf8')).trim().split(/\r?\n/).length).toBeGreaterThan(1);
   await page.getByRole('link', { name: 'Base documental' }).click();
   await expect(page.getByRole('heading', { name: 'Base documental' })).toBeVisible();
 });
@@ -125,4 +137,61 @@ test('administrador registra texto y revisa PDF desde un móvil', async ({ page 
   await expect(page.getByText(manualTitle, { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Reindexar', exact: true }).click();
   await expect(page.getByText(/Índice TF-IDF reconstruido correctamente/)).toBeVisible();
+});
+
+
+test('cliente compra y recibe la respuesta solo después de revisión humana', async ({ page, browser }) => {
+  await login(page, 'jhan.perez@gmail.com');
+  await expect(page).toHaveURL(/\/dashboard/);
+  await page.goto('/restaurants/1');
+  await expect(page.getByRole('heading', { name: 'Criollo Peruano' })).toBeVisible();
+  await page.getByRole('button', { name: /Agregar Lomo/ }).click();
+  await page.goto('/cart');
+  await page.getByRole('button', { name: 'Continuar al pago' }).click();
+  await page.getByLabel('Dirección de entrega').fill('Dirección ficticia de la demo');
+  await page.getByRole('combobox').click();
+  await page.getByRole('option', { name: 'Efectivo', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirmar pedido', exact: true }).click();
+  await expect(page).toHaveURL(/\/orders\/\d+$/);
+  const orderId = new URL(page.url()).pathname.split('/').pop();
+  await page.goto('/claims/new?orderId=' + orderId);
+  await page.getByLabel(/Descripción del problema/).fill(
+    'Mi pedido llegó incompleto. Faltan productos pagados y tengo el recibo del pedido.',
+  );
+  const create = page.waitForResponse((response) =>
+    response.url().endsWith('/api/claims') && response.request().method() === 'POST',
+  );
+  await page.getByRole('button', { name: 'Enviar reclamo' }).click();
+  const created = await create;
+  expect(created.status()).toBe(201);
+  const detail = await created.json();
+  expect(detail.response).toBeNull();
+  await expect(page.getByRole('heading', { name: 'Reclamo recibido' })).toBeVisible();
+
+  const staff = await browser.newPage();
+  try {
+    await login(staff, 'gonzalo.caceres@smartclaim.com');
+    await expect(staff).toHaveURL(/\/admin/);
+    await staff.goto('/admin/claims/' + detail.claim.id);
+    await expect(staff.getByRole('heading', { name: /FAQ sobre pedido incompleto/ })).toBeVisible();
+    await staff.getByRole('button', { name: 'Editar respuesta' }).click();
+    const reply = 'Verificaremos los artículos faltantes con el comprobante del pedido.';
+    await staff.locator('textarea').first().fill(reply);
+    await staff.getByRole('button', { name: 'Guardar edicion' }).click();
+    await expect(staff.getByText(reply, { exact: true })).toBeVisible();
+    await page.goto('/claims/' + detail.claim.id);
+    await expect(page.getByRole('heading', { name: 'Reclamo ' + detail.claim.code })).toBeVisible();
+    await expect(page.getByText(reply, { exact: false })).toHaveCount(0);
+    await expect(page.getByText('Respuesta publicada', { exact: true })).toHaveCount(0);
+    await staff.getByRole('button', { name: 'Escalar', exact: true }).click();
+    await expect(staff.getByText('Escalado', { exact: true }).first()).toBeVisible();
+    await staff.getByRole('button', { name: 'Enviar respuesta al cliente' }).click();
+    await expect(staff.getByText('Respondido', { exact: true }).first()).toBeVisible();
+    await page.reload();
+    await expect(page.getByText(reply, { exact: false }).first()).toBeVisible();
+    await expect(page.getByText('Respuesta publicada', { exact: true })).toHaveCount(1);
+    await expect(page.getByText('Caso derivado', { exact: true })).toBeVisible();
+  } finally {
+    await staff.close();
+  }
 });

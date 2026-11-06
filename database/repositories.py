@@ -517,9 +517,9 @@ def actualizar_respuesta_final(id_respuesta, respuesta_final, estado_revision="E
     respuesta = fetch_one("SELECT id_reclamo FROM respuestas_sugeridas WHERE id_respuesta = ?", (id_respuesta,))
     execute("""
         UPDATE respuestas_sugeridas
-        SET respuesta_editada = ?, respuesta_final = ?, estado_revision = ?, fecha_revision = CURRENT_TIMESTAMP
+        SET respuesta_editada = ?, estado_revision = ?, fecha_revision = CURRENT_TIMESTAMP
         WHERE id_respuesta = ?
-    """, (respuesta_final, respuesta_final, estado_revision, id_respuesta))
+    """, (respuesta_final, estado_revision, id_respuesta))
     if respuesta:
         registrar_historial_estado(
             respuesta["id_reclamo"],

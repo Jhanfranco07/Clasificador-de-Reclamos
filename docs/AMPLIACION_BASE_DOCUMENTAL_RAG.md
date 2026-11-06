@@ -213,3 +213,68 @@ npm run dev -- --host 127.0.0.1 --port 15173 --strictPort
 Abre `http://127.0.0.1:15173` e inicia sesión con el administrador ficticio. En **Base documental**, verifica el catálogo, carga un PDF académico, revisa el texto, selecciona la categoría y guarda. Reindexa y verifica el documento mediante la búsqueda. Para mostrar RAG, registra desde la cuenta cliente un pedido y un reclamo por artículos faltantes. Abre el reclamo como agente y verifica el borrador, los documentos citados y el historial.
 
 La opción de despliegue de prueba requiere proyectos de frontend y backend independientes, origen CORS y API exclusivos, una base de pruebas nueva, secretos distintos y OpenAI deshabilitado hasta autorizar su uso. La demostración está preparada para loopback. El despliegue remoto queda pendiente de un entorno aislado verificable y autorización explícita.
+
+
+## Fase 3. Validación integral y preparación para main
+
+Se continuó en el worktree `smartclaim_rag` desde `14f2a18243ad195d89fc34a8a14047feae5330bc`. El `main` remoto permanecía en `86691f7da69554ab5173afd5cb0bd5464d5169e4`. El worktree de cinco roles se inspeccionó en modo de lectura y conservó sus cambios locales.
+
+### Cobertura y métricas
+
+Se revisaron cinco documentos existentes y se elevó su versión a 2.0. El procedimiento de faltantes distingue cantidades parciales de sustituciones. El de tamaño contrasta presentaciones como familiar y mediana. Los tres de retraso diferencian una entrega agendada fuera de hora, un pedido sin conductor y un repartidor que no localiza el destino. Los fallos investigados se relacionaron principalmente con vocabulario y cobertura del texto. Se conservaron los filtros y el ranking híbrido de la fase 2, los 60 documentos, los 76 fragmentos y las anotaciones de ambos conjuntos. Las versiones anteriores están en el historial Git y una nueva importación guarda los metadatos 2.0. El importador rechaza versiones distintas de un ID existente para evitar sobrescribir ediciones.
+
+| Métrica híbrida | Fase 2, originales | Fase 3, originales | Fase 2, adicionales | Fase 3, adicionales |
+|---|---:|---:|---:|---:|
+| Recall@3 | 66,07 % | 69,64 % | 57,14 % | 71,43 % |
+| Precisión@3 | 22,02 % | 23,21 % | 19,05 % | 23,81 % |
+| Primer resultado pertinente | 50,00 % | 53,57 % | 42,86 % | 61,90 % |
+| Sin evidencia | 4/4 | 4/4 | 6/7 | 6/7 |
+| Mediana local | 2,83 ms | 2,63 ms | 2,73 ms | 2,98 ms |
+| p95 local | 3,49 ms | 2,94 ms | 3,52 ms | 3,13 ms |
+
+En el conjunto adicional, retrasos pasó de 0/3 a 3/3, producto incompleto de 1/3 a 2/3, producto incorrecto quedó en 2/3 y soporte general bajó de 3/3 a 2/3. En el original, producto incorrecto pasó de 2/8 a 3/8 y retraso de 5/8 a 6/8. Las consultas adicionales ya eran conocidas al revisar cobertura en esta fase, por lo que esta comparación es retrospectiva. Se mantiene el conjunto sin cambios para trazabilidad.
+
+En pruebas dirigidas, «Programé de doce a una y llegó a las dos» devolvió primero el procedimiento de entrega fuera de la franja. «Me entregaron menos productos de los que pagué» devolvió el procedimiento de cantidad parcial, seguido de la FAQ de faltantes. «Pedí una pizza familiar y llegó mediana» devolvió el procedimiento de tamaño de porción. La consulta de las tres empanadas que llegaron en dos unidades siguió sin evidencia.
+
+### Comparación de recuperadores sobre el mismo catálogo final
+
+| Conjunto y configuración | Recall@3 | Precisión@3 | Primer resultado | Sin evidencia | Mediana | p95 |
+|---|---:|---:|---:|---:|---:|---:|
+| Original, línea base | 66,07 % | 22,02 % | 48,21 % | 3/4 | 2,55 ms | 3,92 ms |
+| Original, híbrido | 69,64 % | 23,21 % | 53,57 % | 4/4 | 2,63 ms | 2,94 ms |
+| Adicional, línea base | 76,19 % | 25,40 % | 52,38 % | 3/7 | 2,63 ms | 3,78 ms |
+| Adicional, híbrido | 71,43 % | 23,81 % | 61,90 % | 6/7 | 2,98 ms | 3,13 ms |
+
+Se mantuvo el híbrido por su mayor pertinencia inicial y mejor abstención en ambos conjuntos, aceptando menor cobertura a tres resultados frente a la línea base en el adicional. El resultado sigue por debajo de 0,80. Reproduce las cuatro mediciones con el evaluador y los modos `baseline` e `hybrid` sobre los dos archivos de consultas.
+
+### pgvector y presupuesto de evaluación
+
+Se reabrió el clúster local PostgreSQL 16.15 con pgvector 0.8.6. El catálogo aislado de la fase anterior contenía 60 documentos y 76 fragmentos. Las verificaciones de la fase 3 usaron bases nuevas del mismo clúster. Se conservaron las pruebas de dimensión 1536, ranking, filtrado, rollback, idempotencia y fallback con vectores sintéticos. Se agregó una prueba de incompatibilidad de dimensión que confirma que el inicio falla sin borrar vectores existentes.
+
+Estimación calculada localmente con tiktoken 0.14.0 y `cl100k_base`. Para indexar se cuenta la concatenación de título, categoría, tipo y fragmento que usa `construir_indice_pgvector`. Para consultar se cuenta el texto exacto de cada consulta.
+
+| Concepto | Entradas | Tokens estimados |
+|---|---:|---:|
+| Indexación | 76 | 5 757 |
+| Consultas originales | 60 | 644 |
+| Consultas adicionales | 28 | 392 |
+| Total | 164 | 6 793 |
+
+Con la tarifa estándar consultada de USD 0,02 por millón de tokens de `text-embedding-3-small`, una pasada se estima en **USD 0,00013586**. La cifra excluye reintentos y generación de respuestas. El costo y los tokens reales quedan pendientes de autorización. La evaluación sintética sigue siendo una prueba técnica. [OpenAI Docs, text-embedding-3-small](https://developers.openai.com/api/docs/models/text-embedding-3-small)
+
+### Revisión humana, PDF y seguridad
+
+Se detectó que guardar una edición rellenaba `respuesta_final` y exponía el texto en la API de cliente. La edición solo actualiza el borrador. La vista de cliente excluye borradores, análisis, fuentes internas y comentarios internos, y solo expone una respuesta aprobada. El historial público omite ediciones internas y agrupa el par consecutivo de publicación y marcado como respondido. Las acciones se conservan en el historial del agente. La operación de publicar mantiene la revisión humana. El recorrido desde el navegador también reprodujo un formulario de reclamo que no enviaba el pedido preseleccionado: la validación nativa del selector se quedaba desincronizada tras cargar las opciones. Se conservó la validación explícita contra la lista real de pedidos y se verificó el envío desde el detalle de un pedido.
+
+El arranque en `APP_ENV=production` deja de crear las cuentas y pedidos de demostración. Las cuentas demo ya presentes en una base requieren inventario y tratamiento previo al despliegue. La extracción PDF sigue aplicando sus límites y conserva el texto como dato no confiable. Las instrucciones de generación delimitan esa evidencia y la publicación permanece reservada al personal. El comportamiento de un modelo real ante instrucciones maliciosas en PDF queda pendiente de la evaluación autorizada.
+
+Las pruebas ejercen edición del documento importado, dos reindexaciones consecutivas y recuperación del nuevo texto por su ID. Las pruebas de navegador verifican la respuesta CORS de reportes a través del origen local, la firma del PDF descargado y que el CSV contenga filas. Esto verifica el flujo local. La configuración CORS de un entorno remoto se comprobará en su propio origen.
+
+La demostración se inicia con `python -m scripts.demo_rag`. El [plan de integración](PLAN_INTEGRACION_MAIN_RAG.md) detalla el ensayo de Git, las comprobaciones y el rollback.
+
+### Evidencia de validación
+
+- Backend: 42 pruebas aprobadas, con flujos de pedidos, reclamos, conversación, PDF y reportes parametrizados para PostgreSQL. Las pruebas pgvector verifican el fallback y preservación de datos al detectar una dimensión incompatible.
+- Navegador contra PostgreSQL: 7 pruebas aprobadas, incluido el flujo de pedido, clasificación, FAQ recuperada, edición privada, escalamiento y publicación visible para el cliente. La primera corrida detectó un predicado de espera de reportes que omitía el query string y un formulario con pedido precargado que no enviaba. Se verificaron ambos en la corrida final.
+- TypeScript y compilación Vite: aprobados. Auditoría de Python y auditoría npm de ejecución sin hallazgos conocidos. La auditoría completa de npm conserva siete avisos de desarrollo y TestClient conserva su advertencia de deprecación.
+- Demostración: instalación nueva de los requisitos, pip check, arranque, login de tres cuentas ficticias y conteos de 60 documentos y 76 fragmentos. Las capturas de fallo y descargas de Playwright son salidas de prueba y permanecen fuera de Git.

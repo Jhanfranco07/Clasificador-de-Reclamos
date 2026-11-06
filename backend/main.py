@@ -80,7 +80,7 @@ from modules.rag_engine import (
 from modules.pdf_documents import PDF_MAX_BYTES, PDF_MAX_TEXT, extract_pdf_text
 from modules.security import create_token, decode_token, hash_password, verify_password
 from modules.chatbot_service import answer_chat
-from modules.config import allow_vercel_previews, cors_origins, validate_runtime_config
+from modules.config import allow_vercel_previews, cors_origins, is_production, validate_runtime_config
 
 
 logger = logging.getLogger(__name__)
@@ -90,8 +90,9 @@ logger = logging.getLogger(__name__)
 async def lifespan(_: FastAPI):
     validate_runtime_config()
     init_db()
-    asegurar_usuarios_auth_base()
-    asegurar_pedidos_demo_base()
+    if not is_production():
+        asegurar_usuarios_auth_base()
+        asegurar_pedidos_demo_base()
     if not using_postgres():
         construir_indice_vectorial(forzar=True)
     yield
@@ -381,6 +382,24 @@ def _to_claim_detail(id_reclamo: int) -> dict[str, Any]:
         "documents": [_to_document_reference(doc) for doc in documentos],
         "history": [_to_history_event(item) for item in historial],
     }
+
+
+def _visible_claim_detail(detail, user):
+    if user["rol"] != "CLIENT":
+        return detail
+    response = detail["response"]
+    public_response = None
+    if response and response["status"] == "APROBADA" and response["finalResponse"]:
+        public_response = {**response, "suggestedResponse": None, "editedResponse": None}
+    history = []
+    for event in reversed(detail["history"]):
+        if event["action"] == "Edición de respuesta":
+            continue
+        if (event["action"] == "Marcado como respondido" and history
+                and history[-1]["action"] == "Envio de respuesta"):
+            continue
+        history.append({**event, "comment": None, "user": None})
+    return {**detail, "response": public_response, "analysis": None, "documents": [], "history": list(reversed(history))}
 
 
 def _to_analysis(row: dict[str, Any]) -> dict[str, Any]:
@@ -791,12 +810,13 @@ def create_claim(payload: ClaimCreate, user: dict[str, Any] = Depends(get_curren
         )
         if payload.analyze:
             try:
-                return _analyze_and_generate(id_reclamo)
+                return _visible_claim_detail(_analyze_and_generate(id_reclamo), user)
             except HTTPException:
-                return _to_claim_detail(id_reclamo)
-        return _to_claim_detail(id_reclamo)
+                return _visible_claim_detail(_to_claim_detail(id_reclamo), user)
+        return _visible_claim_detail(_to_claim_detail(id_reclamo), user)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"No se pudo crear el reclamo: {exc}") from exc
+        logger.exception("No se pudo crear el reclamo")
+        raise HTTPException(status_code=500, detail="No se pudo crear el reclamo.") from exc
 
 
 @app.get("/api/claims/{claim_id}")
@@ -804,7 +824,7 @@ def claim_detail(claim_id: int, user: dict[str, Any] = Depends(get_current_user)
     detail = _to_claim_detail(claim_id)
     if user["rol"] == "CLIENT" and detail["claim"]["customerEmail"].lower() != user["correo"].lower():
         raise HTTPException(status_code=403, detail="No tienes acceso a este reclamo")
-    return detail
+    return _visible_claim_detail(detail, user)
 
 
 @app.get("/api/claims/{claim_id}/messages")
@@ -893,7 +913,7 @@ def reopen_claim(claim_id: int, user: dict[str, Any] = Depends(get_current_user)
     if user["rol"] == "CLIENT" and detail["claim"]["customerEmail"].lower() != user["correo"].lower():
         raise HTTPException(status_code=403, detail="No tienes acceso a este reclamo")
     reabrir_reclamo(claim_id)
-    return _to_claim_detail(claim_id)
+    return _visible_claim_detail(_to_claim_detail(claim_id), user)
 
 
 @app.get("/api/claims/{claim_id}/comments")
@@ -949,12 +969,12 @@ def update_response(response_id: int, payload: ResponseUpdate, user: dict[str, A
 @app.post("/api/responses/{response_id}/approve")
 def approve_response(response_id: int, payload: ResponseUpdate | None = None, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
     row = fetch_one(
-        "SELECT id_reclamo, respuesta_generada FROM respuestas_sugeridas WHERE id_respuesta = ?",
+        "SELECT id_reclamo, respuesta_generada, respuesta_editada FROM respuestas_sugeridas WHERE id_respuesta = ?",
         (response_id,),
     )
     if not row:
         raise HTTPException(status_code=404, detail="Respuesta no encontrada")
-    texto_base = payload.response_text if payload and payload.response_text.strip() else row["respuesta_generada"]
+    texto_base = payload.response_text if payload and payload.response_text.strip() else (row["respuesta_editada"] or row["respuesta_generada"])
     respuesta_firmada = _firmar_respuesta_agente(texto_base, user["nombre"])
     aprobar_respuesta(response_id, respuesta_firmada)
     marcar_respondido(row["id_reclamo"], "Respuesta enviada al cliente desde el panel de soporte.")

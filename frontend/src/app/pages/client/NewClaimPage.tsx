@@ -120,8 +120,8 @@ export default function NewClaimPage() {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="order">Pedido relacionado *</Label>
-                <Select value={orderId} onValueChange={setOrderId} required>
-                  <SelectTrigger>
+                <Select value={orderId} onValueChange={setOrderId}>
+                  <SelectTrigger id="order" aria-required="true">
                     <SelectValue placeholder="Selecciona un pedido" />
                   </SelectTrigger>
                   <SelectContent>
@@ -177,7 +177,7 @@ export default function NewClaimPage() {
                 <Button
                   type="submit"
                   className="flex-1"
-                  disabled={!orderId || description.trim().length < 10 || isSubmitting}
+                  disabled={!orders.some((order) => order.id === orderId) || description.trim().length < 10 || isSubmitting}
                 >
                   {isSubmitting ? 'Enviando...' : 'Enviar reclamo'}
                 </Button>

@@ -18,11 +18,11 @@
   {
     "id": "sc-faltantes-02",
     "title": "Cantidad parcial de un mismo artículo",
-    "content": "Compara el número de unidades compradas con las recibidas y anota la diferencia en la misma línea del pedido. Adjunta la foto disponible.",
+    "content": "Compara el número de unidades compradas con las recibidas y anota la diferencia en la misma línea del pedido. Adjunta la foto disponible. Aplica si entregaron menos unidades de las pagadas, por ejemplo, faltó un taco de una orden de cuatro. Distingue una cantidad incompleta de un artículo sustituido.",
     "category": "Producto incompleto",
     "type": "PROCEDIMIENTO",
     "source": "SmartClaim AI — simulación académica",
-    "version": "1.0",
+    "version": "2.0",
     "updated": "2026-11-06",
     "status": "vigente",
     "rules": {
@@ -146,11 +146,11 @@
   {
     "id": "sc-incorrectos-04",
     "title": "Tamaño de porción distinto al comprado",
-    "content": "Verifica el tamaño seleccionado y compáralo con la etiqueta del envase. Si no hay un tamaño verificable, solicita una aclaración sobre la porción.",
+    "content": "Verifica el tamaño seleccionado y compáralo con la etiqueta del envase. Si no hay un tamaño verificable, solicita una aclaración sobre la porción. Aplica si se pidió una pizza familiar y entregaron una mediana, o si se eligió una bebida grande y llegó una pequeña. Compara la medida o la presentación ofrecida con la que llegó.",
     "category": "Producto incorrecto",
     "type": "PROCEDIMIENTO",
     "source": "SmartClaim AI — simulación académica",
-    "version": "1.0",
+    "version": "2.0",
     "updated": "2026-11-06",
     "status": "vigente",
     "rules": {
@@ -194,11 +194,11 @@
   {
     "id": "sc-retrasos-01",
     "title": "Demora antes de asignar repartidor",
-    "content": "Comprueba si el comercio confirmó la preparación y si hay repartidor asignado. Comunica el estado visible y deriva si se superó la ventana informada.",
+    "content": "Comprueba si el comercio confirmó la preparación y si hay repartidor asignado. Comunica el estado visible y deriva si se superó la ventana informada. Distingue si el restaurante aceptó el pedido pero todavía no hay conductor, motorizado o persona asignada, frente a un reparto que ya salió.",
     "category": "Retraso de pedido",
     "type": "PROCEDIMIENTO",
     "source": "SmartClaim AI — simulación académica",
-    "version": "1.0",
+    "version": "2.0",
     "updated": "2026-11-06",
     "status": "vigente",
     "rules": {
@@ -226,11 +226,11 @@
   {
     "id": "sc-retrasos-03",
     "title": "Entrega programada fuera de la franja elegida",
-    "content": "Verifica la fecha y la franja programadas en la confirmación. Registra la diferencia horaria y verifica si hubo un aviso de reprogramación.",
+    "content": "Verifica la fecha y la franja programadas en la confirmación. Registra la diferencia horaria y verifica si hubo un aviso de reprogramación. Una entrega agendada o reservada se considera fuera de ventana si llega después de la hora acordada. Compara, por ejemplo, un horario de nueve a diez con una llegada a las once.",
     "category": "Retraso de pedido",
     "type": "PROCEDIMIENTO",
     "source": "SmartClaim AI — simulación académica",
-    "version": "1.0",
+    "version": "2.0",
     "updated": "2026-11-06",
     "status": "vigente",
     "rules": {
@@ -242,11 +242,11 @@
   {
     "id": "sc-retrasos-04",
     "title": "Retraso por dificultad para localizar el destino",
-    "content": "Revisa las referencias de entrega y los intentos de contacto. Solicita una referencia de ubicación pertinente mediante el canal autenticado.",
+    "content": "Revisa las referencias de entrega y los intentos de contacto. Solicita una referencia de ubicación pertinente mediante el canal autenticado. Aplica si el repartidor no encuentra la puerta, edificio o entrada del condominio y da vueltas en la zona. Diferéncialo de la espera sin conductor asignado.",
     "category": "Retraso de pedido",
     "type": "PROCEDIMIENTO",
     "source": "SmartClaim AI — simulación académica",
-    "version": "1.0",
+    "version": "2.0",
     "updated": "2026-11-06",
     "status": "vigente",
     "rules": {

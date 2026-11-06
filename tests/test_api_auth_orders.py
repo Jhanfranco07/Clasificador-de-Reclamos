@@ -3,11 +3,16 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture()
-def api_client(monkeypatch, tmp_path):
+def api_client(monkeypatch, tmp_path, request):
     import database.db_connection as db_connection
 
     monkeypatch.setattr(db_connection, "DB_PATH", tmp_path / "smartclaim_api_test.db")
 
+
+    if getattr(request, 'param', 'sqlite') == 'postgres':
+        request.getfixturevalue('vector_db')
+        from modules.rag_engine import construir_indice_tfidf
+        construir_indice_tfidf(forzar=True)
 
     from backend.main import app
 
@@ -15,6 +20,7 @@ def api_client(monkeypatch, tmp_path):
         yield client
 
 
+@pytest.mark.parametrize("api_client", ["sqlite", "postgres"], indirect=True)
 def test_auth_orders_claims_and_roles(api_client):
     login = api_client.post(
         "/api/auth/login",
@@ -93,6 +99,7 @@ def test_register_creates_client_account(api_client):
     assert login.status_code == 200
 
 
+@pytest.mark.parametrize("api_client", ["sqlite", "postgres"], indirect=True)
 def test_claim_continuous_conversation(api_client):
     client_login = api_client.post(
         "/api/auth/login",
@@ -260,6 +267,7 @@ def test_client_message_succeeds_when_notification_fails(api_client, monkeypatch
     assert response.json()["items"][-1]["message"].startswith("¿Podrían explicarme")
 
 
+@pytest.mark.parametrize("api_client", ["sqlite", "postgres"], indirect=True)
 def test_reports_expose_operational_and_ai_metrics(api_client):
     admin_login = api_client.post(
         "/api/auth/login",
@@ -344,6 +352,7 @@ def test_profile_update_and_claim_pagination(api_client):
     assert len(claims.json()["items"]) <= 1
 
 
+@pytest.mark.parametrize("api_client", ["sqlite", "postgres"], indirect=True)
 def test_document_pdf_preview_requires_admin_and_can_be_saved(api_client):
     import io
     from pypdf import PdfWriter
@@ -386,7 +395,21 @@ def test_document_pdf_preview_requires_admin_and_can_be_saved(api_client):
     document = {"title": "PDF de prueba", "type": "FAQ", "category": "Producto incompleto", **preview.json()}
     saved = api_client.post("/api/documents", json=document, headers=admin)
     assert saved.status_code == 201
-    assert any(item["title"] == document["title"] for item in saved.json()["items"])
+    registered = next(item for item in saved.json()["items"] if item["title"] == document["title"])
+    edited_text = "Guía sobre recibos incompletos con el marcador auditoría cuarzo."
+    edited = api_client.put(f"/api/documents/{registered['id']}",
+                            json={**document, "content": edited_text}, headers=admin)
+    assert edited.status_code == 200
+    first = api_client.post("/api/documents/reindex", headers=admin)
+    second = api_client.post("/api/documents/reindex", headers=admin)
+    assert first.status_code == second.status_code == 200
+    assert first.json()["fragmentos"] == second.json()["fragmentos"]
+
+    from modules.rag_engine import recuperar_documentos_tfidf
+
+    hits = recuperar_documentos_tfidf("marcador auditoría cuarzo", document["category"])
+    assert str(hits[0]["id_documento"]) == registered["id"]
+    assert hits[0]["fragmento"] == edited_text
 
 
 
@@ -476,6 +499,7 @@ def test_document_api_rejects_duplicates_and_agent_writes(api_client):
 
 
 
+@pytest.mark.parametrize("api_client", ["sqlite", "postgres"], indirect=True)
 def test_claim_rag_draft_edit_escalation_and_send(api_client):
     def headers(email):
         auth = api_client.post("/api/auth/login", json={"email": email, "password": "123456"})
@@ -505,7 +529,29 @@ def test_claim_rag_draft_edit_escalation_and_send(api_client):
     payload = {"response_text": text}
     edited = api_client.patch(f"/api/responses/{response_id}", headers=agent, json=payload)
     assert edited.json()["response"]["editedResponse"] == text
+    assert edited.json()["response"]["finalResponse"] is None
+    private = api_client.get(f"/api/claims/{claim_id}", headers=client).json()
+    assert private["response"] is None and private["documents"] == []
+    assert all(event["action"] != "Edición de respuesta" for event in private["history"])
     sent = api_client.post(f"/api/responses/{response_id}/approve", headers=agent, json=payload)
     assert sent.status_code == 200
     assert text in sent.json()["response"]["finalResponse"]
+    visible = api_client.get(f"/api/claims/{claim_id}", headers=client).json()
+    assert text in visible["response"]["finalResponse"]
+    assert visible["response"]["editedResponse"] is None
+    assert [event["action"] for event in visible["history"]].count("Envio de respuesta") == 1
+    assert all(event["action"] != "Marcado como respondido" for event in visible["history"])
     assert len(sent.json()["history"]) > len(escalation.json()["history"])
+
+
+def test_production_startup_does_not_create_demo_accounts(monkeypatch, tmp_path):
+    from backend.main import app
+    from database import db_connection as db
+
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("AUTH_SECRET", "test-only-production-secret-longer-than-32")
+    monkeypatch.setenv("DATABASE_URL", "")
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "startup.db")
+    with TestClient(app):
+        assert db.fetch_one("SELECT COUNT(*) AS total FROM auth_users")["total"] == 0
+        assert db.fetch_one("SELECT COUNT(*) AS total FROM pedidos")["total"] == 0

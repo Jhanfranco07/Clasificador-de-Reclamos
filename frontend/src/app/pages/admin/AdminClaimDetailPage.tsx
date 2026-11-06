@@ -55,7 +55,7 @@ export default function AdminClaimDetailPage() {
     try {
       const data = await getClaim(id);
       setDetail(data);
-      setEditedResponse(data.response?.finalResponse || data.response?.editedResponse || data.response?.suggestedResponse || '');
+      setEditedResponse(data.response?.editedResponse || data.response?.finalResponse || data.response?.suggestedResponse || '');
       const commentData = await listAgentComments(id);
       setComments(commentData.items);
     } catch (err) {
@@ -74,7 +74,7 @@ export default function AdminClaimDetailPage() {
     try {
       const data = await action();
       setDetail(data);
-      setEditedResponse(data.response?.finalResponse || data.response?.editedResponse || data.response?.suggestedResponse || '');
+      setEditedResponse(data.response?.editedResponse || data.response?.finalResponse || data.response?.suggestedResponse || '');
       setIsEditing(false);
       return true;
     } catch (err) {
@@ -342,7 +342,7 @@ export default function AdminClaimDetailPage() {
                     <>
                       <div className="bg-green-50 p-4 rounded-lg">
                         <p className="whitespace-pre-line text-gray-800">
-                          {response.finalResponse || response.editedResponse || response.suggestedResponse}
+                          {response.status === 'APROBADA' ? response.finalResponse : (response.editedResponse || response.suggestedResponse)}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-3">
