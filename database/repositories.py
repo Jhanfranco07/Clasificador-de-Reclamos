@@ -241,12 +241,22 @@ def generar_codigo_reclamo():
     return f"RC-{datetime.now().strftime('%Y%m%d')}-{total:04d}"
 
 def crear_reclamo(id_cliente, codigo_pedido, canal_venta, fecha_pedido, descripcion,
-                  responsable_asignado='Agente de soporte', id_pedido=None):
+                  responsable_asignado='Agente de soporte', id_pedido=None, actor=None, request_id=None):
     # id_pedido=None is retained for historical import fixtures, never for new API claims.
     from uuid import uuid4
     from database.transactions import transaction, one, insert, history
     from modules.domain_errors import DomainError
+    import json
+    from modules.claim_assignment import retry, remember
     with transaction() as conn:
+        if actor:
+            from modules.order_workflow import live_actor
+            actor = live_actor(conn, actor)
+            request_id = request_id or str(uuid4())
+            payload = json.dumps([id_cliente, id_pedido, codigo_pedido, canal_venta, descripcion])
+            previous = retry(conn, request_id, actor["id_auth_user"], "CREATE", payload)
+            if previous:
+                return previous
         if id_pedido is not None:
             order = one(conn, "SELECT * FROM pedidos WHERE id_pedido=? AND id_cliente=? AND codigo_pedido=?",
                         (id_pedido, id_cliente, codigo_pedido))
@@ -258,9 +268,15 @@ def crear_reclamo(id_cliente, codigo_pedido, canal_venta, fecha_pedido, descripc
             (codigo_reclamo,id_cliente,id_pedido,codigo_pedido,canal_venta,fecha_pedido,descripcion,id_estado,responsable_asignado)
             VALUES (?,?,?,?,?,?,?,?,?)""", (code,id_cliente,id_pedido,codigo_pedido.strip(),canal_venta,
                                             str(fecha_pedido),descripcion.strip(),state_id,responsable_asignado))
-        history(conn,claim_id,None,"Nuevo","Registro de reclamo")
+        history(conn,claim_id,None,"Nuevo","Registro de reclamo", actor=actor["nombre"] if actor else "Soporte",
+                actor_id=actor["id_auth_user"] if actor else None, actor_role=actor["rol"] if actor else None)
         insert(conn,"""INSERT INTO claim_messages(id_reclamo,sender_type,sender_id,mensaje)
                        VALUES (?,'client',?,?)""",(claim_id,str(id_cliente),descripcion.strip()))
+        from modules.notification_service import claim_event
+        customer = one(conn, "SELECT correo FROM clientes WHERE id_cliente=?", (id_cliente,))
+        claim_event(conn, {"id_reclamo": claim_id, "correo_cliente": customer["correo"]}, "CLAIM_CREATED", claim_id, staff=True)
+        if actor:
+            remember(conn, request_id, actor["id_auth_user"], "CREATE", payload, claim_id)
         return claim_id
 
 
@@ -342,7 +358,8 @@ def listar_reclamos():
         SELECT r.id_reclamo, r.codigo_reclamo, c.nombre AS cliente, c.correo, r.codigo_pedido, r.canal_venta,
                COALESCE(cat.nombre, 'Sin clasificar') AS categoria,
                COALESCE(p.nombre, 'Sin prioridad') AS prioridad,
-               e.nombre AS estado, r.requiere_revision_humana, r.fecha_creacion, r.fecha_actualizacion
+               e.nombre AS estado, r.requiere_revision_humana, r.fecha_creacion, r.fecha_actualizacion,
+               r.responsable_auth_id,r.responsable_asignado,r.fecha_asignacion,r.version_asignacion
         FROM reclamos r
         INNER JOIN clientes c ON c.id_cliente = r.id_cliente
         LEFT JOIN categorias_reclamo cat ON cat.id_categoria = r.id_categoria
@@ -356,7 +373,8 @@ def listar_reclamos_por_correo(correo_cliente):
         SELECT r.id_reclamo, r.codigo_reclamo, c.nombre AS cliente, c.correo, r.codigo_pedido, r.canal_venta,
                COALESCE(cat.nombre, 'Sin clasificar') AS categoria,
                COALESCE(p.nombre, 'Sin prioridad') AS prioridad,
-               e.nombre AS estado, r.requiere_revision_humana, r.fecha_creacion, r.fecha_actualizacion
+               e.nombre AS estado, r.requiere_revision_humana, r.fecha_creacion, r.fecha_actualizacion,
+               r.responsable_auth_id,r.responsable_asignado,r.fecha_asignacion,r.version_asignacion
         FROM reclamos r
         INNER JOIN clientes c ON c.id_cliente = r.id_cliente
         LEFT JOIN categorias_reclamo cat ON cat.id_categoria = r.id_categoria
@@ -431,6 +449,9 @@ def desactivar_documento_base(id_documento):
     """, (id_documento,))
 
 def actualizar_estado_reclamo(id_reclamo, estado, accion="Actualizacion de estado", comentario=None, actor=None):
+    if actor and actor.get("id_auth_user"):
+        from modules.claim_workflow import change_state
+        return change_state(id_reclamo, actor, estado, comentario)
     from database.transactions import transaction, lock_claim
     from modules.claim_workflow import transition
     actor = actor or {"nombre": "Soporte", "rol": "AGENT"}
@@ -438,9 +459,9 @@ def actualizar_estado_reclamo(id_reclamo, estado, accion="Actualizacion de estad
         return transition(conn,lock_claim(conn,id_reclamo),estado,actor=actor["nombre"],role=actor["rol"],comment=comentario)
 
 
-def actualizar_respuesta_final(id_respuesta, respuesta_final, estado_revision="EDITADA", actor="Soporte"):
+def actualizar_respuesta_final(id_respuesta, respuesta_final, estado_revision="EDITADA", actor="Soporte", actor_id=None):
     from modules.response_service import edit_draft
-    return edit_draft(id_respuesta, respuesta_final, actor)
+    return edit_draft(id_respuesta, respuesta_final, actor, actor_id)
 
 
 def aprobar_respuesta(id_respuesta, respuesta_final=None, actor="Soporte", actor_id="support"):
@@ -587,6 +608,9 @@ def cerrar_reclamo(id_reclamo, estado_final="Cerrado", comentario=None, actor=No
 
 
 def reabrir_reclamo(id_reclamo, comentario=None, actor=None):
+    if actor and actor.get("id_auth_user"):
+        from modules.claim_workflow import change_state
+        return change_state(id_reclamo, actor, "En revision", comentario, reopen=True)
     from database.transactions import transaction, lock_claim
     from modules.claim_workflow import transition
     actor = actor or {"nombre": "Soporte", "rol": "AGENT"}
@@ -610,11 +634,11 @@ def asignar_responsable(id_reclamo, responsable):
     )
     registrar_log("Reclamos", "Asignación de responsable", "INFO", f"Responsable asignado: {responsable}.", id_reclamo)
 
-def crear_comentario_agente(id_reclamo, comentario, tipo_comentario="INTERNO", usuario="Agente de soporte"):
+def crear_comentario_agente(id_reclamo, comentario, tipo_comentario="INTERNO", usuario="Agente de soporte", actor_id=None):
     id_comentario = execute("""
-        INSERT INTO comentarios_agente (id_reclamo, comentario, tipo_comentario, usuario_responsable)
-        VALUES (?, ?, ?, ?)
-    """, (id_reclamo, comentario, tipo_comentario, usuario))
+        INSERT INTO comentarios_agente (id_reclamo, comentario, tipo_comentario, usuario_responsable,actor_auth_id)
+        VALUES (?, ?, ?, ?, ?)
+    """, (id_reclamo, comentario, tipo_comentario, usuario,actor_id))
     registrar_log("Comentarios", "Comentario agregado", "INFO", f"Tipo: {tipo_comentario}.", id_reclamo)
     return id_comentario
 

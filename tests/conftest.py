@@ -5,6 +5,9 @@ from contextlib import contextmanager
 from collections import Counter
 import socket
 import threading
+import sqlite3
+import tempfile
+import os
 
 import pytest
 
@@ -36,9 +39,11 @@ class ExternalGuard:
 
 _guard = ExternalGuard()
 _isolation = pytest.MonkeyPatch()
+_child_python = None
 
 
 def pytest_configure(config):
+    global _child_python
     # Before collection/imports. Changes are process-local and restored on exit.
     for key, value in {
         "SMARTCLAIM_BOOTSTRAP_DEMO": "1", "PYTHON_DOTENV_DISABLED": "1", "APP_ENV": "development", "DB_PROVIDER": "sqlite",
@@ -46,6 +51,42 @@ def pytest_configure(config):
         "ENABLE_PGVECTOR_RAG": "false", "AUTH_SECRET": "isolated-tests-secret-never-used-in-production",
     }.items():
         _isolation.setenv(key, value)
+
+    original_connect_sqlite = sqlite3.connect
+    temporary_root = Path(tempfile.gettempdir()).resolve()
+
+    def connect_temporary_sqlite(database, *args, **kwargs):
+        connection = original_connect_sqlite(database, *args, **kwargs)
+        name = str(database)
+        if name != ":memory:" and not name.startswith("file:") and Path(name).resolve().is_relative_to(temporary_root):
+            # Disposable tests retain SQL transactions and file persistence, but do
+            # not measure power-loss durability or wait for every physical fsync.
+            connection.execute("PRAGMA synchronous=OFF")
+        return connection
+
+    _isolation.setattr(sqlite3, "connect", connect_temporary_sqlite)
+    # The existing reconciliation tests launch stdlib-only Python CLI processes.
+    # Apply the same disposable-file policy there without changing those CLIs.
+    _child_python = tempfile.TemporaryDirectory(prefix="smartclaim-test-python-", ignore_cleanup_errors=True)
+    bootstrap = Path(_child_python.name) / "sitecustomize.py"
+    bootstrap.write_text('''import os
+import sqlite3
+import tempfile
+from pathlib import Path
+
+if os.getenv("SMARTCLAIM_DISPOSABLE_SQLITE") == "1":
+    original_connect = sqlite3.connect
+    temporary_root = Path(tempfile.gettempdir()).resolve()
+    def connect(database, *args, **kwargs):
+        connection = original_connect(database, *args, **kwargs)
+        name = str(database)
+        if name != ":memory:" and not name.startswith("file:") and Path(name).resolve().is_relative_to(temporary_root):
+            connection.execute("PRAGMA synchronous=OFF")
+        return connection
+    sqlite3.connect = connect
+''', encoding="utf-8")
+    _isolation.setenv("SMARTCLAIM_DISPOSABLE_SQLITE", "1")
+    _isolation.setenv("PYTHONPATH", os.pathsep.join(filter(None, [_child_python.name, os.getenv("PYTHONPATH", "")])))
 
     import openai
     import psycopg
@@ -83,6 +124,10 @@ def pytest_configure(config):
 
 def pytest_unconfigure(config):
     _isolation.undo()
+    if _child_python:
+        temporary_directory = Path(_child_python.name).resolve()
+        assert temporary_directory.is_relative_to(Path(tempfile.gettempdir()).resolve())
+        _child_python.cleanup()
 
 
 def pytest_sessionfinish(session, exitstatus):
@@ -93,6 +138,7 @@ def pytest_sessionfinish(session, exitstatus):
 def pytest_terminal_summary(terminalreporter):
     terminalreporter.write_line("Offline guard: unexpected attempts=" + str(len(_guard.pending))
                                 + "; blocked self-test probes=" + str(sum(_guard.blocked.values())))
+    terminalreporter.write_line("Disposable SQLite uses synchronous=OFF; physical crash durability is outside test scope.")
 
 
 @pytest.fixture

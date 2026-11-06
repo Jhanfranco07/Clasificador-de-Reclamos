@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { MessageSquare, Send } from 'lucide-react';
 import { ClaimMessage, listClaimMessages, sendClaimMessage } from '../lib/api';
 import { Button } from './ui/button';
@@ -21,6 +21,7 @@ export default function ClaimConversation({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
+  const requestId = useMemo(() => crypto.randomUUID(), [claimId, message]);
 
   useEffect(() => {
     let active = true;
@@ -37,7 +38,7 @@ export default function ClaimConversation({
     if (message.trim().length < 2) return;
     setWorking(true);
     try {
-      const result = await sendClaimMessage(claimId, message.trim());
+      const result = await sendClaimMessage(claimId, message.trim(), requestId);
       setMessages(result.items);
       setMessage('');
       toast.success(viewer === 'client' ? 'Mensaje enviado a soporte.' : 'Mensaje enviado al cliente.');

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -38,6 +38,7 @@ export default function NewClaimPage() {
   const [claimCode, setClaimCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const requestId = useMemo(() => crypto.randomUUID(), [orderId, description, currentUser?.id]);
 
   useEffect(() => {
     const orderIdFromParams = searchParams.get('orderId');
@@ -76,6 +77,7 @@ export default function NewClaimPage() {
     try {
       setIsSubmitting(true);
       const result = await createClaim({
+        request_id: requestId,
         customer_name: currentUser.name,
         customer_email: currentUser.email,
         customer_phone: currentUser.phone,

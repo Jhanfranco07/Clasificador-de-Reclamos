@@ -7,6 +7,7 @@ import { Card, CardContent } from '../../components/ui/card';
 import { ApiOrder, getOrder, listOrders, operationalWrite, getOperations, getAvailability, getOperationalProducts, ManagedProduct, OperationsOverview } from '../../lib/api';
 import { ORDER_STATUS_LABELS } from '../../types';
 import OrderHistory from '../../components/OrderHistory';
+import NotificationBell from '../../components/NotificationBell';
 
 export function OperationsLayout({ children }: { children: ReactNode }) {
   const { currentUser, logout } = useAuth();
@@ -14,7 +15,7 @@ export function OperationsLayout({ children }: { children: ReactNode }) {
   return <div className="min-h-screen bg-background text-foreground">
     <header className="bg-slate-950 text-white p-4 flex flex-wrap gap-4 items-center justify-between">
       <Link to={currentUser?.role === 'MERCHANT' ? '/merchant' : '/courier'} className="font-bold">SmartClaim AI · {currentUser?.role === 'MERCHANT' ? 'Comercio' : 'Repartidor'}</Link>
-      <span className="break-all">{currentUser?.name}</span><Button className="max-w-full h-auto whitespace-normal" onClick={logout}>Cerrar sesión</Button>
+      <span className="break-all">{currentUser?.name}</span><NotificationBell /><Button className="max-w-full h-auto whitespace-normal" onClick={logout}>Cerrar sesión</Button>
     </header><main className="container mx-auto p-4 max-w-6xl">{children}</main>
   </div>;
 }

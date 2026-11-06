@@ -28,6 +28,7 @@ import AdminLayout from '../../components/AdminLayout';
 export default function ClaimsBandejaPage() {
   const [claims, setClaims] = useState<ClaimSummary[]>([]);
   const [statusFilter, setStatusFilter] = useState<ClaimStatus | 'ALL'>('ALL');
+  const [assignmentFilter, setAssignmentFilter] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -39,13 +40,13 @@ export default function ClaimsBandejaPage() {
     let active = true;
     setLoading(true);
     setError('');
-    const timer = window.setTimeout(() => listClaims({ status: statusFilter, search: searchTerm, dateFrom, dateTo, page: pagination.page, pageSize: pagination.pageSize })
+    const timer = window.setTimeout(() => listClaims({ assignment: assignmentFilter, status: statusFilter, search: searchTerm, dateFrom, dateTo, page: pagination.page, pageSize: pagination.pageSize })
       .then((data) => { if (active) { setClaims(data.items); setPagination(data.pagination); } })
       .catch((err) => { if (active) setError(err instanceof Error ? err.message : 'No se pudieron cargar los reclamos.'); })
       .finally(() => { if (active) setLoading(false); }),
     250);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [dateFrom, dateTo, pagination.page, pagination.pageSize, searchTerm, statusFilter]);
+  }, [dateFrom, dateTo, pagination.page, pagination.pageSize, searchTerm, statusFilter, assignmentFilter]);
 
   const filteredClaims = claims;
 
@@ -109,6 +110,11 @@ export default function ClaimsBandejaPage() {
                 <SelectItem value="CLOSED">Cerrados</SelectItem>
               </SelectContent>
             </Select>
+            <label className="block">Bandeja por responsable
+              <select aria-label="Bandeja por responsable" className="border rounded p-2 w-full" value={assignmentFilter} onChange={event => { setAssignmentFilter(event.target.value); setPagination(value => ({ ...value, page: 1 })); }}>
+                <option value="ALL">Todos los casos</option><option value="UNASSIGNED">No asignados</option><option value="MINE">Mis casos asignados</option><option value="ESCALATED">Escalados</option>
+              </select>
+            </label>
             <Input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPagination((value) => ({ ...value, page: 1 })); }} aria-label="Fecha inicial" />
             <Input type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPagination((value) => ({ ...value, page: 1 })); }} aria-label="Fecha final" />
           </div>
@@ -169,14 +175,15 @@ export default function ClaimsBandejaPage() {
                     <TableHead>Categoría</TableHead>
                     <TableHead>Prioridad</TableHead>
                     <TableHead>Estado</TableHead>
+                    <TableHead>Responsable</TableHead>
                     <TableHead>Fecha</TableHead>
                     <TableHead className="text-right">Acción</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading || error ? <TableRow><TableCell colSpan={8} role={error ? 'alert' : 'status'}>{error ? 'Reclamos no disponibles. Reintenta cambiando el filtro o recargando.' : 'Cargando reclamos...'}</TableCell></TableRow> : filteredClaims.length === 0 ? (
+                  {loading || error ? <TableRow><TableCell colSpan={9} role={error ? 'alert' : 'status'}>{error ? 'Reclamos no disponibles. Reintenta cambiando el filtro o recargando.' : 'Cargando reclamos...'}</TableCell></TableRow> : filteredClaims.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                      <TableCell colSpan={9} className="text-center py-8 text-gray-500">
                         No hay reclamos con este filtro
                       </TableCell>
                     </TableRow>
@@ -197,6 +204,7 @@ export default function ClaimsBandejaPage() {
                             {CLAIM_STATUS_LABELS[claim.statusKey as keyof typeof CLAIM_STATUS_LABELS] || claim.status}
                           </Badge>
                         </TableCell>
+                        <TableCell>{claim.assignment?.active ? claim.assignment.name : 'Pendiente de asignación'}</TableCell>
                         <TableCell className="text-sm text-gray-500">
                           {formatDateTime(claim.createdAt)}
                         </TableCell>

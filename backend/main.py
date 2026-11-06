@@ -217,6 +217,7 @@ class RestaurantUpdate(OperationalRequest):
 
 
 class ClaimCreate(BaseModel):
+    request_id: str | None = Field(None, min_length=8, max_length=100)
     customer_name: str = Field(..., min_length=2)
     customer_email: EmailStr
     customer_phone: str | None = None
@@ -235,9 +236,12 @@ class ResponseUpdate(BaseModel):
 class StateUpdate(BaseModel):
     state: str
     comment: str | None = None
+    request_id: str | None = Field(None, min_length=8, max_length=100)
+    expected_version: int | None = Field(None, ge=0, strict=True)
 
 
 class CloseRequest(BaseModel):
+    request_id: str | None = Field(None, min_length=8, max_length=100)
     comment: str = Field(..., min_length=1, max_length=2000)
 
     @field_validator('comment')
@@ -270,6 +274,23 @@ class AgentCommentPayload(BaseModel):
 
 class ClaimMessagePayload(BaseModel):
     message: str = Field(..., min_length=2, max_length=4000)
+    request_id: str | None = Field(None, min_length=8, max_length=100)
+
+
+class ClaimAssignmentPayload(OperationalRequest):
+    assignee_id: int = Field(..., gt=0, strict=True)
+    expected_version: int = Field(..., ge=0, strict=True)
+    reason: str = Field(..., min_length=1, max_length=1000)
+
+
+class ClaimEscalationPayload(OperationalRequest):
+    assignee_id: int | None = Field(None, gt=0, strict=True)
+    expected_version: int = Field(..., ge=0, strict=True)
+    reason: str = Field(..., min_length=1, max_length=1000)
+
+
+class ClaimRetryPayload(BaseModel):
+    request_id: str | None = Field(None, min_length=8, max_length=100)
 
 
 class ChatPayload(BaseModel):
@@ -421,7 +442,15 @@ def _to_claim_summary(row: dict[str, Any]) -> dict[str, Any]:
         "requiresHumanReview": bool(row.get("requiere_revision_humana")),
         "createdAt": row.get("fecha_creacion"),
         "updatedAt": row.get("fecha_actualizacion"),
+        "assignment": _assignment(row),
     }
+
+
+def _assignment(row):
+    identity = fetch_one("SELECT rol,estado FROM auth_users WHERE id_auth_user=?", (row.get("responsable_auth_id"),))
+    return {"id": row.get("responsable_auth_id"), "name": row.get("responsable_asignado"),
+            "active": bool(identity and identity["estado"] == "ACTIVO" and identity["rol"] in {"AGENT", "ADMIN"}),
+            "version": row.get("version_asignacion", 0), "assignedAt": row.get("fecha_asignacion")}
 
 
 def _to_claim_detail(id_reclamo: int) -> dict[str, Any]:
@@ -447,6 +476,7 @@ def _to_claim_detail(id_reclamo: int) -> dict[str, Any]:
             "status": reclamo["estado"],
             "statusKey": STATUS_TO_UI.get(reclamo["estado"], "RECEIVED"),
             "responsible": reclamo.get("responsable_asignado"),
+            "assignment": _assignment(reclamo),
             "requiresHumanReview": bool(reclamo.get("requiere_revision_humana")),
             "createdAt": reclamo.get("fecha_creacion"),
             "updatedAt": reclamo.get("fecha_actualizacion"),
@@ -472,6 +502,7 @@ def _detail_for_user(claim_id, user):
         AND estado_revision IN ('APROBADA','ENVIADA') AND respuesta_final IS NOT NULL
         ORDER BY id_respuesta DESC LIMIT 1""", (claim_id,))
     detail["analysis"] = None
+    detail["claim"].pop("assignment", None)
     detail["documents"] = []
     detail["response"] = ({key: value for key, value in _to_response(published).items()
                            if key not in {"suggestedResponse", "editedResponse"}} if published else None)
@@ -534,6 +565,8 @@ def _to_history_event(row: dict[str, Any]) -> dict[str, Any]:
         "action": row.get("accion"),
         "comment": row.get("comentario"),
         "user": row.get("usuario_responsable"),
+        "actorId": row.get("actor_auth_id"),
+        "actorRole": row.get("actor_rol"),
         "createdAt": row.get("fecha_cambio"),
     }
 
@@ -574,6 +607,8 @@ def _to_notification(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": str(row["id_notificacion"]),
         "claimId": str(row["id_reclamo"]) if row.get("id_reclamo") else None,
+        "orderId": str(row["id_pedido"]) if row.get("id_pedido") else None,
+        "event": row.get("evento") or "LEGACY",
         "title": row["titulo"],
         "message": row["mensaje"],
         "type": row["tipo"],
@@ -821,13 +856,22 @@ def catalog() -> dict[str, Any]:
 
 @app.get("/api/notifications")
 def notifications(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
-    items = [_to_notification(row) for row in listar_notificaciones(user["correo"])]
-    return {"items": items, "unread": sum(1 for item in items if not item["read"])}
+    from modules.notification_service import listing
+    rows, unread = listing(user)
+    return {"items": [_to_notification(row) for row in rows], "unread": unread}
 
 
 @app.patch("/api/notifications/read")
 def read_notifications(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
-    marcar_notificaciones_leidas(user["correo"])
+    from modules.notification_service import mark_read
+    mark_read(user)
+    return notifications(user)
+
+
+@app.patch("/api/notifications/{notification_id}/read")
+def read_one_notification(notification_id: int, user=Depends(get_current_user)):
+    from modules.notification_service import mark_read
+    mark_read(user, notification_id)
     return notifications(user)
 
 
@@ -962,6 +1006,7 @@ def claims(
     date_from: str | None = None,
     date_to: str | None = None,
     status: str | None = None,
+    assignment: Literal["ALL", "UNASSIGNED", "MINE", "ESCALATED"] = "ALL",
     search: str | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
@@ -983,6 +1028,16 @@ def claims(
             ))
         )
     ]
+    if user["rol"] in {"AGENT", "ADMIN"}:
+        if assignment == "UNASSIGNED":
+            filtered = [item for item in filtered if not item["assignment"]["active"] and item["statusKey"] != "CLOSED"]
+        elif assignment == "MINE":
+            filtered = [item for item in filtered if item["assignment"]["id"] == user["id_auth_user"]]
+        elif assignment == "ESCALATED":
+            filtered = [item for item in filtered if item["statusKey"] == "ESCALATED"]
+    else:
+        for item in filtered:
+            item.pop("assignment", None)
     total = len(filtered)
     start = (page - 1) * page_size
     return {
@@ -1017,7 +1072,7 @@ def create_claim(payload: ClaimCreate, user: dict[str, Any] = Depends(get_curren
             str(order["fecha_creacion"]),
             payload.description,
             "Pendiente de asignación",
-            id_pedido=order["id_pedido"],
+            id_pedido=order["id_pedido"], actor=user, request_id=payload.request_id,
         )
         if payload.analyze:
             try:
@@ -1034,6 +1089,26 @@ def create_claim(payload: ClaimCreate, user: dict[str, Any] = Depends(get_curren
 @app.get("/api/claims/{claim_id}")
 def claim_detail(claim_id: int, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     return _detail_for_user(claim_id, user)
+
+
+@app.get("/api/claim-assignees")
+def claim_assignees(user=Depends(require_staff)):
+    rows = fetch_all("SELECT id_auth_user,nombre,rol FROM auth_users WHERE estado='ACTIVO' AND rol IN ('AGENT','ADMIN') ORDER BY id_auth_user")
+    return {"items": [{"id": row["id_auth_user"], "name": row["nombre"], "role": row["rol"]} for row in rows]}
+
+
+@app.post("/api/claims/{claim_id}/assignment")
+def assign_claim(claim_id: int, payload: ClaimAssignmentPayload, user=Depends(require_staff)):
+    from modules.claim_assignment import assign
+    assign(claim_id, user, payload.assignee_id, payload.expected_version, payload.request_id, payload.reason)
+    return _to_claim_detail(claim_id)
+
+
+@app.post("/api/claims/{claim_id}/escalate")
+def escalate_claim(claim_id: int, payload: ClaimEscalationPayload, user=Depends(require_staff)):
+    from modules.claim_assignment import assign
+    assign(claim_id, user, payload.assignee_id, payload.expected_version, payload.request_id, payload.reason, escalate=True)
+    return _to_claim_detail(claim_id)
 
 
 @app.get("/api/claims/{claim_id}/messages")
@@ -1067,52 +1142,26 @@ def add_claim_message(
     if detail["claim"]["statusKey"] == "CLOSED":
         raise HTTPException(status_code=409, detail="El reclamo está cerrado. Reábrelo antes de responder.")
 
-    sender_type = "client" if user["rol"] == "CLIENT" else "agent"
     from modules.claim_workflow import record_message
-    record_message(claim_id, payload.message, user)
-    if sender_type == "client":
-        try:
-            staff_members = fetch_all("SELECT correo FROM auth_users WHERE rol IN ('AGENT', 'ADMIN') AND estado = 'ACTIVO'")
-            for staff in staff_members:
-                try:
-                    crear_notificacion(
-                        staff["correo"],
-                        "Cliente respondió un reclamo",
-                        f"El cliente agregó un mensaje al reclamo {detail['claim']['code']}.",
-                        "ALERTA",
-                        claim_id,
-                    )
-                except Exception:
-                    logger.exception("No se pudo notificar a %s sobre el reclamo %s", staff["correo"], claim_id)
-        except Exception:
-            logger.exception("No se pudieron consultar agentes para notificar sobre el reclamo %s", claim_id)
-    else:
-        try:
-            crear_notificacion(
-                detail["claim"]["customerEmail"],
-                "Nuevo mensaje de soporte",
-                f"Soporte respondió en tu reclamo {detail['claim']['code']}.",
-                "RESPUESTA",
-                claim_id,
-            )
-        except Exception:
-            logger.exception("No se pudo notificar al cliente sobre el reclamo %s", claim_id)
+    record_message(claim_id, payload.message, user, payload.request_id)
     return claim_messages(claim_id, user)
 
 
 @app.post("/api/claims/{claim_id}/close")
 def close_claim(claim_id: int, payload: CloseRequest, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
-    cerrar_reclamo(claim_id, "Cerrado", payload.comment, actor=user)
+    from modules.claim_workflow import change_state
+    change_state(claim_id, user, "Cerrado", payload.comment, request_id=payload.request_id)
     return _to_claim_detail(claim_id)
 
 
 @app.post("/api/claims/{claim_id}/reopen")
-def reopen_claim(claim_id: int, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+def reopen_claim(claim_id: int, payload: ClaimRetryPayload | None = None, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     _detail_for_user(claim_id, user)
     detail = _to_claim_detail(claim_id)
     if user["rol"] == "CLIENT" and detail["claim"]["customerEmail"].lower() != user["correo"].lower():
         raise HTTPException(status_code=403, detail="No tienes acceso a este reclamo")
-    reabrir_reclamo(claim_id, actor=user)
+    from modules.claim_workflow import change_state
+    change_state(claim_id, user, "En revision", reopen=True, request_id=payload.request_id if payload else None)
     return _detail_for_user(claim_id, user)
 
 
@@ -1129,7 +1178,7 @@ def add_claim_comment(
     user: dict[str, Any] = Depends(require_staff),
 ) -> dict[str, Any]:
     _to_claim_detail(claim_id)
-    crear_comentario_agente(claim_id, payload.comment, payload.type, user["nombre"])
+    crear_comentario_agente(claim_id, payload.comment, payload.type, user["nombre"], user["id_auth_user"])
     return {"items": [_to_comment(row) for row in listar_comentarios_agente(claim_id)]}
 
 
@@ -1147,9 +1196,16 @@ def update_claim_state(claim_id: int, payload: StateUpdate, user: dict[str, Any]
         if state == "Respondido":
             marcar_respondido(claim_id, payload.comment, actor=user)
         elif state == "Escalado":
-            escalar_reclamo(claim_id, payload.comment, actor=user)
+            from uuid import uuid4
+            from modules.claim_assignment import assign
+            current = fetch_one("SELECT version_asignacion FROM reclamos WHERE id_reclamo=?", (claim_id,))
+            if not current:
+                raise HTTPException(404, "Reclamo no encontrado")
+            assign(claim_id, user, None, payload.expected_version if payload.expected_version is not None else current["version_asignacion"],
+                   payload.request_id or str(uuid4()), payload.comment or "", escalate=True)
         elif state == "Cerrado":
-            cerrar_reclamo(claim_id, "Cerrado", payload.comment, actor=user)
+            from modules.claim_workflow import change_state
+            change_state(claim_id, user, "Cerrado", payload.comment, request_id=payload.request_id)
         else:
             actualizar_estado_reclamo(claim_id, state, "Actualizacion desde API", payload.comment, actor=user)
         return _to_claim_detail(claim_id)
@@ -1161,7 +1217,7 @@ def update_claim_state(claim_id: int, payload: StateUpdate, user: dict[str, Any]
 
 @app.patch("/api/responses/{response_id}")
 def update_response(response_id: int, payload: ResponseUpdate, user: dict[str, Any] = Depends(require_staff)) -> dict[str, Any]:
-    actualizar_respuesta_final(response_id, payload.response_text, "EDITADA", actor=user["nombre"])
+    actualizar_respuesta_final(response_id, payload.response_text, "EDITADA", actor=user["nombre"], actor_id=user["id_auth_user"])
     row = fetch_one("SELECT id_reclamo FROM respuestas_sugeridas WHERE id_respuesta = ?", (response_id,))
     if not row:
         raise HTTPException(status_code=404, detail="Respuesta no encontrada")

@@ -13,7 +13,7 @@ def canonical(state):
     return state.replace("En revisión", "En revision")
 
 
-def transition(conn, claim, target, *, mode="staff", actor="Soporte", role="AGENT", comment=None):
+def transition(conn, claim, target, *, mode="staff", actor="Soporte", role="AGENT", comment=None, actor_id=None):
     previous, target = canonical(claim["estado"]), canonical(target)
     if target not in ACTIVE | {"Cerrado"}:
         raise DomainError("Estado de reclamo no válido", 422)
@@ -60,25 +60,66 @@ def transition(conn, claim, target, *, mode="staff", actor="Soporte", role="AGEN
               "client_message": "Respuesta del cliente", "agent_message": "Respuesta del agente"}.get(mode, "Cambio de estado")
     if target == "Cerrado":
         action = "Cierre de reclamo"
-    history(conn, claim["id_reclamo"], previous, target, action, comment, actor)
+    history_id = history(conn, claim["id_reclamo"], previous, target, action, comment, actor, actor_id, role)
+    if target == "Cerrado" or mode == "reopen":
+        from modules.notification_service import claim_event
+        claim_event(conn, claim, "CLAIM_CLOSED" if target == "Cerrado" else "CLAIM_REOPENED",
+                    history_id, client=True, staff=True)
     return True
 
 
-def record_message(claim_id, text, user):
+def record_message(claim_id, text, user, request_id=None):
     from database.transactions import transaction, insert, lock_claim
     if len(text.strip()) < 2:
         raise DomainError("El mensaje debe contener al menos dos caracteres", 422)
     with transaction() as conn:
+        import json
+        from uuid import uuid4
+        from modules.order_workflow import live_actor, require_role
+        from modules.claim_assignment import retry, remember
+        from modules.notification_service import claim_event
+        require_role(user, STAFF | {"CLIENT"})
+        user = live_actor(conn, user)
         claim = lock_claim(conn, claim_id)
         client = user["rol"] == "CLIENT"
         if client and claim["correo_cliente"].lower() != user["correo"].lower():
             raise DomainError("No tienes acceso a este reclamo", 403)
+        request_id = request_id or str(uuid4())
+        payload = json.dumps([text.strip()])
+        if retry(conn, request_id, user["id_auth_user"], "MESSAGE", payload, claim_id):
+            return
         if claim["estado"] == "Cerrado":
             raise DomainError("Reabre el reclamo antes de responder")
         insert(conn, """INSERT INTO claim_messages(id_reclamo,sender_type,sender_id,mensaje)
                         VALUES (?,?,?,?)""", (claim_id,"client" if client else "agent",str(user["id_auth_user"]),text.strip()))
         changed = transition(conn, claim, "En revision" if client else "Respondido",
-                             mode="client_message" if client else "agent_message", actor=user["nombre"], role=user["rol"])
+                             mode="client_message" if client else "agent_message", actor=user["nombre"], role=user["rol"], actor_id=user["id_auth_user"])
         if not changed:
             history(conn, claim_id, claim["estado"], claim["estado"],
-                    "Respuesta del cliente" if client else "Respuesta del agente", actor=user["nombre"])
+                    "Respuesta del cliente" if client else "Respuesta del agente", actor=user["nombre"],
+                    actor_id=user["id_auth_user"], actor_role=user["rol"])
+        claim_event(conn, claim, "CLIENT_MESSAGE" if client else "AGENT_MESSAGE", request_id,
+                    staff=client, client=not client)
+        remember(conn, request_id, user["id_auth_user"], "MESSAGE", payload, claim_id)
+
+
+def change_state(claim_id, user, target, comment=None, *, reopen=False, request_id=None):
+    import json
+    from uuid import uuid4
+    from database.transactions import transaction, lock_claim
+    from modules.order_workflow import live_actor, require_role
+    from modules.claim_assignment import retry, remember
+    require_role(user, STAFF | ({"CLIENT"} if reopen else set()))
+    with transaction() as conn:
+        user = live_actor(conn, user)
+        claim = lock_claim(conn, claim_id)
+        if user["rol"] == "CLIENT" and claim["correo_cliente"].lower() != user["correo"].lower():
+            raise DomainError("No tienes acceso a este reclamo", 403)
+        request_id = request_id or str(uuid4())
+        action = "REOPEN" if reopen else "STATE"
+        payload = json.dumps([target, comment])
+        if retry(conn, request_id, user["id_auth_user"], action, payload, claim_id):
+            return
+        transition(conn, claim, target, mode="reopen" if reopen else "staff", actor=user["nombre"],
+                   role=user["rol"], actor_id=user["id_auth_user"], comment=comment)
+        remember(conn, request_id, user["id_auth_user"], action, payload, claim_id)

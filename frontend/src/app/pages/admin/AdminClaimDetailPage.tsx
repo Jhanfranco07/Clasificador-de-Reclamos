@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import ClaimOrderContext from '../../components/ClaimOrderContext';
+import ClaimAssignmentControls from '../../components/ClaimAssignmentControls';
 import { useParams, Link } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -150,7 +151,7 @@ export default function AdminClaimDetailPage() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6 max-w-6xl mx-auto">
+      <div className="space-y-6 max-w-6xl mx-auto min-w-0 break-words">
         <div className="flex items-center gap-4">
           <Link to="/admin/claims">
             <Button variant="ghost" size="sm">
@@ -160,9 +161,9 @@ export default function AdminClaimDetailPage() {
           </Link>
         </div>
 
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Reclamo {claim.code}</h1>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2 [overflow-wrap:anywhere]">Reclamo {claim.code}</h1>
             <p className="text-gray-600">Revisión de soporte con clasificación, contexto documental y respuesta sugerida.</p>
           </div>
           <Badge className={`${getStatusColor(claim.statusKey)} text-lg px-4 py-2`}>
@@ -362,14 +363,6 @@ export default function AdminClaimDetailPage() {
                           Editar respuesta
                         </Button>
                         <Button
-                          disabled={isWorking}
-                          onClick={() => id && runAction(() => updateClaimState(id, 'ESCALATED', 'Caso escalado desde panel full stack.'))}
-                          variant="destructive"
-                        >
-                          <AlertTriangle className="size-4 mr-2" />
-                          Escalar
-                        </Button>
-                        <Button
                           disabled={isWorking || !closeReason.trim() || claim.statusKey === 'CLOSED'}
                           onClick={() => runAction(() => closeClaim(claim.id, closeReason))}
                           variant="outline"
@@ -513,6 +506,16 @@ export default function AdminClaimDetailPage() {
             </Card>
           </div>
         </div>
+        <ClaimAssignmentControls key={`${claim.id}-${claim.assignment?.version}`} detail={detail} onChange={setDetail} />
+        <section aria-label="Historial de atención" className="rounded-lg border p-4 space-y-3 break-words">
+          <h2 className="text-lg font-bold">Historial de atención</h2>
+          {detail.history.map(event => <article key={event.id} className="border-l-2 pl-3 space-y-1">
+            <h3 className="font-semibold">{event.action}</h3>
+            <p className="text-sm">{event.newState} · {formatDateTime(event.createdAt)}</p>
+            <p className="text-sm">{event.user || 'Autor histórico sin identificar'}{event.actorId ? ` · ID ${event.actorId} (${event.actorRole})` : ' · Sin identidad autenticada conciliada'}</p>
+            {event.comment && <p className="text-sm whitespace-pre-wrap">{event.comment}</p>}
+          </article>)}
+        </section>
         <ClaimOrderContext claimId={detail.claim.id} />
           <ClaimConversation claimId={claim.id} viewer="agent" closed={claim.statusKey === 'CLOSED'} />
         {claim.statusKey !== 'CLOSED' && <div className="space-y-2">

@@ -97,9 +97,17 @@ def record(conn, order, user, request_id, action, state, reason=None, courier=No
             user["rol"], action, order["estado"], state, reason, courier, payload, order.get("version_operativa", -1) + 1))
     customer = one(conn, """SELECT c.correo,p.codigo_pedido FROM pedidos p
         JOIN clientes c ON c.id_cliente=p.id_cliente WHERE p.id_pedido=?""", (order["id_pedido"],))
-    conn.execute("""INSERT INTO notificaciones(correo_cliente,titulo,mensaje,tipo)
-        VALUES (?,?,?,'INFO')""", (customer["correo"], "Actualización de pedido",
-        f"Pedido {customer['codigo_pedido']}. Evento registrado: {action}. Estado: {state}."))
+    from modules.notification_service import emit
+    recipients = {customer["correo"]}
+    for row in conn.execute("""SELECT u.correo FROM pedidos p JOIN comercio_operadores o ON o.id_restaurante=p.id_restaurante
+        JOIN auth_users u ON u.id_auth_user=o.id_auth_user WHERE p.id_pedido=? AND o.activo=1 AND u.estado='ACTIVO' AND u.rol='MERCHANT'""", (order["id_pedido"],)):
+        recipients.add(row["correo"])
+    for row in conn.execute("""SELECT u.correo FROM pedido_asignaciones a JOIN auth_users u ON u.id_auth_user=a.id_courier
+        WHERE a.id_pedido=? AND u.estado='ACTIVO' AND u.rol='COURIER'""", (order["id_pedido"],)):
+        recipients.add(row["correo"])
+    for email in recipients:
+        emit(conn, email, "ORDER_" + action, order["id_pedido"], request_id, "Actualización de pedido",
+             f"Pedido {customer['codigo_pedido']}. Evento registrado: {action}. Estado: {state}.", order=True)
 
 
 def transition(order_id, user, state, expected_version, request_id, reason=None):

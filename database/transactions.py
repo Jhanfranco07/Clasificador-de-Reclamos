@@ -27,7 +27,8 @@ def one(conn, query, params=()):
 
 def insert(conn, query, params=()):
     if using_postgres():
-        return next(iter(dict(conn.execute(_insert_returning_pk(query), params).fetchone()).values()))
+        row = conn.execute(_insert_returning_pk(query), params).fetchone()
+        return next(iter(dict(row).values())) if row else None
     return conn.execute(query, params).lastrowid
 
 
@@ -43,7 +44,7 @@ def lock_claim(conn, claim_id):
     return claim
 
 
-def history(conn, claim_id, previous, current, action, comment=None, actor="Soporte"):
-    insert(conn, """INSERT INTO historial_estados
-        (id_reclamo,estado_anterior,estado_nuevo,accion,comentario,usuario_responsable)
-        VALUES (?,?,?,?,?,?)""", (claim_id, previous, current, action, comment, actor))
+def history(conn, claim_id, previous, current, action, comment=None, actor="Soporte", actor_id=None, actor_role=None):
+    return insert(conn, """INSERT INTO historial_estados
+        (id_reclamo,estado_anterior,estado_nuevo,accion,comentario,usuario_responsable,actor_auth_id,actor_rol)
+        VALUES (?,?,?,?,?,?,?,?)""", (claim_id, previous, current, action, comment, actor, actor_id, actor_role))

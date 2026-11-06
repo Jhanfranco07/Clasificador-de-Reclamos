@@ -56,7 +56,7 @@ def test_bf01_repeated_and_concurrent_publication_is_once(api):
         results = list(pool.map(lambda _: response_service.publish(rid, "Reviewed response", "Agent", "audit-agent"), range(4)))
     assert results.count(True) == 1
     assert db.fetch_one("SELECT COUNT(*) AS n FROM claim_messages WHERE id_reclamo=? AND sender_type='agent'", (cid,))["n"] == 1
-    assert db.fetch_one("SELECT COUNT(*) AS n FROM notificaciones WHERE id_reclamo=?", (cid,))["n"] == 1
+    assert db.fetch_one("SELECT COUNT(*) AS n FROM notificaciones WHERE id_reclamo=? AND evento='CLAIM_PUBLISHED'", (cid,))["n"] == 1
     assert db.fetch_one("SELECT COUNT(*) AS n FROM historial_estados WHERE id_reclamo=? AND accion='Envio de respuesta'", (cid,))["n"] == 1
 
 

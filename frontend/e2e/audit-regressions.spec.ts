@@ -62,7 +62,7 @@ test('AF-16 corregido BF-16: carrito corrupto no deja pantalla vacía', async ({
   await expect(page.locator('h1')).toBeVisible();
 });
 
-test('AF-25 pendiente BF-12: campana refleja respuestas nuevas', async ({ page }) => {
+test('AF-25 corregido BF-12: campana refleja respuestas nuevas', async ({ page }) => {
   const detail = await claim(page);
   await login(page);
   await page.goto('/dashboard');

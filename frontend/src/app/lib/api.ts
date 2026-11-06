@@ -54,7 +54,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new Error(message);
   }
 
-  return response.json() as Promise<T>;
+  const data = await response.json() as T;
+  if (options.method && options.method !== 'GET' && /^\/api\/(claims|responses|orders)(\/|$)/.test(path)) {
+    window.dispatchEvent(new Event('smartclaim:notifications-changed'));
+  }
+  return data;
 }
 
 export interface ClaimSummary {
@@ -73,6 +77,15 @@ export interface ClaimSummary {
   requiresHumanReview: boolean;
   createdAt: string;
   updatedAt: string;
+  assignment?: ClaimAssignment;
+}
+
+export interface ClaimAssignment {
+  id: number | null;
+  name?: string;
+  active: boolean;
+  version: number;
+  assignedAt?: string;
 }
 
 export interface AuthUser {
@@ -178,6 +191,8 @@ export interface CatalogRestaurant {
 
 export interface NotificationItem {
   id: string;
+  orderId?: string;
+  event?: string;
   claimId?: string;
   title: string;
   message: string;
@@ -242,6 +257,8 @@ export interface ClaimDetailResponse {
     action: string;
     comment?: string;
     user?: string;
+    actorId?: number;
+    actorRole?: string;
     createdAt: string;
   }>;
 }
@@ -370,6 +387,10 @@ export function listNotifications() {
   return request<{ items: NotificationItem[]; unread: number }>('/api/notifications');
 }
 
+export function markNotificationRead(id: string) {
+  return request<{ items: NotificationItem[]; unread: number }>(`/api/notifications/${id}/read`, { method: 'PATCH' });
+}
+
 export function markNotificationsRead() {
   return request<{ items: NotificationItem[]; unread: number }>('/api/notifications/read', {
     method: 'PATCH',
@@ -418,10 +439,12 @@ export function listClaims(filters: {
   dateTo?: string;
   status?: string;
   search?: string;
+  assignment?: string;
   page?: number;
   pageSize?: number;
 } = {}) {
   const params = new URLSearchParams();
+  if (filters.assignment) params.set('assignment', filters.assignment);
   if (filters.dateFrom) params.set('date_from', filters.dateFrom);
   if (filters.dateTo) params.set('date_to', filters.dateTo);
   if (filters.status && filters.status !== 'ALL') params.set('status', filters.status);
@@ -439,10 +462,10 @@ export function listClaimMessages(id: string) {
   return request<{ items: ClaimMessage[] }>(`/api/claims/${id}/messages`);
 }
 
-export function sendClaimMessage(id: string, message: string) {
+export function sendClaimMessage(id: string, message: string, requestId?: string) {
   return request<{ items: ClaimMessage[] }>(`/api/claims/${id}/messages`, {
     method: 'POST',
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, request_id: requestId }),
   });
 }
 
@@ -462,6 +485,7 @@ export function sendChatMessage(message: string, sessionId?: string, context?: R
 }
 
 export function createClaim(payload: {
+  request_id?: string;
   customer_name: string;
   customer_email: string;
   customer_phone?: string;
@@ -576,4 +600,16 @@ export function getReports(filters: {
   if (filters.category && filters.category !== 'ALL') params.set('category', filters.category);
   if (filters.priority && filters.priority !== 'ALL') params.set('priority', filters.priority);
   return request<ReportsResponse>(`/api/reports?${params}`);
+}
+
+export function listClaimAssignees() {
+  return request<{ items: Array<{ id: number; name: string; role: string }> }>('/api/claim-assignees');
+}
+
+export function assignClaim(id: string, payload: { assignee_id: number; expected_version: number; reason: string; request_id: string }) {
+  return request<ClaimDetailResponse>(`/api/claims/${id}/assignment`, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function escalateClaim(id: string, payload: { assignee_id?: number; expected_version: number; reason: string; request_id: string }) {
+  return request<ClaimDetailResponse>(`/api/claims/${id}/escalate`, { method: 'POST', body: JSON.stringify(payload) });
 }

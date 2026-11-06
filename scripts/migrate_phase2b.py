@@ -14,7 +14,10 @@ def main():
     parser.add_argument('--sqlite', type=Path, required=True)
     parser.add_argument('--backup', type=Path, required=True)
     parser.add_argument('--rollback', action='store_true')
+    parser.add_argument('--phase', choices=['2b','2c'], default='2b')
     args = parser.parse_args()
+    if args.rollback and args.phase == '2c':
+        parser.error('Fase 2C conserva columnas y auditoría al revertir código. No hay downgrade destructivo')
     source, backup = args.sqlite.resolve(), args.backup.resolve()
     protected = ROOT / 'data/smartclaim.db'
     if not source.is_file() or source.samefile(protected):
@@ -31,6 +34,9 @@ def main():
         phase2b.rollback_sqlite()
     else:
         phase2b.apply()
+        if args.phase == '2c':
+            from database.migrations.phase2c import apply
+            apply()
     print('Migración completada sobre copia. Backup conservado.')
 
 

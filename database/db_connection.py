@@ -125,9 +125,13 @@ def get_connection():
     return conn
 
 
-def run_script(path: Path):
+def run_script(path: Path, *, transactional=False):
     with get_connection() as conn:
-        conn.executescript(path.read_text(encoding="utf-8"))
+        script = path.read_text(encoding="utf-8")
+        if transactional and not using_postgres():
+            # Group demo initialization writes instead of fsync for every statement.
+            script = "BEGIN IMMEDIATE;\n" + script + "\nCOMMIT;"
+        conn.executescript(script)
         conn.commit()
 
 
@@ -211,13 +215,17 @@ def init_db():
         run_script(base_dir / "database" / "postgres_seed_data.sql")
         from database.migrations.phase2b import apply
         apply()
+        from database.migrations.phase2c import apply as apply_phase2c
+        apply_phase2c()
         return
 
-    run_script(base_dir / "database" / "schema.sql")
-    run_script(base_dir / "database" / "seed_data.sql")
+    run_script(base_dir / "database" / "schema.sql", transactional=True)
+    run_script(base_dir / "database" / "seed_data.sql", transactional=True)
     migrate_db()
     from database.migrations.phase2b import apply
     apply()
+    from database.migrations.phase2c import apply as apply_phase2c
+    apply_phase2c()
 
 
 def ensure_pgvector_embedding_dimension(expected_dimension=1536):
