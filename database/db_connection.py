@@ -259,6 +259,27 @@ def init_db():
     apply_phase2c()
 
 
+def ensure_hosted_postgres_identity():
+    """Fail closed if the hosted service uses SQLite or an elevated database login."""
+    if not using_postgres():
+        raise RuntimeError("Producción requiere una conexión PostgreSQL de servicio.")
+    row = fetch_one("""
+        SELECT current_user = 'smartclaim_backend'
+            AND session_user = current_user
+            AND r.rolcanlogin
+            AND NOT (r.rolsuper OR r.rolbypassrls OR r.rolcreaterole OR r.rolcreatedb OR r.rolreplication)
+            AND NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE member = r.oid)
+            AND NOT has_schema_privilege(current_user, 'public', 'CREATE')
+            AND NOT EXISTS (
+                SELECT 1 FROM pg_class
+                WHERE relnamespace = 'public'::regnamespace AND relowner = r.oid
+            ) AS restricted
+        FROM pg_roles r WHERE r.rolname = current_user
+    """)
+    if not row or not row["restricted"]:
+        raise RuntimeError("Producción requiere el login PostgreSQL smartclaim_backend sin privilegios elevados.")
+
+
 def ensure_pgvector_embedding_dimension(expected_dimension=1536):
     """Validate vector dimension without mutating persisted vectors."""
     if not using_postgres():

@@ -18,7 +18,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-from database.db_connection import (allows_automatic_database_setup, ensure_pgvector_embedding_dimension,
+from database.db_connection import (allows_automatic_database_setup, ensure_hosted_postgres_identity,
+                                    ensure_pgvector_embedding_dimension,
                                     fetch_all, fetch_one, init_db, using_postgres)
 from database.repositories import (
     DuplicateDocument,
@@ -83,7 +84,7 @@ from modules.rag_engine import (
 from modules.pdf_documents import PDF_MAX_BYTES, PDF_MAX_TEXT, extract_pdf_text
 from modules.security import create_token, decode_token, hash_password, verify_password
 from modules.chatbot_service import answer_chat
-from modules.config import allow_vercel_previews, cors_origins, validate_runtime_config
+from modules.config import allow_vercel_previews, cors_origins, is_production, validate_runtime_config
 from modules.ai_trace import AITrace, trace_update, trace_append
 from modules.domain_errors import DomainError
 
@@ -94,6 +95,8 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     validate_runtime_config()
+    if is_production():
+        ensure_hosted_postgres_identity()
     if os.getenv("SMARTCLAIM_BOOTSTRAP_DEMO") == "1":
         if using_postgres() or not allows_automatic_database_setup():
             raise RuntimeError("Bootstrap demo permitido solamente en SQLite de desarrollo")

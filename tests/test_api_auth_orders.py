@@ -572,9 +572,10 @@ def test_production_startup_does_not_create_demo_accounts(monkeypatch, tmp_path)
     monkeypatch.setenv("DATABASE_URL", "")
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "startup.db")
     db.init_db()
-    with TestClient(app):
-        assert db.fetch_one("SELECT COUNT(*) AS total FROM auth_users")["total"] == 0
-        assert db.fetch_one("SELECT COUNT(*) AS total FROM pedidos")["total"] == 0
+    with pytest.raises(RuntimeError, match="requiere una conexión PostgreSQL"), TestClient(app):
+        pytest.fail("Producción arrancó con SQLite")
+    assert db.fetch_one("SELECT COUNT(*) AS total FROM auth_users")["total"] == 0
+    assert db.fetch_one("SELECT COUNT(*) AS total FROM pedidos")["total"] == 0
 
 def test_hosted_startup_and_document_mutations_leave_database_intact(api_client, monkeypatch):
     from backend import main
