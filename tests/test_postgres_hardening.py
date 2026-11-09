@@ -9,7 +9,7 @@ from psycopg.rows import dict_row
 import pytest
 
 from database import db_connection as db
-from scripts.import_documents import import_documents
+from scripts.import_documents import backfill_fragments, import_documents
 from test_phase1_acceptance import auth, new_claim
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -127,6 +127,20 @@ def test_legacy_upgrade_sequence_integrity_and_append_only(hardening_postgres, t
         assert owner.execute("SELECT id_pedido FROM reclamos WHERE codigo_reclamo='CLAIM-LAB'").fetchone()["id_pedido"] is None
         with pytest.raises(errors.ForeignKeyViolation, match="reclamos_pedido_cliente_fk"):
             owner.execute("UPDATE reclamos SET id_pedido = (SELECT id_pedido FROM pedidos WHERE codigo_pedido='ORDER-LAB')")
+
+        before = owner.execute("SELECT count(*) AS n FROM fragmentos_documento").fetchone()["n"]
+        plan = backfill_fragments(None, dry_run=True, postgres_dsn=hardening_postgres)
+        assert plan["active_documents"] == 18
+        assert plan["missing_fragments"] > 0
+        assert owner.execute("SELECT count(*) AS n FROM fragmentos_documento").fetchone()["n"] == before
+        assert backfill_fragments(None, postgres_dsn=hardening_postgres) == plan
+        assert backfill_fragments(None, postgres_dsn=hardening_postgres)["missing_fragments"] == 0
+        assert owner.execute("SELECT count(*) AS n FROM fragmentos_documento").fetchone()["n"] == (
+            before + plan["missing_fragments"]
+        )
+        from modules.rag_engine import recuperar_documentos_tfidf
+        results = recuperar_documentos_tfidf("Faltan productos de mi pedido", "Producto incompleto")
+        assert any(result["id_documento"] == 4 for result in results)
 
         catalog = ROOT / "data/documentos_academicos.json"
         mixed = tmp_path / "mixed.json"

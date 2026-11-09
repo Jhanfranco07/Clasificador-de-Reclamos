@@ -1,4 +1,4 @@
-"""Importa el catálogo académico a una SQLite explícita o a PostgreSQL local de pruebas."""
+"""Importa el catálogo o completa sus fragmentos en una base local explícita."""
 import argparse
 from collections import Counter
 from contextlib import closing, contextmanager
@@ -153,6 +153,35 @@ def import_documents(database, catalog, dry_run=False, *, postgres_dsn=None, app
     return results
 
 
+def backfill_fragments(database, dry_run=False, *, postgres_dsn=None):
+    """Append missing canonical fragments without changing legacy rows or embeddings."""
+    from modules.rag_engine import dividir_en_fragmentos
+
+    with _import_connection(database, dry_run, postgres_dsn) as conn:
+        if postgres_dsn is not None and not dry_run:
+            conn.execute("LOCK TABLE fragmentos_documento IN SHARE ROW EXCLUSIVE MODE")
+        documents = conn.execute("""
+            SELECT id_documento, contenido FROM documentos_base WHERE activo = 1 ORDER BY id_documento
+        """).fetchall()
+        existing = {
+            (row["id_documento"], row["orden_fragmento"], row["texto_fragmento"])
+            for row in conn.execute("SELECT id_documento, orden_fragmento, texto_fragmento FROM fragmentos_documento")
+        }
+        pending = [
+            (doc["id_documento"], order, fragment)
+            for doc in documents
+            for order, fragment in enumerate(dividir_en_fragmentos(doc["contenido"]), 1)
+            if (doc["id_documento"], order, fragment) not in existing
+        ]
+        if not dry_run:
+            for fragment in pending:
+                conn.execute("""
+                    INSERT INTO fragmentos_documento (id_documento, orden_fragmento, texto_fragmento)
+                    VALUES (?, ?, ?)
+                """, fragment)
+    return {"active_documents": len(documents), "missing_fragments": len(pending)}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     target = parser.add_mutually_exclusive_group(required=True)
@@ -160,12 +189,19 @@ def main():
     target.add_argument("--postgres-test", action="store_true", help="Usa SMARTCLAIM_TEST_PG_DSN.")
     parser.add_argument("--catalog", type=Path, default=Path("data/documentos_academicos.json"))
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--append-fragments", action="store_true",
-                        help="Añade fragmentos solo para altas nuevas y cancela el lote si hay conflictos.")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--append-fragments", action="store_true",
+                      help="Añade fragmentos solo para altas nuevas y cancela el lote si hay conflictos.")
+    mode.add_argument("--backfill-fragments", action="store_true",
+                      help="Completa fragmentos vigentes de documentos existentes, sin modificar filas previas.")
     args = parser.parse_args()
     dsn = os.getenv("SMARTCLAIM_TEST_PG_DSN") if args.postgres_test else None
     if args.postgres_test and not dsn:
         parser.error("Define SMARTCLAIM_TEST_PG_DSN con el destino de pruebas local.")
+    if args.backfill_fragments:
+        result = backfill_fragments(args.sqlite, args.dry_run, postgres_dsn=dsn)
+        print(json.dumps({"dry_run": args.dry_run, **result}, ensure_ascii=False, indent=2))
+        return 0
     results = import_documents(args.sqlite, args.catalog, args.dry_run, postgres_dsn=dsn, append_fragments=args.append_fragments)
     print(json.dumps({"dry_run": args.dry_run, "results": results}, ensure_ascii=False, indent=2))
     return int(any(row["status"] == "rejected" for row in results))
