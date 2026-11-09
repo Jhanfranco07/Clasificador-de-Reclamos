@@ -2,6 +2,8 @@
 
 El candidato local incluye el flujo de cinco roles y la ampliación RAG. La ejecución productiva requiere autorización, una restauración ensayada y aprobación del cierre de exposición confirmado en el [informe de auditoría](AUDITORIA_INTEGRACION_SMARTCLAIM.md).
 
+La [guía de contención y corte de Render](CONTENCION_SUPABASE_Y_CORTE_RENDER.md) cubre el cierre HTTP urgente, la investigación y las comprobaciones previas al despliegue.
+
 ## Preparación y control de acceso
 
 1. Inventariar consumidores de REST, GraphQL y Realtime, roles, propietarios y permisos por defecto en la configuración real. El manifiesto de seguridad considera public un esquema dedicado a SmartClaim. Confirmar ese alcance antes de revocar acceso al esquema. En este diseño, el navegador usa FastAPI.
