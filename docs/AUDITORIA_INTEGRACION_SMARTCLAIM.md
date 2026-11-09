@@ -46,7 +46,7 @@ El clasificador se mantuvo sin reentrenar. El reporte histórico registra 105 fi
 
 Se consultó Supabase mediante SELECT de metadatos y conteos. PostgreSQL 17.6, pgvector 0.8.0, vector(1536), 18 documentos, 24 fragmentos, 24 embeddings y 16 reclamos. Faltan documentos_importados, schema_migrations, courier_profiles, comercio_operadores, pedido_asignaciones, pedido_eventos, operaciones_auditoria, claim_commands y las columnas de asignación verificadas. La secuencia de documentos mostraba 6 frente a un ID máximo de 18. Los conteos detectaron cero relaciones cruzadas de embeddings y cero textos desactualizados en la comprobación realizada. Las relaciones documento → fragmento y fragmento → embedding usan borrado en cascada. La sincronización debe inventariar y aprobar qué vectores se perderían antes de aplicar.
 
-**Bloqueo de publicación.** RLS estaba desactivado en auth_users, pedidos, reclamos y las tres tablas documentales consultadas. Se observaron permisos SELECT, INSERT, UPDATE y DELETE para anon y authenticated. Falta comprobar la exposición efectiva de Data API y aplicar mínimo privilegio en un cambio autorizado y ensayado. El control del backend no protege el acceso directo por esa API. No se leyeron filas personales ni se probaron escrituras.
+**Bloqueo de publicación.** RLS estaba desactivado en auth_users, pedidos, reclamos y las tres tablas documentales consultadas. Se observaron permisos SELECT, INSERT, UPDATE y DELETE para anon y authenticated. La comprobación HTTP posterior y los controles preparados se registran en la sección de cierre de seguridad. El control del backend no protege el acceso directo por esa API. No se leyeron filas personales ni se probaron escrituras.
 
 La aplicación integrada requiere migraciones aditivas para la operativa y datos semilla controlados en un entorno nuevo. La compatibilidad de PostgreSQL local se limita a la versión ensayada y no sustituye una restauración autorizada de la base destino.
 
@@ -61,3 +61,43 @@ La aplicación integrada requiere migraciones aditivas para la operativa y datos
 - Quedan por ensayar en staging la migración sobre una restauración autorizada, los orígenes reales de los servicios y la generación LLM con presupuesto aprobado. También queda verificar la exposición efectiva de Data API. No se reentrenó ni se generaron embeddings de pago.
 
 Código integrado en el commit 8287d1db2038f54d77c0a2d5651db67d3003bffc. La rama queda en el worktree local para revisar los bloqueos antes de publicar.
+
+
+## Cierre de seguridad y compatibilidad de PostgreSQL
+
+### Alcance comprobado en Supabase
+
+- Las 25 tablas de aplicación en public tenían RLS desactivado y cero políticas. PostgreSQL confirmó SELECT, INSERT, UPDATE y DELETE efectivos para anon y authenticated, incluidas auth_users, clientes, pedidos, reclamos, respuestas privadas, notificaciones, logs y RAG. La proyección de auth_users incluye password_hash.
+- REST devolvió HTTP 200 en las 25 tablas para HEAD con select=* y limit=0, usando la clave pública y sin sesión de usuario. Esto confirma acceso REST anónimo. Los permisos de escritura y los permisos de authenticated se confirmaron en el catálogo. No se descargaron filas ni se enviaron mutaciones productivas.
+- Las tablas expuestas fueron analisis_ia, auth_users, categorias_reclamo, claim_messages, clientes, comentarios_agente, configuracion_modelo_ia, dataset_entrenamiento, documentos_base, documentos_consultados, estados_reclamo, evaluacion_respuesta, fragmentos_documento, historial_estados, logs_sistema, notificaciones, pedido_items, pedidos, prioridades, productos, rag_embeddings, reclamos, respuestas_sugeridas, restaurantes y usuarios.
+- El catálogo no mostró vistas de aplicación, funciones SECURITY DEFINER de public ejecutables por anon o authenticated ni tablas de public en la publicación supabase_realtime. Una consulta de introspección de solo lectura a GraphQL indicó que pg_graphql está deshabilitado. REST rechazó un perfil inexistente con 406 y no enumeró otros esquemas. Queda verificar la lista completa de esquemas en la configuración administrada.
+- FastAPI valida sus propias sesiones y carga el usuario activo desde auth_users. Psycopg usa DATABASE_URL para conectarse a PostgreSQL. La aplicación no propaga sus sesiones como JWT de Supabase. postgres es propietario de las tablas de aplicación y tiene BYPASSRLS, al igual que service_role. No existe smartclaim_backend en el catálogo productivo observado. La identidad exacta de la conexión de Render queda por verificar con current_user y session_user desde ese proceso. pg_stat_activity mostró conexiones de postgres, authenticator, pgbouncer y supabase_admin, sin atribuirlas a Render. authenticator puede asumir anon, authenticated y service_role mediante SET ROLE. No hereda sus permisos.
+
+### Controles preparados
+
+La migración retira acceso directo al esquema public para anon y authenticated y revoca privilegios de tablas, columnas y secuencias de aplicación para esos roles, PUBLIC y service_role. Habilita y fuerza RLS en las tablas del manifiesto. Concede a smartclaim_backend solo las operaciones SQL por tabla que necesita FastAPI. El rol puede leer documentos, fragmentos y vectores, y carece de privilegios para reindexarlos o eliminarlos. En producción FastAPI exige PostgreSQL con el login limitado y comprueba la identidad de la sesión, atributos, membresías, propiedad de relaciones en public y capacidad de crear objetos allí.
+
+Las políticas SQL se limitan al login de servicio. FastAPI aplica el alcance de los cinco roles. Una conexión comprometida de smartclaim_backend podría leer las filas que el servicio necesita y ejecutar sus operaciones permitidas. Cualquier futuro acceso directo de usuarios necesita políticas por propietario y otro contrato de acceso. [Seguridad de la Data API](https://supabase.com/docs/guides/api/securing-your-api) · [RLS en Supabase](https://supabase.com/docs/guides/database/postgres/row-level-security)
+
+### Diferencias de esquema y preservación
+
+Producción mantiene los CHECK anteriores de roles y estados. Faltan los siete campos aditivos de Fase 1 y la infraestructura de 2B y 2C. Se observaron 50 índices, todos válidos, y cero FKs sin validar. La FK de reclamos a pedidos aún no existe. Las FKs de RAG vigentes incluyen cascadas. La secuencia documental tiene cache 1, valor 6 e is_called=true para un máximo de 18. pgvector está instalado en public. La nueva FK compuesta protege el vínculo de pedido y titular. Los reclamos históricos sin vínculo confirmado conservan NULL. La importación de altas conserva IDs, texto y vectores existentes.
+
+### Límites para autorizar producción
+
+No hubo respaldo autorizado ni acceso a la credencial activa de Render. Los datos y tokens del ensayo son sintéticos. Hace falta una restauración autorizada, validar el propietario de migración en Supabase 17.6 y repetir las comprobaciones HTTP en la configuración administrada. Los permisos expuestos justifican revisar logs e impacto, incluidas sesiones y contraseñas. La comprobación de alcance no establece si terceros accedieron o modificaron datos. El despliegue y la publicación de esta rama siguen pendientes de esas verificaciones.
+
+
+### Resultados del ensayo aislado
+
+| Control | Resultado |
+|---|---|
+| Origen del laboratorio | Esquema PostgreSQL legado de main, roles y grants sintéticos. Red Docker interna y ninguna conexión PostgreSQL publicada. |
+| Diferencias de datos | Laboratorio Docker con 18 documentos, 18 fragmentos, 18 vectores sintéticos y cero reclamos. Producción tenía 18, 24, 24 y 16, respectivamente. Las pruebas de integridad crearon pedidos y reclamos sintéticos por separado. |
+| Versiones | PostgreSQL 16.15, pgvector 0.8.7 y PostgREST 13.0.8 en Docker. Pytest usó PostgreSQL 16.15 y pgvector 0.8.6 en loopback. Producción se observó con PostgreSQL 17.6 y pgvector 0.8.0. |
+| Aplicación repetida | Se ejecutaron dos veces las seis migraciones. Se conservaron las huellas de documentos, fragmentos y vectores. La secuencia pasó de 6/llamada a 19/sin llamada. Se aplicó RLS forzado a 33 tablas. |
+| REST aislado | Antes, HEAD devolvió 200 para anon y el JWT autenticado en auth_users. Después, HEAD devolvió 401 para anon y 403 para authenticated en cada una de las 33 tablas. PATCH sobre auth_users recibió las mismas denegaciones. |
+| Restauración | pg_dump y pg_restore sobre otra base del laboratorio reprodujeron huellas, conteo y secuencia 6/llamada. El respaldo anterior restauró también el grant y RLS desactivado de auth_users. La base de destino compartía los roles del clúster del laboratorio. |
+| Catálogo | Las pruebas aplicaron 42 altas y sus fragmentos, verificaron el rechazo del lote mixto y la omisión idempotente. Compararon las filas previas completas y confirmaron que los vectores conservaron su conteo e identidad. |
+| Pytest | 191 aprobadas. Se repitió el flujo con cinco roles desde el login limitado y se comprobó la denegación horizontal y administrativa, la integridad y el rollback de secuencia ante un fallo inducido. La primera corrida completa tuvo un fallo en la ruta utilizada por la prueba de escalamiento, corregido en el ensayo final. Cero intentos de red inesperados. |
+| Navegador y compilación | Chromium aprobó 64 pruebas con backend local y SQLite sintética. tsc y Vite completaron la verificación. |
