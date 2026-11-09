@@ -88,7 +88,7 @@ export default function OrdersPage() {
                         </div>
                         <p className="text-sm text-gray-500">{order.code}</p>
                         <p className="text-xs text-gray-400 mt-1">
-                          {formatDateTime(new Date(order.createdAt))}
+                          {formatDateTime(order.createdAt)}
                         </p>
                         <p className="text-sm text-gray-600 mt-2">
                           {order.items.length} productos · {order.paymentMethod}

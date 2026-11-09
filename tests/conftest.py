@@ -10,6 +10,14 @@ import tempfile
 import os
 
 import pytest
+import psycopg
+from psycopg import sql
+from psycopg.conninfo import make_conninfo
+from uuid import uuid4
+
+from scripts.import_documents import local_test_dsn
+
+_local_pg_connect = psycopg.connect
 
 class ExternalAccessBlocked(AssertionError):
     pass
@@ -154,13 +162,38 @@ def isolated_offline_environment(monkeypatch, tmp_path):
     import modules.classifier as classifier
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "isolated.db")
     vector_dir = tmp_path / "vector_store"
-    monkeypatch.setattr(rag, "VECTOR_DIR", vector_dir)
-    monkeypatch.setattr(rag, "VECTORIZER_PATH", vector_dir / "vectorizer.joblib")
-    monkeypatch.setattr(rag, "MATRIX_PATH", vector_dir / "matrix.joblib")
-    monkeypatch.setattr(rag, "METADATA_PATH", vector_dir / "metadata.joblib")
     monkeypatch.setattr(embeddings, "INDEX_PATH", vector_dir / "embeddings.json")
     model = tmp_path / "classifier.joblib"
     shutil.copyfile(Path(classifier.MODEL_PATH), model)
     monkeypatch.setattr(classifier, "MODEL_PATH", model)
     yield
     assert not _guard.pending, "Unexpected external attempt (even if application caught it): " + repr(_guard.pending)
+@pytest.fixture
+def vector_db(monkeypatch):
+    base = os.getenv("SMARTCLAIM_TEST_PG_DSN")
+    if not base:
+        pytest.skip("SMARTCLAIM_TEST_PG_DSN no configurado.")
+    from database import db_connection as db
+
+    base = local_test_dsn(base)
+    name = "smartclaim_test_" + uuid4().hex
+    with _local_pg_connect(base, autocommit=True) as admin:
+        admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
+        try:
+            dsn = make_conninfo(base, dbname=name)
+            def connect_test_only(requested_dsn, *args, **kwargs):
+                if local_test_dsn(requested_dsn) != dsn:
+                    return _guard.block("postgres")()
+                return _local_pg_connect(dsn, *args, **kwargs)
+
+            monkeypatch.setattr(psycopg, "connect", connect_test_only)
+            monkeypatch.setenv("SMARTCLAIM_BOOTSTRAP_DEMO", "0")
+            monkeypatch.setenv("DATABASE_URL", dsn)
+            monkeypatch.setenv("DB_PROVIDER", "postgres")
+            monkeypatch.setenv("APP_ENV", "test")
+            monkeypatch.setenv("ENABLE_PGVECTOR_RAG", "true")
+            monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+            db.init_db()
+            yield dsn
+        finally:
+            admin.execute(sql.SQL("DROP DATABASE {}").format(sql.Identifier(name)))

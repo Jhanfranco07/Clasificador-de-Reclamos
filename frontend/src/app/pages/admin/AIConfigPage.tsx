@@ -1,3 +1,4 @@
+import { formatDateTime } from '../../lib/utils';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -115,7 +116,7 @@ export default function AIConfigPage() {
           {configuration.runtime.lastExecution ? <>
             <p>Última clasificación ejecutada registrada: {configuration.runtime.lastExecution.classifierModel}</p>
             <p>Generación registrada: {configuration.runtime.lastExecution.generationStrategy || 'No consta'} · Recuperación: {configuration.runtime.lastExecution.retrievalStrategy || 'No consta'}</p>
-            <p>OpenAI utilizado en esa ejecución: {configuration.runtime.lastExecution.openaiUsed ? 'Sí' : 'No'} · {configuration.runtime.lastExecution.recordedAt} · {configuration.runtime.lastExecution.outcome}</p>
+            <p>OpenAI utilizado en esa ejecución: {configuration.runtime.lastExecution.openaiUsed ? 'Sí' : 'No'} · {formatDateTime(configuration.runtime.lastExecution.recordedAt)} · {configuration.runtime.lastExecution.outcome}</p>
           </> : <p>No hay una ejecución reciente verificable en las trazas consultadas.</p>}
         </div>}
 

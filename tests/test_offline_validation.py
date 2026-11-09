@@ -79,6 +79,7 @@ def test_real_classification_and_priority(text, category, priority):
 
 def test_local_template_and_trace_without_model_provider():
     db.init_db()
+    rag.construir_indice_vectorial(forzar=True)
     analysis = classifier.clasificar_reclamo("Me cobraron dos veces el mismo pedido")
     with AITrace("clasificacion") as trace:
         docs = rag.recuperar_documentos("cobro duplicado", "Cobro indebido", confianza=0.99)

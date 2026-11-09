@@ -64,7 +64,7 @@ test('BF-16 visitante compra conservando carrito y destino, luego navega pedidos
   await page.goto('/');
   await page.getByRole('link', { name: 'Ver restaurante', exact: true }).first().click();
   await page.getByRole('button', { name: /^Agregar / }).first().click();
-  await expect(page.getByRole('status')).toContainText('agregado al carrito');
+  await expect(page.getByRole('link', { name: 'Ver carrito (1)' })).toBeVisible();
   await page.getByRole('link', { name: /Ver carrito/ }).click();
   await page.getByRole('button', { name: 'Iniciar sesión y pagar' }).click();
   await expect(page).toHaveURL(/\/login$/);
@@ -124,9 +124,12 @@ test('BF-14 guardar todos los valores y confirmar con una nueva consulta', async
   await expect(page.getByRole('button', { name: 'Guardar configuración', exact: true })).toBeEnabled();
   const rag = page.getByLabel('Habilitar RAG');
   if (await rag.getAttribute('aria-checked') !== 'true') await rag.click();
+  const slider = page.getByRole('slider');
+  await slider.focus();
+  await page.keyboard.press('Home');
+  await expect(slider).toHaveAttribute('aria-valuenow', '0');
   await page.getByLabel('Número de documentos a recuperar').click();
   await page.getByRole('option', { name: '10 documento(s)', exact: true }).click();
-  await page.getByRole('slider').press('Home');
   const human = page.getByLabel('Revisión humana obligatoria');
   if (await human.getAttribute('aria-checked') !== 'false') await human.click();
   const verified = page.waitForResponse((r) => r.url().endsWith('/api/config') && r.request().method() === 'GET');

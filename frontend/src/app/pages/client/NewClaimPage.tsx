@@ -131,8 +131,8 @@ export default function NewClaimPage() {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="order">Pedido relacionado *</Label>
-                <Select value={orderId} onValueChange={setOrderId} required disabled={ordersLoading || !!ordersError}>
-                  <SelectTrigger id="order" className="w-full min-w-0 [&>span]:truncate">
+                <Select value={orderId} onValueChange={setOrderId} disabled={ordersLoading || !!ordersError}>
+                  <SelectTrigger id="order" aria-required="true" className="w-full min-w-0 [&>span]:truncate">
                     <SelectValue placeholder="Selecciona un pedido" />
                   </SelectTrigger>
                   <SelectContent>

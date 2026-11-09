@@ -1,6 +1,7 @@
-from datetime import datetime, timedelta
-from database.db_connection import execute, fetch_all, fetch_one, get_connection
+from datetime import datetime, timedelta, timezone
+from database.db_connection import execute, fetch_all, fetch_one, get_connection, using_postgres
 from modules.security import hash_password
+from modules.text_processing import normalizar_documento
 
 def get_estado_id(nombre):
     row = fetch_one("SELECT id_estado FROM estados_reclamo WHERE nombre = ?", (nombre,))
@@ -123,7 +124,7 @@ def crear_pedido_cliente(correo_cliente, nombre_cliente, telefono, tienda_nombre
     id_cliente = crear_cliente(nombre_cliente, correo_cliente, telefono)
     codigo = generar_codigo_pedido()
     total = sum(float(item["price"]) * int(item["quantity"]) for item in items)
-    fecha_estimada = (datetime.now() + timedelta(minutes=35)).isoformat(timespec="seconds")
+    fecha_estimada = (datetime.now(timezone.utc) + timedelta(minutes=35)).isoformat(timespec="seconds")
     id_pedido = execute("""
         INSERT INTO pedidos (
             codigo_pedido, id_cliente, tienda_nombre, tienda_imagen, estado, total,
@@ -407,12 +408,20 @@ def obtener_detalle_reclamo(id_reclamo):
     documentos = []
     if respuesta:
         documentos = fetch_all("""
-            SELECT dc.*, db.titulo, db.tipo_documento, db.categoria_asociada
+            SELECT dc.*, db.titulo, db.tipo_documento, db.categoria_asociada, db.contenido
             FROM documentos_consultados dc
             INNER JOIN documentos_base db ON db.id_documento = dc.id_documento
             WHERE dc.id_respuesta = ?
             ORDER BY dc.score_similitud DESC
         """, (respuesta["id_respuesta"],))
+    # Las referencias históricas guardan texto, pero el título proviene del catálogo actual.
+    # Omitir citas que ya no se pueden vincular al contenido de ese documento.
+    documentos = [
+        {key: value for key, value in doc.items() if key != "contenido"}
+        for doc in documentos
+        if doc["fragmento_usado"] and " ".join(doc["fragmento_usado"].split())
+        in " ".join(doc["contenido"].split())
+    ]
     historial = listar_historial_estados(id_reclamo)
     return reclamo, analisis, respuesta, documentos, historial
 
@@ -425,21 +434,49 @@ def listar_documentos():
         ORDER BY id_documento
     """)
 
+class DuplicateDocument(ValueError):
+    pass
+
+
+def _guardar_documento_base(titulo, tipo, categoria, contenido, id_documento=None):
+    campos = tuple(value.strip() for value in (titulo, tipo, categoria, contenido))
+    clave_titulo, clave_texto = map(normalizar_documento, (titulo, contenido))
+    with get_connection() as conn:
+        if using_postgres():
+            conn.execute("LOCK TABLE documentos_base IN SHARE ROW EXCLUSIVE MODE")
+        else:
+            conn.execute("BEGIN IMMEDIATE")
+        for doc in conn.execute("SELECT id_documento, titulo, contenido FROM documentos_base WHERE activo = 1"):
+            if doc["id_documento"] == id_documento:
+                continue
+            if normalizar_documento(doc["titulo"]) == clave_titulo:
+                raise DuplicateDocument("Ya existe un documento activo con ese título.")
+            if normalizar_documento(doc["contenido"]) == clave_texto:
+                raise DuplicateDocument("Ya existe un documento activo con ese contenido.")
+        if id_documento is None:
+            row = conn.execute("""
+                INSERT INTO documentos_base (titulo, tipo_documento, categoria_asociada, contenido, estado_indexacion, activo)
+                VALUES (?, ?, ?, ?, 'PENDIENTE', 1) RETURNING id_documento
+            """, campos).fetchone()
+            id_documento = row["id_documento"]
+        else:
+            conn.execute("""
+                UPDATE documentos_base
+                SET titulo = ?, tipo_documento = ?, categoria_asociada = ?, contenido = ?,
+                    estado_indexacion = 'PENDIENTE', fecha_actualizacion = CURRENT_TIMESTAMP
+                WHERE id_documento = ?
+            """, (*campos, id_documento))
+        conn.commit()
+    return id_documento
+
+
 def crear_documento_base(titulo, tipo_documento, categoria_asociada, contenido):
-    return execute("""
-        INSERT INTO documentos_base (
-            titulo, tipo_documento, categoria_asociada, contenido, estado_indexacion, activo
-        )
-        VALUES (?, ?, ?, ?, 'PENDIENTE', 1)
-    """, (titulo.strip(), tipo_documento.strip(), categoria_asociada.strip(), contenido.strip()))
+    return _guardar_documento_base(titulo, tipo_documento, categoria_asociada, contenido)
+
 
 def actualizar_documento_base(id_documento, titulo, tipo_documento, categoria_asociada, contenido):
-    execute("""
-        UPDATE documentos_base
-        SET titulo = ?, tipo_documento = ?, categoria_asociada = ?, contenido = ?,
-            estado_indexacion = 'PENDIENTE', fecha_actualizacion = CURRENT_TIMESTAMP
-        WHERE id_documento = ?
-    """, (titulo.strip(), tipo_documento.strip(), categoria_asociada.strip(), contenido.strip(), id_documento))
+    _guardar_documento_base(titulo, tipo_documento, categoria_asociada, contenido, id_documento)
+
 
 def desactivar_documento_base(id_documento):
     execute("""
@@ -499,8 +536,8 @@ def crear_fragmento_documento(id_documento, texto_fragmento, orden_fragmento, em
         VALUES (?, ?, ?, ?)
     """, (id_documento, texto_fragmento, orden_fragmento, embedding_id))
 
-def listar_fragmentos_documento():
-    return fetch_all("""
+def listar_fragmentos_documento(conn=None):
+    query = """
         SELECT
             fd.id_fragmento,
             fd.id_documento,
@@ -511,12 +548,14 @@ def listar_fragmentos_documento():
             db.tipo_documento,
             db.categoria_asociada,
             db.estado_indexacion,
-            db.fecha_actualizacion
+            db.fecha_actualizacion,
+            db.contenido AS contenido_documento
         FROM fragmentos_documento fd
         INNER JOIN documentos_base db ON db.id_documento = fd.id_documento
         WHERE db.activo = 1
-        ORDER BY fd.id_documento, fd.orden_fragmento
-    """)
+        ORDER BY fd.id_documento, fd.orden_fragmento, fd.id_fragmento
+    """
+    return fetch_all(query) if conn is None else [dict(row) for row in conn.execute(query).fetchall()]
 
 def contar_fragmentos_documento():
     row = fetch_one("SELECT COUNT(*) AS total FROM fragmentos_documento")
@@ -534,9 +573,10 @@ def eliminar_embeddings_rag():
     execute("DELETE FROM rag_embeddings")
 
 
-def crear_embedding_rag(fragmento, modelo_embedding, dimension, embedding):
+def crear_embedding_rag(fragmento, modelo_embedding, dimension, embedding, conn=None):
     vector_literal = "[" + ",".join(str(float(value)) for value in embedding) + "]"
-    return execute("""
+    write = execute if conn is None else conn.execute
+    return write("""
         INSERT INTO rag_embeddings (
             id_fragmento, id_documento, modelo_embedding, dimension, embedding,
             texto_fragmento, titulo, tipo_documento, categoria_asociada
@@ -555,7 +595,7 @@ def crear_embedding_rag(fragmento, modelo_embedding, dimension, embedding):
     ))
 
 
-def buscar_embeddings_rag(embedding, max_docs=3, categoria=None, document_ids=None):
+def buscar_embeddings_rag(embedding, max_docs=3, categoria=None, document_ids=None, modelo=None):
     vector_literal = "[" + ",".join(str(float(value)) for value in embedding) + "]"
     conditions = ["db.activo = 1"]
     params = [vector_literal]
@@ -567,31 +607,39 @@ def buscar_embeddings_rag(embedding, max_docs=3, categoria=None, document_ids=No
             return []
         conditions.append("db.id_documento IN (" + ",".join("?" for _ in document_ids) + ")")
         params.extend(document_ids)
-    params.extend([vector_literal, int(max_docs)])
+    if modelo:
+        conditions.append("e.modelo_embedding = ?")
+        params.append(modelo)
+    params.append(int(max_docs))
     return fetch_all("""
-        SELECT
-            re.id_documento,
-            re.id_fragmento,
-            db.titulo,
-            db.tipo_documento,
-            db.categoria_asociada,
-            re.texto_fragmento,
-            re.modelo_embedding,
-            1 - (re.embedding <=> ?::vector) AS score
-        FROM rag_embeddings re
-        JOIN documentos_base db ON db.id_documento = re.id_documento
-        WHERE """ + " AND ".join(conditions) + """
-        ORDER BY re.embedding <=> ?::vector
+        WITH candidatos AS (
+            SELECT f.id_documento, f.id_fragmento, db.titulo, db.tipo_documento,
+                   db.categoria_asociada, f.texto_fragmento, e.modelo_embedding,
+                   e.embedding <=> ?::vector AS distancia
+            FROM rag_embeddings e
+            JOIN fragmentos_documento f
+              ON f.id_fragmento = e.id_fragmento AND f.id_documento = e.id_documento
+            JOIN documentos_base db ON db.id_documento = f.id_documento
+            WHERE """ + " AND ".join(conditions) + """
+              AND e.texto_fragmento = f.texto_fragmento
+              AND e.titulo IS NOT DISTINCT FROM db.titulo
+              AND e.tipo_documento IS NOT DISTINCT FROM db.tipo_documento
+              AND e.categoria_asociada IS NOT DISTINCT FROM db.categoria_asociada
+        ), ordenados AS (
+            SELECT *, ROW_NUMBER() OVER (PARTITION BY id_documento ORDER BY distancia, id_fragmento) AS orden
+            FROM candidatos
+        )
+        SELECT *, 1 - distancia AS score
+        FROM ordenados
+        WHERE orden = 1
+        ORDER BY distancia, id_fragmento
         LIMIT ?
     """, tuple(params))
 
 
 def contar_embeddings_rag():
-    try:
-        row = fetch_one("SELECT COUNT(*) AS total FROM rag_embeddings")
-        return row["total"] if row else 0
-    except Exception:
-        return 0
+    row = fetch_one("SELECT COUNT(*) AS total FROM rag_embeddings")
+    return row["total"] if row else 0
 
 
 def calcular_tiempo_atencion_minutos(id_reclamo):

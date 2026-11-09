@@ -181,7 +181,7 @@ export default function OrderDetailPage() {
         )}
 
         <OrderHistory order={order} />
-        {order.deliveredAt && <p>Entrega registrada · {order.deliveredAt}</p>}
+        {order.deliveredAt && <p>Entrega registrada · {formatDateTime(order.deliveredAt)}</p>}
         {(
           <Card className="bg-orange-50 border-orange-200">
             <CardContent className="pt-6">

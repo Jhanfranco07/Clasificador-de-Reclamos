@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from tempfile import NamedTemporaryFile
 import math
 import os
 from datetime import datetime, timezone
@@ -63,6 +64,7 @@ def build_index() -> dict[str, Any]:
             [
                 str(fragment.get("titulo") or ""),
                 str(fragment.get("categoria_asociada") or ""),
+                str(fragment.get("tipo_documento") or ""),
                 str(fragment.get("texto_fragmento") or ""),
             ]
         ).strip()
@@ -77,7 +79,7 @@ def build_index() -> dict[str, Any]:
     for offset in range(0, len(pending), 50):
         batch = pending[offset : offset + 50]
         vectors = create_embeddings([item[1] for item in batch])
-        for (fragment, text, digest), vector in zip(batch, vectors):
+        for (fragment, text, digest), vector in zip(batch, vectors, strict=True):
             output.append(
                 {
                     "id": f"doc_{fragment['id_documento']}_frag_{fragment['id_fragmento']}",
@@ -96,10 +98,15 @@ def build_index() -> dict[str, Any]:
             )
 
     INDEX_PATH.parent.mkdir(parents=True, exist_ok=True)
-    INDEX_PATH.write_text(
-        json.dumps({"model": MODEL, "items": output}, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    temporary = None
+    try:
+        with NamedTemporaryFile(mode="w", dir=INDEX_PATH.parent, encoding="utf-8", delete=False) as file:
+            temporary = Path(file.name)
+            json.dump({"model": MODEL, "items": output}, file, ensure_ascii=False)
+        temporary.replace(INDEX_PATH)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
     return {
         "status": "updated",
         "model": MODEL,

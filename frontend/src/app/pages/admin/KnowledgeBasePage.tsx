@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
@@ -6,9 +6,14 @@ import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { FileText, RefreshCw, CheckCircle, Search, Plus, Pencil, Trash2 } from 'lucide-react';
-import { createDocument, deleteDocument, getDocuments, reindexDocuments, updateDocument, DocumentsResponse } from '../../lib/api';
+import { createDocument, deleteDocument, getDocuments, previewDocumentPdf, reindexDocuments, updateDocument, DocumentsResponse } from '../../lib/api';
 import { formatDateTime } from '../../lib/utils';
 import AdminLayout from '../../components/AdminLayout';
+
+const categories = [
+  'Producto incompleto', 'Producto incorrecto', 'Retraso de pedido',
+  'Cobro indebido', 'Fraude o seguridad', 'Problema con tarjeta', 'Soporte general',
+];
 
 export default function KnowledgeBasePage() {
   const [data, setData] = useState<DocumentsResponse | null>(null);
@@ -17,6 +22,9 @@ export default function KnowledgeBasePage() {
   const [notice, setNotice] = useState('');
   const [isWorking, setIsWorking] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [pdfState, setPdfState] = useState<'idle' | 'extracting' | 'preview'>('idle');
+  const pdfRequest = useRef<AbortController | null>(null);
+  const busy = isWorking || pdfState === 'extracting';
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: '',
@@ -48,15 +56,9 @@ export default function KnowledgeBasePage() {
     try {
       const result = await reindexDocuments();
       await loadDocuments();
-      if (result.fallback_reason) {
-        setError(`No se pudieron generar embeddings de OpenAI. Se mantuvo TF-IDF como respaldo: ${result.fallback_reason}`);
-      } else {
-        setNotice(
-          result.provider === 'pgvector'
-            ? `Índice reconstruido correctamente con ${result.fragmentos || 0} embeddings en Supabase pgvector.`
-            : `Índice TF-IDF reconstruido correctamente con ${result.fragmentos || 0} fragmentos.`
-        );
-      }
+      setNotice(
+        `Índice TF-IDF reconstruido correctamente con ${result.fragmentos || 0} fragmentos.`
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo reindexar.');
     } finally {
@@ -66,7 +68,38 @@ export default function KnowledgeBasePage() {
 
   const resetForm = () => {
     setEditingId(null);
+    setPdfState('idle');
     setForm({ title: '', type: 'FAQ', category: 'Soporte general', content: '' });
+  };
+
+  const handlePreviewPdf = async (file: File) => {
+    if (!/\.pdf$/i.test(file.name)) {
+      setError('Selecciona un archivo con extensión .pdf.');
+      return;
+    }
+    const controller = new AbortController();
+    pdfRequest.current = controller;
+    setPdfState('extracting');
+    setError('');
+    setNotice('');
+    try {
+      const preview = await previewDocumentPdf(file, controller.signal);
+      if (controller.signal.aborted) return;
+      setForm((current) => ({ ...current, content: preview.content }));
+      setPdfState('preview');
+      setNotice('Vista previa lista. Revisa el texto y completa los datos antes de guardar.');
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      setPdfState('idle');
+      setError(err instanceof Error ? err.message : 'No se pudo extraer el texto del PDF.');
+    }
+  };
+
+  const cancelPdf = () => {
+    pdfRequest.current?.abort();
+    if (pdfState === 'preview') setForm((current) => ({ ...current, content: '' }));
+    setPdfState('idle');
+    setNotice('');
   };
 
   const handleSaveDocument = async () => {
@@ -93,6 +126,7 @@ export default function KnowledgeBasePage() {
   };
 
   const handleEditDocument = (doc: DocumentsResponse['items'][number]) => {
+    setPdfState('idle');
     setEditingId(doc.id);
     setForm({ title: doc.title, type: doc.type, category: doc.category, content: doc.content });
   };
@@ -127,7 +161,7 @@ export default function KnowledgeBasePage() {
               Documentos internos usados para fundamentar respuestas y procedimientos de soporte.
             </p>
           </div>
-          <Button variant="outline" onClick={handleReindex} disabled={isWorking}>
+          <Button variant="outline" onClick={handleReindex} disabled={busy}>
             <RefreshCw className="size-4 mr-2" />
             {isWorking ? 'Reindexando...' : 'Reindexar'}
           </Button>
@@ -202,6 +236,27 @@ export default function KnowledgeBasePage() {
             <CardTitle>{editingId ? 'Editar documento' : 'Agregar documento'}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {!editingId && (
+              <label className="block space-y-2 text-sm">
+                <span>Importar PDF para revisión</span>
+                <Input
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  disabled={busy}
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    event.currentTarget.value = '';
+                    if (file) void handlePreviewPdf(file);
+                  }}
+                />
+              </label>
+            )}
+            {pdfState === 'extracting' && <p role="status">Extrayendo texto del PDF…</p>}
+            {pdfState !== 'idle' && (
+              <Button variant="outline" onClick={cancelPdf} disabled={isWorking}>
+                Cancelar PDF
+              </Button>
+            )}
             <div className="grid md:grid-cols-3 gap-4">
               <Input
                 value={form.title}
@@ -219,11 +274,14 @@ export default function KnowledgeBasePage() {
                   <SelectItem value="MANUAL">Manual</SelectItem>
                 </SelectContent>
               </Select>
-              <Input
-                value={form.category}
-                onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
-                placeholder="Categoria asociada"
-              />
+              <Select value={form.category} onValueChange={(category) => setForm((current) => ({ ...current, category }))}>
+                <SelectTrigger aria-label="Categoría documental">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <Textarea
               value={form.content}
@@ -232,7 +290,7 @@ export default function KnowledgeBasePage() {
               rows={5}
             />
             <div className="flex flex-wrap gap-3">
-              <Button onClick={handleSaveDocument} disabled={isWorking}>
+              <Button onClick={handleSaveDocument} disabled={busy}>
                 <Plus className="size-4 mr-2" />
                 {editingId ? 'Guardar cambios' : 'Agregar documento'}
               </Button>
@@ -295,7 +353,7 @@ export default function KnowledgeBasePage() {
           <CardContent className="pt-6">
             <h3 className="font-semibold text-blue-900 mb-2">Sobre el sistema RAG</h3>
             <p className="text-sm text-blue-800">
-              La recuperación documental usa Supabase pgvector con embeddings neuronales cuando PostgreSQL está activo.
+              La reindexación administrativa sincroniza los fragmentos y reconstruye TF-IDF localmente.
               En modo local conserva TF-IDF como respaldo para que la demo funcione sin servicios externos.
               Puedes agregar o editar documentos y luego reindexar para que el motor RAG los use en nuevas respuestas.
             </p>

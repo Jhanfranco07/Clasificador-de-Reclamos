@@ -287,15 +287,13 @@ def test_claim_edit_approve_close_reopen_regression(api):
 
 def test_pgvector_success_receives_category_and_ids(knowledge, monkeypatch):
     from modules import openai_embeddings as embeddings
+    rag.construir_indice_vectorial(forzar=True)
     monkeypatch.setattr(rag, "using_postgres", lambda: True)
     monkeypatch.setattr(rag, "_pgvector_habilitado", lambda: True)
     monkeypatch.setattr(rag, "contar_embeddings_rag", lambda: 1)
     monkeypatch.setattr(embeddings, "create_embeddings", lambda texts: [[0.1, 0.2]])
-    search = Mock(return_value=[dict(
-        id_documento=knowledge[2], id_fragmento=1, titulo="Política de pagos",
-        tipo_documento="POLITICA", categoria_asociada="Cobro indebido",
-        texto_fragmento="Revisar el cobro", score=0.92, modelo_embedding="test",
-    )])
+    fragment = next(row for row in repo.listar_fragmentos_documento() if row["id_documento"] == knowledge[2])
+    search = Mock(return_value=[{**fragment, "score": 0.92, "modelo_embedding": embeddings.MODEL}])
     monkeypatch.setattr(rag, "buscar_embeddings_rag", search)
     with AITrace("test") as trace:
         results = rag.recuperar_documentos("cobro duplicado", "Cobro indebido", confianza=0.99)

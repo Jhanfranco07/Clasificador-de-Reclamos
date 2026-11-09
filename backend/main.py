@@ -8,7 +8,8 @@ import sys
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from starlette.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
@@ -17,8 +18,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-from database.db_connection import fetch_all, fetch_one, init_db, using_postgres
+from database.db_connection import (allows_automatic_database_setup, ensure_pgvector_embedding_dimension,
+                                    fetch_all, fetch_one, init_db, using_postgres)
 from database.repositories import (
+    DuplicateDocument,
+    get_categoria_id,
     actualizar_configuracion,
     actualizar_perfil_usuario,
     actualizar_documento_base,
@@ -76,6 +80,7 @@ from modules.rag_engine import (
     obtener_resumen_indice,
     recuperar_documentos,
 )
+from modules.pdf_documents import PDF_MAX_BYTES, PDF_MAX_TEXT, extract_pdf_text
 from modules.security import create_token, decode_token, hash_password, verify_password
 from modules.chatbot_service import answer_chat
 from modules.config import allow_vercel_previews, cors_origins, validate_runtime_config
@@ -90,11 +95,14 @@ logger = logging.getLogger(__name__)
 async def lifespan(_: FastAPI):
     validate_runtime_config()
     if os.getenv("SMARTCLAIM_BOOTSTRAP_DEMO") == "1":
-        if os.getenv("APP_ENV", "").lower() == "production" or using_postgres():
+        if using_postgres() or not allows_automatic_database_setup():
             raise RuntimeError("Bootstrap demo permitido solamente en SQLite de desarrollo")
         init_db()
         asegurar_usuarios_auth_base()
         asegurar_pedidos_demo_base()
+        construir_indice_vectorial(forzar=True)
+    elif using_postgres():
+        ensure_pgvector_embedding_dimension()
     yield
 
 
@@ -261,10 +269,12 @@ class ConfigUpdate(BaseModel):
 
 
 class DocumentPayload(BaseModel):
-    title: str = Field(..., min_length=3)
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    title: str = Field(..., min_length=3, max_length=250)
     type: str = Field(..., pattern="^(POLITICA|FAQ|PROCEDIMIENTO|MANUAL)$")
     category: str = Field(..., min_length=3)
-    content: str = Field(..., min_length=20)
+    content: str = Field(..., min_length=20, max_length=PDF_MAX_TEXT)
 
 
 class AgentCommentPayload(BaseModel):
@@ -509,10 +519,12 @@ def _detail_for_user(claim_id, user):
     public_history = []
     for event in detail["history"]:
         action = event["action"]
+        if action == "Escalamiento asignado":
+            action = "Escalamiento de reclamo"
         if action in {"Edición de borrador", "Edición de respuesta"} or action.startswith("Generaci"):
             continue
         public_history.append({"id": event["id"], "newState": event["newState"],
-            "action": action if action in {"Registro de reclamo", "Envio de respuesta", "Cierre de reclamo", "Reapertura de reclamo"}
+            "action": action if action in {"Registro de reclamo", "Envio de respuesta", "Cierre de reclamo", "Reapertura de reclamo", "Escalamiento de reclamo"}
                       else "Actualización del caso", "createdAt": event["createdAt"]})
     detail["history"] = public_history
     return detail
@@ -1083,7 +1095,8 @@ def create_claim(payload: ClaimCreate, user: dict[str, Any] = Depends(get_curren
     except DomainError:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"No se pudo crear el reclamo: {exc}") from exc
+        logger.exception("No se pudo crear el reclamo")
+        raise HTTPException(status_code=500, detail="No se pudo crear el reclamo.") from exc
 
 
 @app.get("/api/claims/{claim_id}")
@@ -1244,22 +1257,57 @@ def documents(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
     return {"items": docs, "index": obtener_resumen_indice()}
 
 
+@app.post("/api/documents/pdf-preview")
+async def preview_document_pdf(request: Request, user: dict[str, Any] = Depends(require_admin)) -> dict[str, str]:
+    if request.headers.get("content-type", "").split(";")[0].lower() != "application/pdf":
+        raise HTTPException(415, "Selecciona un archivo PDF.")
+    data = bytearray()
+    async for chunk in request.stream():
+        if len(data) + len(chunk) > PDF_MAX_BYTES:
+            raise HTTPException(413, "El PDF supera el tamaño permitido.")
+        data.extend(chunk)
+    try:
+        return {"content": await run_in_threadpool(extract_pdf_text, bytes(data))}
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+def require_document_maintenance():
+    if not allows_automatic_database_setup():
+        raise HTTPException(
+            503, "El mantenimiento documental debe ejecutarse mediante una migración controlada."
+        )
+
+
 @app.post("/api/documents", status_code=201)
 def create_document(payload: DocumentPayload, user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
-    crear_documento_base(payload.title, payload.type, payload.category, payload.content)
+    require_document_maintenance()
+    if get_categoria_id(payload.category) is None:
+        raise HTTPException(422, "Selecciona una categoría documental válida.")
+    try:
+        crear_documento_base(payload.title, payload.type, payload.category, payload.content)
+    except DuplicateDocument as exc:
+        raise HTTPException(409, str(exc)) from exc
     construir_indice_vectorial(forzar=True)
     return documents(user)
 
 
 @app.put("/api/documents/{document_id}")
 def update_document(document_id: int, payload: DocumentPayload, user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
-    actualizar_documento_base(document_id, payload.title, payload.type, payload.category, payload.content)
+    require_document_maintenance()
+    if get_categoria_id(payload.category) is None:
+        raise HTTPException(422, "Selecciona una categoría documental válida.")
+    try:
+        actualizar_documento_base(document_id, payload.title, payload.type, payload.category, payload.content)
+    except DuplicateDocument as exc:
+        raise HTTPException(409, str(exc)) from exc
     construir_indice_vectorial(forzar=True)
     return documents(user)
 
 
 @app.delete("/api/documents/{document_id}")
 def delete_document(document_id: int, user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+    require_document_maintenance()
     desactivar_documento_base(document_id)
     construir_indice_vectorial(forzar=True)
     return documents(user)
@@ -1267,6 +1315,7 @@ def delete_document(document_id: int, user: dict[str, Any] = Depends(require_adm
 
 @app.post("/api/documents/reindex")
 def reindex_documents(user: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+    require_document_maintenance()
     return construir_indice_vectorial(forzar=True)
 
 

@@ -1,3 +1,4 @@
+import { formatDateTime } from '../lib/utils';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Bell } from 'lucide-react';
@@ -68,7 +69,7 @@ export default function NotificationBell() {
         {notifications.items.map(item => <article key={item.id} className="rounded-md border-b p-3 break-words space-y-2">
           <h3 className="text-sm font-semibold">{item.title}</h3>
           <p className="text-xs">{item.message}</p>
-          <p className="text-xs text-muted-foreground"><time>{item.createdAt}</time> · <span>{item.read ? 'Leída' : 'Sin leer'}</span></p>
+          <p className="text-xs text-muted-foreground"><time>{formatDateTime(item.createdAt)}</time> · <span>{item.read ? 'Leída' : 'Sin leer'}</span></p>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="ghost" disabled={notifications.busy} onClick={() => void visit(item)}>Ver {item.orderId ? 'pedido' : item.claimId ? 'reclamo' : 'detalle'}</Button>
             {!item.read && <Button size="sm" variant="outline" disabled={notifications.busy}

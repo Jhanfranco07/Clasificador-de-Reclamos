@@ -238,6 +238,7 @@ def test_additive_migration_on_real_copy_preserves_history(monkeypatch, tmp_path
     with sqlite3.connect(original.as_uri() + '?mode=ro', uri=True) as source, sqlite3.connect(copy) as target:
         source.backup(target)
     monkeypatch.setattr(db, 'DB_PATH', copy)
+    db.run_script(db.BASE_DIR / 'database/schema.sql')
     tables = ['reclamos', 'notificaciones', 'auth_users', 'historial_estados', 'respuestas_sugeridas']
     old = {table: db.fetch_all(f'SELECT * FROM {table} ORDER BY 1') for table in tables}
     phase2b.apply()

@@ -1,5 +1,5 @@
 """Catalog-authorized prices and immutable order snapshots, without payment processing."""
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import hashlib
 import json
@@ -88,7 +88,7 @@ def create_catalog_order(user, items, quote_hash, payment_method, address, notes
                 "ORD-" + datetime.now().strftime("%Y%m%d") + "-" + uuid4().hex[:12].upper(), customer_id,
                 first["restaurantId"], first["restaurantName"], first["restaurantImage"], quote["total"],
                 payment_method, address, notes, quote["subtotal"], quote["delivery"], quote["service"],
-                (datetime.now() + timedelta(minutes=35)).isoformat(timespec="seconds")))
+                (datetime.now(timezone.utc) + timedelta(minutes=35)).isoformat(timespec="seconds")))
         for line in quote["items"]:
             insert(conn, """INSERT INTO pedido_items(id_pedido,id_producto,nombre_producto,cantidad,precio,imagen)
                            VALUES (?,?,?,?,?,?)""", (order_id,line["productId"],line["name"],line["quantity"],line["price"],line["image"]))

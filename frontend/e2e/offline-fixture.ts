@@ -1,15 +1,19 @@
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, type BrowserContext } from '@playwright/test';
 export { expect };
+
+export async function restrictLocalNetwork(context: BrowserContext) {
+  await context.route('**/*', (route) => {
+    const url = new URL(route.request().url());
+    if (['127.0.0.1', 'localhost'].includes(url.hostname) && ['8000', '5173'].includes(url.port)) {
+      return route.continue();
+    }
+    return route.abort();
+  });
+}
 
 export const test = base.extend({
   context: async ({ context }, use) => {
-    await context.route('**/*', (route) => {
-      const url = new URL(route.request().url());
-      if (['127.0.0.1', 'localhost'].includes(url.hostname) && ['8000', '5173'].includes(url.port)) {
-        return route.continue();
-      }
-      return route.abort();
-    });
+    await restrictLocalNetwork(context);
     await use(context);
   },
 });

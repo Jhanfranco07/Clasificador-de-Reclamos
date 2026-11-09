@@ -52,6 +52,29 @@ def using_postgres():
     return provider == "postgres" or app_env == "production"
 
 
+def allows_automatic_database_setup():
+    """Restrict automatic seeds and document synchronization to local databases."""
+    from modules.config import is_production
+
+    if is_production() or any(os.getenv(name) for name in ("RENDER", "VERCEL")):
+        return False
+    if not using_postgres():
+        return True
+
+    from psycopg import ProgrammingError
+    from psycopg.conninfo import conninfo_to_dict
+
+    try:
+        config = conninfo_to_dict(os.environ["DATABASE_URL"])
+    except ProgrammingError:
+        return False
+    loopback = {"127.0.0.1", "::1"}
+    host = config.get("host")
+    address = config.get("hostaddr") or os.getenv("PGHOSTADDR") or host
+    return (host in loopback and address == host
+            and not config.get("service") and not os.getenv("PGSERVICE"))
+
+
 def _adapt_query_for_postgres(query):
     adapted = query.replace("?", "%s")
     adapted = adapted.replace("INSERT OR IGNORE", "INSERT")
@@ -80,11 +103,11 @@ def _insert_returning_pk(query):
 
 
 class PostgresConnection:
-    def __init__(self):
+    def __init__(self, dsn=None):
         import psycopg
         from psycopg.rows import dict_row
 
-        self.conn = psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row)
+        self.conn = psycopg.connect(dsn if dsn is not None else os.environ["DATABASE_URL"], row_factory=dict_row)
 
     def __enter__(self):
         return self
@@ -114,12 +137,20 @@ class PostgresConnection:
         self.conn.close()
 
 
+class SQLiteConnection(sqlite3.Connection):
+    def __exit__(self, exc_type, exc, tb):
+        try:
+            return super().__exit__(exc_type, exc, tb)
+        finally:
+            self.close()
+
+
 def get_connection():
     if using_postgres():
         return PostgresConnection()
 
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, factory=SQLiteConnection)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
@@ -250,7 +281,10 @@ def ensure_pgvector_embedding_dimension(expected_dimension=1536):
     if not row or row.get("vector_type") == expected_type:
         return
 
-    raise RuntimeError("Dimensión vectorial incompatible. Se requiere una migración explícita con backup.")
+    raise RuntimeError(
+        f"La columna rag_embeddings.embedding requiere {expected_type}. "
+        "Revisa la dimensión y prepara una migración explícita con respaldo antes de iniciar."
+    )
 
 
 def fetch_all(query, params=()):

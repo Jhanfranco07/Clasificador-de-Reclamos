@@ -1,3 +1,4 @@
+import { formatDateTime } from '../lib/utils';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { assignClaim, escalateClaim, listClaimAssignees, ClaimDetailResponse } from '../lib/api';
@@ -52,7 +53,7 @@ export default function ClaimAssignmentControls({ detail, onChange }: {
   return <section aria-label="Responsable del reclamo" className="rounded-lg border p-4 space-y-3 break-words">
     <h2 className="text-lg font-bold">Responsable del reclamo</h2>
     <p>{assignment?.id ? `${assignment.name} · ID ${assignment.id}` : 'Sin responsable autenticado asignado'}</p>
-    {assignment?.assignedAt && <p>Asignado el {assignment.assignedAt}</p>}
+    {assignment?.assignedAt && <p>Asignado el {formatDateTime(assignment.assignedAt)}</p>}
     {assignment?.id && !assignment.active && <p>El responsable está inactivo o cambió de rol. El caso requiere reasignación.</p>}
     {!assignment?.id && assignment?.name && <p className="text-sm text-muted-foreground">Referencia histórica conservada · {assignment.name}</p>}
     {loading && <p role="status">Cargando responsables...</p>}

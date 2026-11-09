@@ -326,12 +326,13 @@ def test_bf02_migrate_and_reconcile_workspace_copy_only(tmp_path, monkeypatch):
     with sqlite3.connect(source.as_uri() + '?mode=ro', uri=True) as original:
         with sqlite3.connect(copy) as target:
             original.backup(target)
+    monkeypatch.setattr(db, 'DB_PATH', copy)
+    db.run_script(root / 'database/schema.sql')
     with sqlite3.connect(copy) as conn:
         counts = {t: conn.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0]
                   for t in ['reclamos', 'pedidos', 'clientes', 'claim_messages', 'respuestas_sugeridas']}
         orphans = conn.execute('''SELECT id_reclamo FROM reclamos r WHERE NOT EXISTS
             (SELECT 1 FROM pedidos p WHERE p.codigo_pedido=r.codigo_pedido)''').fetchall()
-    monkeypatch.setattr(db, 'DB_PATH', copy)
     db.migrate_db()
     script = root / 'scripts/reconcile_claim_orders.py'
     dry = subprocess.run([sys.executable, str(script), '--sqlite', str(copy)], capture_output=True, text=True, check=True)
