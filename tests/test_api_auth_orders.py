@@ -105,6 +105,45 @@ def test_register_creates_client_account(api_client):
 
 
 @pytest.mark.parametrize("api_client", ["sqlite", "postgres"], indirect=True)
+def test_registration_cannot_claim_a_legacy_customer(api_client):
+    from database.db_connection import execute, fetch_one
+    from database.repositories import crear_cliente
+
+    email = "historico@example.com"
+    customer_id = crear_cliente("Cliente histórico", email)
+    execute("""
+        INSERT INTO pedidos (codigo_pedido, id_cliente, tienda_nombre, direccion_entrega)
+        VALUES (?, ?, ?, ?)
+    """, ("ORDER-LEGACY-TEST", customer_id, "Comercio sintético", "Dirección sintética"))
+
+    response = api_client.post("/api/auth/register", json={
+        "name": "Otro titular", "email": email.upper(), "password": "test-password",
+    })
+
+    assert response.status_code == 409
+    assert fetch_one("SELECT 1 FROM auth_users WHERE lower(correo) = ?", (email,)) is None
+    assert fetch_one("SELECT id_cliente FROM pedidos WHERE codigo_pedido = ?", ("ORDER-LEGACY-TEST",))[
+        "id_cliente"
+    ] == customer_id
+
+
+def test_registration_cannot_claim_legacy_notifications(api_client):
+    from database.db_connection import execute, fetch_one
+
+    email = "notificaciones@example.com"
+    execute("""
+        INSERT INTO notificaciones (correo_cliente, titulo, mensaje, tipo)
+        VALUES (?, 'Aviso histórico', 'Aviso sintético', 'INFO')
+    """, (email,))
+    response = api_client.post("/api/auth/register", json={
+        "name": "Otro titular", "email": email, "password": "test-password",
+    })
+
+    assert response.status_code == 409
+    assert fetch_one("SELECT 1 FROM auth_users WHERE lower(correo) = ?", (email,)) is None
+
+
+@pytest.mark.parametrize("api_client", ["sqlite", "postgres"], indirect=True)
 def test_claim_continuous_conversation(api_client):
     client_login = api_client.post(
         "/api/auth/login",

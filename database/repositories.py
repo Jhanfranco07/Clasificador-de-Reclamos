@@ -45,6 +45,36 @@ def crear_usuario_auth(nombre, correo, password_hash, rol="CLIENT", telefono=Non
         VALUES (?, ?, ?, ?, ?)
     """, (nombre.strip(), correo.strip().lower(), telefono.strip() if telefono else None, password_hash, rol))
 
+def registrar_cliente_publico(nombre, correo, password_hash, telefono=None):
+    from database.transactions import insert, one, transaction
+    from modules.domain_errors import DomainError
+
+    correo = correo.strip().lower()
+    nombre = nombre.strip()
+    telefono = telefono.strip() if telefono else None
+    conflict = "No se puede registrar una cuenta con este correo."
+    with transaction() as conn:
+        # Los pedidos históricos usan el correo como parte del vínculo de titularidad.
+        if one(conn, """
+            SELECT 1
+            WHERE EXISTS (SELECT 1 FROM clientes WHERE lower(trim(correo)) = ?)
+               OR EXISTS (SELECT 1 FROM auth_users WHERE lower(trim(correo)) = ?)
+               OR EXISTS (SELECT 1 FROM notificaciones WHERE lower(trim(correo_cliente)) = ?)
+        """, (correo, correo, correo)):
+            raise DomainError(conflict, 409)
+        user = one(conn, """
+            INSERT INTO auth_users (nombre, correo, telefono, password_hash, rol)
+            VALUES (?, ?, ?, ?, 'CLIENT')
+            ON CONFLICT (correo) DO NOTHING
+            RETURNING id_auth_user, nombre, correo, telefono, rol, fecha_creacion
+        """, (nombre, correo, telefono, password_hash))
+        if not user:
+            raise DomainError(conflict, 409)
+        insert(conn, "INSERT INTO clientes (nombre, correo, telefono) VALUES (?, ?, ?)",
+               (nombre, correo, telefono))
+        return user
+
+
 def obtener_usuario_auth_por_correo(correo):
     return fetch_one("""
         SELECT *

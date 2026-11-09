@@ -33,14 +33,13 @@ from database.repositories import (
     asegurar_usuarios_auth_base,
     aprobar_respuesta,
     cerrar_reclamo,
-    crear_cliente,
     crear_comentario_agente,
     crear_documento_base,
     crear_notificacion,
     crear_pedido_cliente,
     crear_reclamo,
     crear_mensaje_reclamo,
-    crear_usuario_auth,
+    registrar_cliente_publico,
     desactivar_documento_base,
     escalar_reclamo,
     get_configuracion_activa,
@@ -806,17 +805,9 @@ def login(payload: LoginRequest) -> dict[str, Any]:
 
 @app.post("/api/auth/register", status_code=201)
 def register(payload: RegisterRequest) -> dict[str, Any]:
-    if obtener_usuario_auth_por_correo(payload.email):
-        raise HTTPException(status_code=409, detail="Ya existe una cuenta con este correo")
-    user_id = crear_usuario_auth(
-        payload.name,
-        payload.email,
-        hash_password(payload.password),
-        "CLIENT",
-        payload.phone,
+    user = registrar_cliente_publico(
+        payload.name, payload.email, hash_password(payload.password), payload.phone,
     )
-    crear_cliente(payload.name, payload.email, payload.phone)
-    user = obtener_usuario_auth_por_id(user_id)
     return _auth_response(user)
 
 
