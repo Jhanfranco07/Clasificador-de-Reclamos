@@ -23,7 +23,9 @@ def login(api, email):
 
 
 @pytest.fixture
-def scenario():
+def scenario(request):
+    if getattr(request, "param", "sqlite") == "restricted_postgres":
+        request.getfixturevalue("restricted_postgres")
     from backend.main import app
     with TestClient(app) as api:
         admin = login(api, 'admin@smartclaim.com')
@@ -77,6 +79,7 @@ def assign(s, name='courier'):
     s['order'] = result.json()['order']
 
 
+@pytest.mark.parametrize("scenario", ["sqlite", "restricted_postgres"], indirect=True)
 def test_full_five_role_journey(scenario):
     s = scenario
     assert s['order']['status'] == 'RECEIVED'
@@ -108,6 +111,7 @@ def test_full_five_role_journey(scenario):
 
 
 @pytest.mark.parametrize('name', ['foreign', 'othercourier'])
+@pytest.mark.parametrize("scenario", ["sqlite", "restricted_postgres"], indirect=True)
 def test_cross_tenant_access_and_write_denied(scenario, name):
     s = scenario
     assert s['api'].get(f"/api/orders/{s['order']['id']}", headers=s['tokens'][name]).status_code == 403
@@ -117,6 +121,7 @@ def test_cross_tenant_access_and_write_denied(scenario, name):
 
 
 @pytest.mark.parametrize('role', ['customer', 'agent'])
+@pytest.mark.parametrize("scenario", ["sqlite", "restricted_postgres"], indirect=True)
 def test_readonly_roles_cannot_operate(scenario, role):
     s = scenario
     assert s['api'].post(f"/api/orders/{s['order']['id']}/transition", headers=s[role], json={
@@ -125,6 +130,7 @@ def test_readonly_roles_cannot_operate(scenario, role):
         'courier_id': s['users']['courier']['id_auth_user'], 'expected_version': 0, 'request_id': key(), 'reason': 'test'}).status_code == 403
 
 
+@pytest.mark.parametrize("scenario", ["sqlite", "restricted_postgres"], indirect=True)
 def test_merchant_and_courier_cannot_read_private_claims(scenario):
     s = scenario
     for token in s['tokens'].values():
@@ -184,6 +190,7 @@ def test_assignment_requires_ready_available_and_active_and_tracks_reassignment(
     assert s['api'].post(path, headers=s['admin'], json=payload).status_code == 409
 
 
+@pytest.mark.parametrize("scenario", ["sqlite", "restricted_postgres"], indirect=True)
 def test_admin_reason_last_admin_and_live_role_revocation(scenario):
     s = scenario
     assert s['api'].post(f"/api/orders/{s['order']['id']}/transition", headers=s['admin'], json={
@@ -201,6 +208,7 @@ def test_admin_reason_last_admin_and_live_role_revocation(scenario):
     assert s['api'].get(f"/api/orders/{s['order']['id']}", headers=s['tokens']['merchant']).status_code == 403
 
 
+@pytest.mark.parametrize("scenario", ["sqlite", "restricted_postgres"], indirect=True)
 def test_product_grant_and_historical_snapshot(scenario):
     s = scenario
     path = f"/api/operations/products/{s['product']['id_producto']}"

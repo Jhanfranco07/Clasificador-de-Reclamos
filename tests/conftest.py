@@ -169,12 +169,10 @@ def isolated_offline_environment(monkeypatch, tmp_path):
     yield
     assert not _guard.pending, "Unexpected external attempt (even if application caught it): " + repr(_guard.pending)
 @pytest.fixture
-def vector_db(monkeypatch):
+def disposable_postgres(monkeypatch):
     base = os.getenv("SMARTCLAIM_TEST_PG_DSN")
     if not base:
         pytest.skip("SMARTCLAIM_TEST_PG_DSN no configurado.")
-    from database import db_connection as db
-
     base = local_test_dsn(base)
     name = "smartclaim_test_" + uuid4().hex
     with _local_pg_connect(base, autocommit=True) as admin:
@@ -193,7 +191,57 @@ def vector_db(monkeypatch):
             monkeypatch.setenv("APP_ENV", "test")
             monkeypatch.setenv("ENABLE_PGVECTOR_RAG", "true")
             monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-            db.init_db()
             yield dsn
         finally:
             admin.execute(sql.SQL("DROP DATABASE {}").format(sql.Identifier(name)))
+
+
+@pytest.fixture
+def vector_db(disposable_postgres):
+    from database import db_connection as db
+    db.init_db()
+    return disposable_postgres
+
+
+@pytest.fixture
+def hardening_postgres(disposable_postgres):
+    if os.getenv("SMARTCLAIM_TEST_SECURITY_PG") != "1":
+        pytest.skip("Usa un clúster desechable y habilita SMARTCLAIM_TEST_SECURITY_PG=1.")
+    with _local_pg_connect(disposable_postgres, autocommit=True) as owner:
+        owner.execute("""
+            DO $$ BEGIN
+                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon; END IF;
+                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated; END IF;
+                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticator') THEN CREATE ROLE authenticator; END IF;
+                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN
+                    CREATE ROLE service_role BYPASSRLS;
+                END IF;
+            END $$;
+        """)
+    return disposable_postgres
+
+
+@pytest.fixture
+def restricted_postgres(hardening_postgres, vector_db, monkeypatch):
+    from database.repositories import asegurar_usuarios_auth_base, asegurar_pedidos_demo_base
+    from modules.rag_engine import construir_indice_tfidf
+
+    asegurar_usuarios_auth_base()
+    asegurar_pedidos_demo_base()
+    construir_indice_tfidf(forzar=True)
+    migrations = Path(__file__).resolve().parents[1] / "database/migrations"
+    with _local_pg_connect(hardening_postgres, autocommit=True) as owner:
+        for name in ("integrated_order_integrity.sql", "integrated_database_security.sql"):
+            owner.execute((migrations / name).read_text(encoding="utf-8"))
+    dsn = make_conninfo(vector_db, user="smartclaim_backend")
+
+    def connect_service_only(requested_dsn, *args, **kwargs):
+        if local_test_dsn(requested_dsn) != dsn:
+            return _guard.block("postgres")()
+        return _local_pg_connect(dsn, *args, **kwargs)
+
+    monkeypatch.setattr(psycopg, "connect", connect_service_only)
+    monkeypatch.setenv("DATABASE_URL", dsn)
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("AUTH_SECRET", "disposable-postgres-security-test-key")
+    return dsn

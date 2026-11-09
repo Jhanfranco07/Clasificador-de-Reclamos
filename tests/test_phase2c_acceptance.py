@@ -17,7 +17,9 @@ from test_phase2b_acceptance import scenario
 
 
 @pytest.fixture
-def api():
+def api(request):
+    if getattr(request, "param", "sqlite") == "restricted_postgres":
+        request.getfixturevalue("restricted_postgres")
     from backend.main import app
     with TestClient(app) as client:
         yield client
@@ -38,6 +40,7 @@ def assign(api, detail, target=None, headers=None, **changes):
     return api.post(f"/api/claims/{detail['claim']['id']}/assignment", headers=headers or auth(api, 'ADMIN'), json=payload)
 
 
+@pytest.mark.parametrize("api", ["sqlite", "restricted_postgres"], indirect=True)
 def test_new_claim_queue_and_exactly_once_creation(api):
     client = auth(api)
     order = api.get('/api/orders', headers=client).json()['items'][0]
@@ -85,6 +88,7 @@ def test_assignment_inactive_duplicate_role_and_client_rejected(api):
     assert assign(api, detail, target=target).status_code == 422
 
 
+@pytest.mark.parametrize("api", ["sqlite", "restricted_postgres"], indirect=True)
 def test_agent_can_assume_only_unassigned_own_case(api):
     detail = new_claim(api, False)
     assert assign(api, detail, target=user('ADMIN')['id_auth_user'], headers=auth(api, 'AGENT')).status_code == 403
@@ -146,6 +150,7 @@ def test_escalation_requires_reason_and_active_admin(api):
     assert db.fetch_one('SELECT version_asignacion FROM reclamos WHERE id_reclamo=?', (detail['claim']['id'],))['version_asignacion'] == 0
 
 
+@pytest.mark.parametrize("api", ["sqlite", "restricted_postgres"], indirect=True)
 def test_published_once_draft_silent_and_reviewer_identified(api):
     detail = new_claim(api)
     rid, cid = detail['response']['id'], detail['claim']['id']
@@ -178,6 +183,7 @@ def test_message_counter_read_one_all_and_persistence(api):
     assert api.get('/api/notifications', headers=auth(api)).json()['unread'] == 0
 
 
+@pytest.mark.parametrize("api", ["sqlite", "restricted_postgres"], indirect=True)
 def test_unread_counts_beyond_twenty_and_foreign_reads_denied(api):
     owner = user('CLIENT')
     from database.transactions import transaction
