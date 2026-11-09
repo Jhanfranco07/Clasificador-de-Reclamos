@@ -76,7 +76,7 @@ def _import_connection(database, dry_run, postgres_dsn):
         yield conn
 
 
-def import_documents(database, catalog, dry_run=False, *, postgres_dsn=None):
+def import_documents(database, catalog, dry_run=False, *, postgres_dsn=None, append_fragments=False):
     documents = json.loads(catalog.read_text(encoding="utf-8"))
     if not isinstance(documents, list):
         raise ValueError("El catálogo debe ser una lista JSON.")
@@ -115,6 +115,12 @@ def import_documents(database, catalog, dry_run=False, *, postgres_dsn=None):
                 status, reason = "created", "Nuevo documento."
                 pending.append((doc, metadata))
             results.append({"id": identifier, "status": status, "reason": reason})
+        if append_fragments and any(row["status"] == "rejected" for row in results):
+            for row in results:
+                if row["status"] == "created":
+                    row.update(status="blocked", reason="Lote detenido por conflicto o validación.")
+            return results
+
         if not dry_run and pending:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS documentos_importados (
@@ -123,14 +129,26 @@ def import_documents(database, catalog, dry_run=False, *, postgres_dsn=None):
                     metadata TEXT NOT NULL
                 )
             """)
+            if append_fragments:
+                from modules.rag_engine import dividir_en_fragmentos
+
             for doc, metadata in pending:
                 row = conn.execute("""
                     INSERT INTO documentos_base (titulo, tipo_documento, categoria_asociada, contenido, estado_indexacion, activo)
-                    VALUES (?, ?, ?, ?, 'PENDIENTE', 1) RETURNING id_documento
-                """, (doc["title"].strip(), doc["type"], doc["category"], doc["content"].strip())).fetchone()
+                    VALUES (?, ?, ?, ?, ?, 1) RETURNING id_documento
+                """, (doc["title"].strip(), doc["type"], doc["category"], doc["content"].strip(),
+                      "INDEXADO" if append_fragments else "PENDIENTE")).fetchone()
+                document_id = row["id_documento"]
+                if append_fragments:
+                    for order, fragment in enumerate(dividir_en_fragmentos(doc["content"]), 1):
+                        conn.execute("""
+                            INSERT INTO fragmentos_documento
+                                (id_documento, texto_fragmento, orden_fragmento, embedding_id)
+                            VALUES (?, ?, ?, ?)
+                        """, (document_id, fragment, order, f"doc_{document_id}_frag_{order}"))
                 conn.execute(
                     "INSERT INTO documentos_importados (external_id, id_documento, metadata) VALUES (?, ?, ?)",
-                    (doc["id"], row["id_documento"], metadata),
+                    (doc["id"], document_id, metadata),
                 )
     return results
 
@@ -142,11 +160,13 @@ def main():
     target.add_argument("--postgres-test", action="store_true", help="Usa SMARTCLAIM_TEST_PG_DSN.")
     parser.add_argument("--catalog", type=Path, default=Path("data/documentos_academicos.json"))
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--append-fragments", action="store_true",
+                        help="Añade fragmentos solo para altas nuevas y cancela el lote si hay conflictos.")
     args = parser.parse_args()
     dsn = os.getenv("SMARTCLAIM_TEST_PG_DSN") if args.postgres_test else None
     if args.postgres_test and not dsn:
         parser.error("Define SMARTCLAIM_TEST_PG_DSN con el destino de pruebas local.")
-    results = import_documents(args.sqlite, args.catalog, args.dry_run, postgres_dsn=dsn)
+    results = import_documents(args.sqlite, args.catalog, args.dry_run, postgres_dsn=dsn, append_fragments=args.append_fragments)
     print(json.dumps({"dry_run": args.dry_run, "results": results}, ensure_ascii=False, indent=2))
     return int(any(row["status"] == "rejected" for row in results))
 
