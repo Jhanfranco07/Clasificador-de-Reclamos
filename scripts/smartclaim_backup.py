@@ -7,6 +7,7 @@ migraciones locales y elimina tanto el contenedor como el dump descifrado.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import ctypes
 from ctypes import wintypes
 from datetime import datetime, timezone
@@ -31,6 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PROJECT_REF = "fydoupwykkshtpongcih"
 POSTGRES_IMAGE = "public.ecr.aws/supabase/postgres:17.11.0.011"
 MAGIC = b"SMARTCLAIM-DPAPI-1\n"
+PORTABLE_MAGIC = b"SMARTCLAIM-AES-256-GCM-1\n"
 CHUNK_SIZE = 1024 * 1024
 PRESERVED_TABLES = {
     "auth_users": "id_auth_user",
@@ -49,6 +51,7 @@ MIGRATIONS = (
     "integrated_sequence_repair.sql",
     "integrated_database_security.sql",
 )
+RECONCILIATION_MIGRATION = "integrated_historical_reconciliation.sql"
 
 
 class BackupError(RuntimeError):
@@ -380,15 +383,229 @@ def _latest_backup(directory: Path) -> Path:
     return files[-1]
 
 
-def validate(args) -> int:
-    _require_docker()
-    backup_path = (args.backup or _latest_backup(_private_root())).resolve()
+def _verified_backup(path: Path | None) -> tuple[Path, dict]:
+    backup_path = (path or _latest_backup(_private_root())).resolve()
     manifest_path = backup_path.with_name("manifest.json")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest.get("format") != "smartclaim-backup-v1":
         raise BackupError("Manifest desconocido.")
     if _sha256(backup_path) != manifest.get("encrypted_sha256"):
         raise BackupError("El SHA-256 del respaldo cifrado no coincide.")
+    return backup_path, manifest
+
+
+def _node_aes_gcm(mode: str, source: Path, destination: Path, key: bytes, iv: bytes):
+    if not shutil.which("node"):
+        raise BackupError("Node.js es necesario para AES-256-GCM portable.")
+    script = r"""
+const fs = require('fs');
+const crypto = require('crypto');
+const [mode, source, destination] = process.argv.slice(1);
+let input = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', chunk => input += chunk);
+process.stdin.on('end', () => {
+  const secret = JSON.parse(input);
+  const key = Buffer.from(secret.key, 'base64');
+  const iv = Buffer.from(secret.iv, 'base64');
+  if (key.length !== 32 || iv.length !== 12) process.exit(8);
+  if (mode === 'encrypt') {
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    const out = fs.createWriteStream(destination, {flags: 'a'});
+    fs.createReadStream(source).pipe(cipher).pipe(out);
+    out.on('finish', () => fs.appendFileSync(destination, cipher.getAuthTag()));
+  } else {
+    const stat = fs.statSync(source);
+    const tag = Buffer.alloc(16);
+    const fd = fs.openSync(source, 'r');
+    fs.readSync(fd, tag, 0, 16, stat.size - 16);
+    fs.closeSync(fd);
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(tag);
+    fs.createReadStream(source, {start: secret.offset, end: stat.size - 17})
+      .pipe(decipher).pipe(fs.createWriteStream(destination));
+  }
+});
+"""
+    import base64
+    payload = json.dumps({
+        "key": base64.b64encode(key).decode("ascii"),
+        "iv": base64.b64encode(iv).decode("ascii"),
+        "offset": len(PORTABLE_MAGIC) + 12,
+    })
+    _run(["node", "-e", script, mode, source, destination], input_text=payload, timeout=1800)
+
+
+def portable(args) -> int:
+    backup_path, manifest = _verified_backup(args.backup)
+    output = backup_path.with_name("smartclaim-public.dump.aes256gcm")
+    key_path = backup_path.with_name("smartclaim-portable.key.dpapi")
+    metadata_path = backup_path.with_name("portable-manifest.json")
+    if any(path.exists() for path in (output, key_path, metadata_path)):
+        raise BackupError("La copia portable ya existe; no se sobrescribió.")
+    key, iv = secrets.token_bytes(32), secrets.token_bytes(12)
+    with tempfile.TemporaryDirectory(prefix="smartclaim-portable-") as name:
+        directory = Path(name)
+        plain = directory / "source.dump"
+        verified = directory / "verified.dump"
+        decrypt_dpapi(backup_path, plain)
+        if _sha256(plain) != manifest.get("plain_sha256"):
+            raise BackupError("El dump DPAPI no coincide con el manifest original.")
+        output.write_bytes(PORTABLE_MAGIC + iv)
+        try:
+            _node_aes_gcm("encrypt", plain, output, key, iv)
+            key_path.write_bytes(_dpapi(key, protect=True))
+            _node_aes_gcm("decrypt", output, verified, key, iv)
+            if _sha256(verified) != manifest.get("plain_sha256"):
+                raise BackupError("La verificación de descifrado AES-GCM no coincide.")
+            metadata = {
+                "format": "smartclaim-portable-v1",
+                "algorithm": "AES-256-GCM",
+                "created_at_utc": datetime.now(timezone.utc).isoformat(),
+                "archive_sha256": _sha256(output),
+                "plain_sha256": manifest["plain_sha256"],
+                "authenticated_decryption_verified": True,
+                "recovery_key": "32 bytes; copia local protegida con DPAPI fuera del repositorio",
+                "production_mutated": False,
+            }
+            metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            for path in (output, key_path, metadata_path):
+                path.unlink(missing_ok=True)
+            raise
+    print(json.dumps({
+        "status": "portable_ok", "archive": str(output), "manifest": str(metadata_path),
+        "sha256": _sha256(output), "verified": True,
+    }, ensure_ascii=False))
+    return 0
+
+
+@contextmanager
+def _restored_readonly_copy(backup_path: Path, manifest: dict):
+    _require_docker()
+    run_id = uuid.uuid4().hex[:12]
+    private = _private_root() / f"review-{run_id}"
+    private.mkdir(parents=True, exist_ok=False)
+    _restrict_acl(private)
+    plain = private / "smartclaim-public.dump"
+    container = f"smartclaim-review-{run_id}"
+    network = f"smartclaim-review-{run_id}"
+    password = secrets.token_urlsafe(32)
+    env = os.environ.copy()
+    env["POSTGRES_PASSWORD"] = password
+    try:
+        decrypt_dpapi(backup_path, plain)
+        if _sha256(plain) != manifest.get("plain_sha256"):
+            raise BackupError("El dump descifrado no coincide con el SHA-256 original.")
+        _docker("network", "create", network, timeout=60)
+        mount = f"type=bind,source={private},target=/backup,readonly"
+        repo_mount = f"type=bind,source={ROOT},target=/repo,readonly"
+        _docker("run", "-d", "--name", container, "--network", network,
+                "--tmpfs", "/var/lib/postgresql/data:rw,nosuid,size=2g",
+                "-e", "POSTGRES_PASSWORD", "--mount", mount, "--mount", repo_mount, POSTGRES_IMAGE,
+                env=env, timeout=120)
+        deadline = time.monotonic() + 180
+        while time.monotonic() < deadline:
+            if _exec(container, "pg_isready", "-U", "postgres", check=False, timeout=10).returncode == 0:
+                break
+            time.sleep(2)
+        else:
+            raise BackupError("PostgreSQL aislado no inició.")
+        database = "smartclaim_review"
+        _psql(container, "postgres", f"CREATE DATABASE {database} TEMPLATE template0")
+        listing = _exec(container, "pg_restore", "--list", "/backup/smartclaim-public.dump").stdout
+        restore_list = private / "restore.list"
+        restore_list.write_text("\n".join(
+            line for line in listing.splitlines() if " SCHEMA - public " not in line
+        ) + "\n", encoding="utf-8")
+        _psql(container, database, "DROP SCHEMA public CASCADE; CREATE SCHEMA public; CREATE EXTENSION vector WITH SCHEMA public")
+        _pg_exec(container, "pg_restore", "--exit-on-error", "--no-owner", "--no-acl",
+                 "--use-list=/backup/restore.list", "-U", "postgres", "-d", database,
+                 "/backup/smartclaim-public.dump", timeout=900)
+        _psql(container, database, "SET default_transaction_read_only=on")
+        yield container, database
+    finally:
+        plain.unlink(missing_ok=True)
+        _docker("rm", "-f", container, check=False, timeout=60)
+        _docker("network", "rm", network, check=False, timeout=60)
+        shutil.rmtree(private, ignore_errors=True)
+
+
+def reconcile(args) -> int:
+    backup_path, manifest = _verified_backup(args.backup)
+    report_path = backup_path.with_name("reconciliation.json")
+    with _restored_readonly_copy(backup_path, manifest) as (container, database):
+        orders = _json_query(container, database, """
+          WITH candidates AS (
+            SELECT p.id_pedido, p.codigo_pedido, p.estado, r.id_restaurante,
+              count(*) OVER (PARTITION BY p.id_pedido) AS merchant_candidates
+            FROM public.pedidos p
+            JOIN public.restaurantes r ON lower(trim(r.nombre))=lower(trim(p.tienda_nombre))
+            WHERE p.estado NOT IN ('DELIVERED','CANCELLED')
+          ), evidence AS (
+            SELECT c.*, count(i.id_item)::int AS item_count,
+              count(i.id_item) FILTER (WHERE (
+                SELECT count(*) FROM public.productos pr
+                WHERE pr.id_restaurante=c.id_restaurante
+                  AND lower(trim(pr.nombre))=lower(trim(i.nombre_producto))
+                  AND abs(pr.precio-i.precio) < 0.01
+              )=1)::int AS unique_item_matches
+            FROM candidates c LEFT JOIN public.pedido_items i ON i.id_pedido=c.id_pedido
+            GROUP BY c.id_pedido,c.codigo_pedido,c.estado,c.id_restaurante,c.merchant_candidates
+          )
+          SELECT codigo_pedido, estado, id_restaurante, merchant_candidates,
+                 item_count, unique_item_matches,
+                 (merchant_candidates=1) AS unequivocal,
+                 (item_count>0 AND item_count=unique_item_matches) AS item_evidence_complete
+          FROM evidence ORDER BY codigo_pedido
+        """)
+        claims = _json_query(container, database, """
+          SELECT r.codigo_reclamo,
+            (SELECT count(*) FROM public.pedidos p
+             WHERE p.codigo_pedido=r.codigo_pedido AND p.id_cliente=r.id_cliente)::int AS exact_candidates,
+            (SELECT count(*) FROM public.pedidos p
+             WHERE p.codigo_pedido=r.codigo_pedido)::int AS code_candidates
+          FROM public.reclamos r ORDER BY r.codigo_reclamo
+        """)
+        for filename in MIGRATIONS:
+            _migration(container, database, filename)
+        _migration(container, database, RECONCILIATION_MIGRATION)
+        _migration(container, database, RECONCILIATION_MIGRATION)
+        applied = _json_query(container, database, """
+          SELECT
+            (SELECT count(*)::int FROM public.pedidos
+             WHERE estado NOT IN ('DELIVERED','CANCELLED') AND id_restaurante IS NOT NULL) AS linked_open_orders,
+            (SELECT count(*)::int FROM public.reclamos WHERE id_pedido IS NOT NULL) AS linked_claims,
+            (SELECT count(*)::int FROM public.reclamos WHERE id_pedido IS NULL) AS unlinked_claims
+        """)[0]
+    unresolved_orders = [{
+        "codigo_pedido": row["codigo_pedido"], "reason": "evidencia comercial o de ítems no única"
+    } for row in orders if not row["unequivocal"]]
+    unresolved_claims = [{
+        "codigo_reclamo": row["codigo_reclamo"],
+        "reason": "sin pedido único para el mismo código y titular",
+        "code_candidates": row["code_candidates"],
+    } for row in claims if row["exact_candidates"] != 1]
+    report = {
+        "status": "reconciliation_ok", "source_mutated": False,
+        "open_orders": len(orders),
+        "orders_unequivocal": sum(bool(row["unequivocal"]) for row in orders),
+        "orders_requiring_decision": unresolved_orders,
+        "claims": len(claims),
+        "claims_unequivocal": sum(row["exact_candidates"] == 1 for row in claims),
+        "claims_requiring_decision": unresolved_claims,
+        "criterion": "comercio único por nombre histórico exacto; reclamo por código y titular",
+        "migration_applied_twice": True,
+        "migration_result": applied,
+    }
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps(report, ensure_ascii=False))
+    return 0
+
+
+def validate(args) -> int:
+    _require_docker()
+    backup_path, manifest = _verified_backup(args.backup)
 
     run_id = uuid.uuid4().hex[:12]
     private = _private_root() / f"staging-{run_id}"
@@ -650,6 +867,12 @@ def parser() -> argparse.ArgumentParser:
     verify = commands.add_parser("validate", help="Restaura y valida en staging efímero.")
     verify.add_argument("--backup", type=Path, help="Respaldo DPAPI; por defecto usa el más reciente.")
     verify.set_defaults(handler=validate)
+    portable_copy = commands.add_parser("portable", help="Crea y verifica una copia AES-256-GCM.")
+    portable_copy.add_argument("--backup", type=Path, help="Respaldo DPAPI; por defecto usa el más reciente.")
+    portable_copy.set_defaults(handler=portable)
+    review = commands.add_parser("reconcile", help="Revisa vínculos históricos en una copia aislada.")
+    review.add_argument("--backup", type=Path, help="Respaldo DPAPI; por defecto usa el más reciente.")
+    review.set_defaults(handler=reconcile)
     return root
 
 
