@@ -4,6 +4,7 @@ from collections import Counter, defaultdict
 import json
 import os
 from pathlib import Path
+import re
 
 from database.db_connection import PostgresConnection
 from modules.rag_engine import dividir_en_fragmentos
@@ -79,9 +80,16 @@ def plan_document_migration(dsn, catalog):
                    categoria_asociada, texto_fragmento
             FROM rag_embeddings
         """)}
-        sequence = conn.execute("""
-            SELECT pg_sequence_last_value(pg_get_serial_sequence('documentos_base', 'id_documento')::regclass) AS last_value
-        """).fetchone()["last_value"]
+        sequence_name = conn.execute("""
+            SELECT pg_get_serial_sequence('documentos_base', 'id_documento') AS name
+        """).fetchone()["name"]
+        if not sequence_name or not re.fullmatch(r"public\.[a-z_][a-z0-9_]*", sequence_name):
+            raise ValueError("La secuencia de documentos no es verificable.")
+        sequence = conn.execute(
+            f"SELECT last_value, is_called FROM {sequence_name}"
+        ).fetchone()
+        sequence_last = sequence["last_value"]
+        sequence_next = sequence_last + int(sequence["is_called"])
 
         results = []
         for doc in incoming:
@@ -126,9 +134,11 @@ def plan_document_migration(dsn, catalog):
             "existing_documents": len(documents),
             "existing_fragments": sum(map(len, fragments.values())),
             "existing_embeddings": len(embeddings),
-            "document_sequence_last_value": sequence,
+            "document_sequence_last_value": sequence_last,
+            "document_sequence_is_called": sequence["is_called"],
+            "document_sequence_next_value": sequence_next,
             "max_document_id": max_id,
-            "sequence_needs_review": bool(max_id and (sequence is None or sequence < max_id)),
+            "sequence_needs_review": bool(max_id and sequence_next <= max_id),
             "results": results,
         }
 

@@ -38,26 +38,27 @@ Se conservaron los contratos de los cinco roles y de RAG en la misma rama. La du
 - **Corrección de registro.** El commit b5e24a8 reserva correos asociados a cuentas, clientes o notificaciones existentes. El alta normal crea cuenta y cliente en una sola transacción. La regresión SQLite y PostgreSQL comprobó que un correo histórico obtiene 409, no crea una cuenta y no modifica el titular del pedido. El candidato definitivo no depende del lanzador temporal de Render.
 - **Publicación completada.** La contención temporal de FastAPI ya fue verificada. La rama integrada está publicada y el PR #2 se abrió separado y en borrador hacia main. El PR documental #1 permanece intacto y no debe integrarse además del PR definitivo sin revisar duplicaciones.
 - **Despliegues automáticos.** La configuración de Vercel desactiva los despliegues por Git solo para la rama de integración. El título y los commits documentales usan [skip render], Render conserva AutoDeploy apagado y GitHub no registró despliegues para la rama tras la publicación. [Vercel](https://vercel.com/docs/project-configuration/git-configuration) · [Render](https://render.com/docs/service-previews)
-- **Resultado del ensayo con datos reales.** El propietario confirmó que aún no dispone de una copia autorizada. Los ensayos de Fase 1, 2B, 2C, integridad, secuencias y seguridad son sintéticos. En el ensayo previo se aplicaron dos veces, se comprobó el login limitado y se restauró el respaldo sintético en otra base. El recorrido local con los cinco roles y PostgreSQL limitado no acredita la compatibilidad de los datos de producción.
+- **Resultado del ensayo con datos reales.** El 13 de noviembre se generó una copia lógica autorizada y cifrada del esquema `public` productivo. Se restauró en PostgreSQL 17/pgvector efímero y se aplicaron dos veces Fase 1, 2B, 2C, integridad, secuencias y seguridad. La copia de origen permaneció separada e inmutable; la base migrada y una restauración de rollback reprodujeron las huellas esperadas. Producción no se modificó.
 
 La revisión del 13 de noviembre aprobó 194 pruebas Pytest con SQLite y PostgreSQL 16/pgvector 0.8.6 locales, incluidas las dos regresiones de registro, las migraciones, RLS/GRANT, secuencias, conservación documental y recorridos de los cinco roles. TypeScript 5.8.3 aprobó sin errores y Vite compiló 2.611 módulos. Chromium aprobó 64 de 64 pruebas sobre FastAPI y SQLite desechables. Una primera carga fría excedió el tiempo de espera; el caso aislado pasó al repetirlo y la corrida completa posterior aprobó. La suite registró un aviso de deprecación de Starlette/httpx y cero intentos externos inesperados. No hubo llamadas de pago ni acceso a Supabase durante estas pruebas.
 
-Las migraciones están listas para un ensayo de staging, no para aplicación productiva. La importación aditiva, RAG local por categoría, borrador privado, permisos cruzados, idempotencia y restauración se comprobaron con datos sintéticos. Falta una copia lógica autorizada para acreditar la conservación real y confirmar los vínculos de los 11 pedidos abiertos antes de solicitar el corte.
+Las migraciones quedaron validadas sobre la copia real de staging, no aplicadas en producción. Se conservaron 3 cuentas, 3 clientes, 12 pedidos, 16 reclamos y los 24 embeddings históricos. Los 18 documentos y 24 fragmentos originales permanecieron iguales; el proceso aditivo produjo 60 documentos y 98 fragmentos. Los 11 pedidos abiertos tienen un único candidato por nombre de comercio, pero no se asignó ninguno automáticamente. Catorce reclamos tienen un único pedido candidato y dos requieren conciliación manual. La repetición no añadió duplicados.
 
-### Obtener la copia autorizada
+### Backup y validación reproducibles
 
-1. En [Backups del proyecto](https://supabase.com/dashboard/project/fydoupwykkshtpongcih/database/backups), comprobar si hay un respaldo lógico descargable y registrar fecha y alcance. Si solo hay respaldo físico o PITR, reservarlo para el procedimiento autorizado del proveedor o generar una exportación lógica. Evitar el botón de restauración del proyecto de origen. [Respaldos de Supabase](https://supabase.com/docs/guides/platform/backups)
-2. Para generar una exportación lógica, abrir **Connect** en el proyecto, seleccionar la conexión directa si la red lo permite o **Session pooler** si se necesita IPv4, y copiar host, puerto, usuario y base. Usar pg_dump de PostgreSQL 17 o una versión compatible. Descargar el certificado CA desde la configuración SSL de la base y usar TLS con verificación completa. Los ajustes del ejemplo son del proceso local. pg_dump pide la contraseña en la terminal y escribe el archivo fuera del repositorio. [Conexión a PostgreSQL](https://supabase.com/docs/guides/database/connecting-to-postgres)
+El ejecutor reutiliza Docker y la imagen local de Supabase PostgreSQL 17.11. Lee `DATABASE_URL` desde un archivo privado, pasa la contraseña solo por el entorno del proceso, usa `pg_dump` 17 sobre `public`, valida el catálogo con `pg_restore`, cifra por bloques con Windows DPAPI y restringe la ACL al usuario actual y `SYSTEM`. No usa los archivos del parche de Render.
 
 ~~~powershell
-$env:PGSSLMODE = 'verify-full'
-$env:PGSSLROOTCERT = 'RUTA_LOCAL_AL_CERTIFICADO_CA'
-pg_dump -h HOST -p PUERTO -U USUARIO -d BASE -W --format=custom --schema=public --no-owner --no-acl --file="RUTA_CIFRADA_FUERA_DEL_REPO/smartclaim.dump"
-pg_restore --list "RUTA_CIFRADA_FUERA_DEL_REPO/smartclaim.dump"
-Get-FileHash -Algorithm SHA256 -LiteralPath "RUTA_CIFRADA_FUERA_DEL_REPO/smartclaim.dump"
+# Comando 1: backup productivo de solo lectura, cifrado y verificado.
+& .venv\Scripts\python.exe -B -m scripts.smartclaim_backup backup --source-env-file "RUTA_PRIVADA\.env"
+
+# Comando 2: restauración, migraciones, pruebas focalizadas y rollback efímeros.
+& .venv\Scripts\python.exe -B -m scripts.smartclaim_backup validate
 ~~~
 
-3. Guardar el archivo en un volumen cifrado con acceso limitado al propietario y al operador autorizado, fuera de todos los worktrees y de carpetas sincronizadas. Registrar hora y SHA-256. Conservar aparte un inventario de propietarios, ACL y roles sin contraseñas. Confirmar la ruta protegida y autorizar la restauración aislada. Mantener el original inmutable y usar una copia sanitizada para las pruebas con usuarios.
+El respaldo vigente está fuera de Git en `%LOCALAPPDATA%\SmartClaim-Privado\backups\smartclaim-20261113T211244Z`. Su SHA-256 cifrado es `fb94c361ba77e0d725fd47936d5300e674ce9ceb16aa73c2d41aaa91c2548906`; el manifest y el informe final no contienen credenciales ni filas. DPAPI lo vincula al usuario y equipo Windows actuales. Storage binario, configuración Auth/SMTP/OAuth, Edge Functions, claves, secretos JWT, Realtime y contraseñas de roles globales no pertenecen a este dump de aplicación y deben respaldarse por procedimientos separados si se incorporan al alcance.
+
+La restauración final aprobó cuatro pruebas PostgreSQL focalizadas, cero restricciones inválidas, cero tablas de aplicación sin RLS forzado y cero pares rol público/tabla con privilegios. El login `smartclaim_backend` quedó limitado. El contenedor, la red, la contraseña sintética y el dump descifrado se eliminaron al terminar.
 
 ### Corte definitivo y rollback
 
@@ -69,9 +70,9 @@ Get-FileHash -Algorithm SHA256 -LiteralPath "RUTA_CIFRADA_FUERA_DEL_REPO/smartcl
 
 ## Acciones concretas y criterio de término
 
-1. Obtener una copia autorizada de PostgreSQL y restaurarla aislada. Confirmar y registrar el vínculo de los 11 pedidos abiertos, revisar el estado DELAYED y validar los candidatos de reclamos por código y titular. Mantener los vínculos que no se puedan demostrar sin asignar.
-2. Ensayar las migraciones y el login limitado en esa copia. Ejecutar primero el plan de fragmentos faltantes y comprobar sus altas sin pérdida. Validar la importación de los 42 documentos académicos y preparar la ejecución del lote aditivo por el operador de base para el entorno alojado. Reutilizar las sondas de identidad y huellas ya preparadas. [Orden y rollback](PLAN_DESPLIEGUE_INTEGRADO.md)
-3. Con cuentas de prueba autorizadas, verificar el mismo flujo del navegador en staging. Exigir compra, preparación, asignación, entrega, reclamo del titular, evidencia RAG, revisión humana, publicación y notificación. Comprobar rechazos de acceso ajeno y un rollback que conserve IDs, históricos y vectores.
-4. Presentar el SHA del candidato, resultados, riesgos y ventana. Con autorización, integrar ese candidato, aplicar el corte de base y publicar el frontend y backend correspondientes. Mantener la Data API apagada. Confirmar salud PostgreSQL y repetir el recorrido con las cuentas autorizadas de la revisión publicada.
+1. Confirmar manualmente los vínculos de los 11 pedidos abiertos y revisar los dos reclamos sin candidato único. Mantener `NULL` donde la evidencia no baste; el ensayo no inventó relaciones.
+2. Preparar una contraseña productiva nueva para `smartclaim_backend` mediante el gestor de secretos del despliegue. La migración crea el rol sin contraseña deliberadamente.
+3. Presentar el SHA del candidato, respaldo, resultados y ventana. Con autorización explícita, aplicar el corte de base, desplegar backend y frontend de la misma revisión y retirar el parche temporal solo tras repetir registro, login, acceso horizontal y cinco roles.
+4. Mantener la Data API apagada. Conservar el respaldo DPAPI sin alterarlo y crear una segunda copia cifrada portable antes del corte si se requiere recuperación en otro equipo.
 
 SmartClaim se considera terminado para este alcance cuando los cinco actores pueden operar el recorrido en la versión publicada, el historial y la autorización son verificables, las sugerencias citan evidencia vigente y quedan privadas hasta aprobación, y el cambio es reversible con los datos preservados. El proveedor LLM de pago, el cobro electrónico y el envío de correos requieren una decisión de alcance independiente.
