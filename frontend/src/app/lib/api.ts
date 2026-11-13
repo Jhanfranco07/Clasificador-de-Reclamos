@@ -22,12 +22,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(options.headers || {}),
       },
-      ...options,
       signal: controller.signal,
     });
   } catch (error) {
@@ -54,7 +54,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new Error(message);
   }
 
-  return response.json() as Promise<T>;
+  const data = await response.json() as T;
+  if (options.method && options.method !== 'GET' && /^\/api\/(claims|responses|orders)(\/|$)/.test(path)) {
+    window.dispatchEvent(new Event('smartclaim:notifications-changed'));
+  }
+  return data;
 }
 
 export interface ClaimSummary {
@@ -73,13 +77,22 @@ export interface ClaimSummary {
   requiresHumanReview: boolean;
   createdAt: string;
   updatedAt: string;
+  assignment?: ClaimAssignment;
+}
+
+export interface ClaimAssignment {
+  id: number | null;
+  name?: string;
+  active: boolean;
+  version: number;
+  assignedAt?: string;
 }
 
 export interface AuthUser {
   id: string;
   name: string;
   email: string;
-  role: 'CLIENT' | 'AGENT' | 'ADMIN';
+  role: 'CLIENT' | 'AGENT' | 'ADMIN' | 'MERCHANT' | 'COURIER';
   phone?: string;
   createdAt: string;
 }
@@ -103,14 +116,58 @@ export interface ApiOrder {
   userId: string;
   storeName: string;
   storeImage?: string;
-  status: 'DELIVERED' | 'IN_TRANSIT' | 'CANCELLED' | 'DELAYED' | 'PREPARING';
+  status: 'DELIVERED' | 'IN_TRANSIT' | 'CANCELLED' | 'DELAYED' | 'PREPARING' | 'RECEIVED' | 'ACCEPTED' | 'READY_FOR_PICKUP';
   total: number;
+  subtotal?: number;
+  deliveryFee?: number;
+  serviceFee?: number;
+  deliveryNotes?: string;
+  paymentVerified: boolean;
   paymentMethod: string;
   deliveryAddress: string;
   deliveryDriver?: string;
+  driverVerified?: boolean;
   items: ApiOrderItem[];
   createdAt: string;
   estimatedDelivery?: string;
+  restaurantId?: number;
+  pickupAddress?: string;
+  version: number;
+  pickedUpAt?: string;
+  deliveredAt?: string;
+  reconciliationRequired?: boolean;
+  events: OrderEvent[];
+}
+
+export interface OrderEvent {
+  accion: string;
+  estado_anterior?: string;
+  estado_nuevo: string;
+  fecha: string;
+  actor_nombre?: string;
+  actor_rol?: string;
+  motivo?: string;
+  courier_id?: number;
+}
+
+export type ManagedUser = { id_auth_user: number; nombre: string; correo: string; rol: AuthUser['role']; estado: string };
+export type ManagedRestaurant = { id_restaurante: number; nombre: string; direccion?: string; responsable?: string; activo: number };
+export type ManagedProduct = { id_producto: number; nombre: string; precio: number; disponible: number; restaurante: string; puede_editar_productos: number };
+export type OperationsOverview = {
+  users: ManagedUser[]; restaurants: ManagedRestaurant[];
+  operators: Array<{ id_auth_user: number; id_restaurante: number; activo: number; puede_editar_productos: number }>;
+  couriers: Array<{ id_auth_user: number; nombre: string; estado: string; disponible: number; active_deliveries: number }>;
+  audit: Array<{ request_id: string; actor_nombre: string; actor_rol: string; accion: string; recurso_id: number; detalle: string; fecha: string }>;
+};
+
+export function getOperations() { return request<OperationsOverview>('/api/operations/admin'); }
+export function operationalWrite(path: string, data: object, method = 'POST') {
+  return request<{ ok?: boolean; order?: ApiOrder }>(path, { method, body: JSON.stringify(data) });
+}
+export function getOperationalProducts() { return request<{ items: ManagedProduct[] }>('/api/operations/products'); }
+export function getAvailability() { return request<{ available: boolean }>('/api/operations/availability'); }
+export function getClaimOrderContext(id: string) {
+  return request<{ order: ApiOrder | null; financialStatus: string }>(`/api/claims/${id}/order-context`);
 }
 
 export interface CatalogProduct {
@@ -134,6 +191,8 @@ export interface CatalogRestaurant {
 
 export interface NotificationItem {
   id: string;
+  orderId?: string;
+  event?: string;
   claimId?: string;
   title: string;
   message: string;
@@ -176,7 +235,7 @@ export interface ClaimDetailResponse {
   } | null;
   response: {
     id: string;
-    suggestedResponse: string;
+    suggestedResponse?: string;
     editedResponse?: string;
     finalResponse?: string;
     status: string;
@@ -198,6 +257,8 @@ export interface ClaimDetailResponse {
     action: string;
     comment?: string;
     user?: string;
+    actorId?: number;
+    actorRole?: string;
     createdAt: string;
   }>;
 }
@@ -251,6 +312,13 @@ export interface ReindexResponse {
 }
 
 export interface ConfigResponse {
+  id: number;
+  activeCount: number;
+  selectionPolicy: string;
+  runtime: {
+    classifierArtifactPresent: boolean;
+    lastExecution: { classifierModel: string; generationStrategy: string | null; retrievalStrategy: string | null; openaiUsed: boolean; recordedAt: string; outcome: string } | null;
+  };
   model: string;
   confidenceThreshold: number;
   humanReviewRequired: boolean;
@@ -319,6 +387,10 @@ export function listNotifications() {
   return request<{ items: NotificationItem[]; unread: number }>('/api/notifications');
 }
 
+export function markNotificationRead(id: string) {
+  return request<{ items: NotificationItem[]; unread: number }>(`/api/notifications/${id}/read`, { method: 'PATCH' });
+}
+
 export function markNotificationsRead() {
   return request<{ items: NotificationItem[]; unread: number }>('/api/notifications/read', {
     method: 'PATCH',
@@ -333,12 +405,28 @@ export function getOrder(id: string) {
   return request<{ order: ApiOrder }>(`/api/orders/${id}`);
 }
 
+export interface OrderQuote {
+  items: Array<{ productId: number; restaurantId: number; restaurantName: string; name: string; price: number; quantity: number; image?: string }>;
+  subtotal: number;
+  delivery: number | null;
+  service: number | null;
+  total: number | null;
+  canConfirm: boolean;
+  quoteHash: string;
+  limitation: string | null;
+}
+
+export function quoteOrder(items: Array<{ product_id: number; quantity: number }>) {
+  return request<OrderQuote>('/api/orders/quote', { method: 'POST', body: JSON.stringify({ items }) });
+}
+
 export function createOrder(payload: {
-  store_name: string;
-  store_image?: string;
+  request_id?: string;
+  quote_hash: string;
   payment_method: string;
   delivery_address: string;
-  items: Array<{ name: string; quantity: number; price: number; image?: string }>;
+  delivery_notes?: string;
+  items: Array<{ product_id: number; quantity: number }>;
 }) {
   return request<{ order: ApiOrder }>('/api/orders', {
     method: 'POST',
@@ -351,10 +439,12 @@ export function listClaims(filters: {
   dateTo?: string;
   status?: string;
   search?: string;
+  assignment?: string;
   page?: number;
   pageSize?: number;
 } = {}) {
   const params = new URLSearchParams();
+  if (filters.assignment) params.set('assignment', filters.assignment);
   if (filters.dateFrom) params.set('date_from', filters.dateFrom);
   if (filters.dateTo) params.set('date_to', filters.dateTo);
   if (filters.status && filters.status !== 'ALL') params.set('status', filters.status);
@@ -372,15 +462,15 @@ export function listClaimMessages(id: string) {
   return request<{ items: ClaimMessage[] }>(`/api/claims/${id}/messages`);
 }
 
-export function sendClaimMessage(id: string, message: string) {
+export function sendClaimMessage(id: string, message: string, requestId?: string) {
   return request<{ items: ClaimMessage[] }>(`/api/claims/${id}/messages`, {
     method: 'POST',
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, request_id: requestId }),
   });
 }
 
-export function closeClaim(id: string) {
-  return request<ClaimDetailResponse>(`/api/claims/${id}/close`, { method: 'POST' });
+export function closeClaim(id: string, comment: string) {
+  return request<ClaimDetailResponse>(`/api/claims/${id}/close`, { method: 'POST', body: JSON.stringify({ comment }) });
 }
 
 export function reopenClaim(id: string) {
@@ -395,6 +485,7 @@ export function sendChatMessage(message: string, sessionId?: string, context?: R
 }
 
 export function createClaim(payload: {
+  request_id?: string;
   customer_name: string;
   customer_email: string;
   customer_phone?: string;
@@ -450,6 +541,15 @@ export function getDashboard() {
   return request<DashboardResponse>('/api/dashboard');
 }
 
+export function previewDocumentPdf(file: File, signal?: AbortSignal) {
+  return request<{ content: string }>('/api/documents/pdf-preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/pdf' },
+    body: file,
+    signal,
+  });
+}
+
 export function getDocuments() {
   return request<DocumentsResponse>('/api/documents');
 }
@@ -483,6 +583,7 @@ export function getConfig() {
 }
 
 export function saveConfig(payload: {
+  config_id: number;
   confidence_threshold: number;
   human_review_required: boolean;
   use_rag: boolean;
@@ -508,4 +609,16 @@ export function getReports(filters: {
   if (filters.category && filters.category !== 'ALL') params.set('category', filters.category);
   if (filters.priority && filters.priority !== 'ALL') params.set('priority', filters.priority);
   return request<ReportsResponse>(`/api/reports?${params}`);
+}
+
+export function listClaimAssignees() {
+  return request<{ items: Array<{ id: number; name: string; role: string }> }>('/api/claim-assignees');
+}
+
+export function assignClaim(id: string, payload: { assignee_id: number; expected_version: number; reason: string; request_id: string }) {
+  return request<ClaimDetailResponse>(`/api/claims/${id}/assignment`, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function escalateClaim(id: string, payload: { assignee_id?: number; expected_version: number; reason: string; request_id: string }) {
+  return request<ClaimDetailResponse>(`/api/claims/${id}/escalate`, { method: 'POST', body: JSON.stringify(payload) });
 }

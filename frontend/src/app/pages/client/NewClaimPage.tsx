@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -28,6 +28,9 @@ export default function NewClaimPage() {
   const [searchParams] = useSearchParams();
   const { currentUser } = useAuth();
   const [orders, setOrders] = useState<ApiOrder[]>([]);
+  const [ordersError, setOrdersError] = useState('');
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [retryOrders, setRetryOrders] = useState(0);
 
   const [orderId, setOrderId] = useState(searchParams.get('orderId') || '');
   const [description, setDescription] = useState('');
@@ -35,6 +38,7 @@ export default function NewClaimPage() {
   const [claimCode, setClaimCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const requestId = useMemo(() => crypto.randomUUID(), [orderId, description, currentUser?.id]);
 
   useEffect(() => {
     const orderIdFromParams = searchParams.get('orderId');
@@ -44,13 +48,19 @@ export default function NewClaimPage() {
   }, [searchParams]);
 
   useEffect(() => {
+    let active = true;
+    setOrdersLoading(true);
+    setOrdersError('');
     listOrders()
-      .then((data) => setOrders(data.items))
-      .catch(() => setOrders([]));
-  }, []);
+      .then((data) => { if (active) setOrders(data.items); })
+      .catch((err) => { if (active) setOrdersError(err instanceof Error ? err.message : 'No se pudieron cargar los pedidos.'); })
+      .finally(() => { if (active) setOrdersLoading(false); });
+    return () => { active = false; };
+  }, [retryOrders]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (ordersLoading || ordersError) return;
     setError('');
 
     const order = orders.find((item) => item.id === orderId);
@@ -67,6 +77,7 @@ export default function NewClaimPage() {
     try {
       setIsSubmitting(true);
       const result = await createClaim({
+        request_id: requestId,
         customer_name: currentUser.name,
         customer_email: currentUser.email,
         customer_phone: currentUser.phone,
@@ -120,8 +131,8 @@ export default function NewClaimPage() {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="order">Pedido relacionado *</Label>
-                <Select value={orderId} onValueChange={setOrderId} required>
-                  <SelectTrigger>
+                <Select value={orderId} onValueChange={setOrderId} disabled={ordersLoading || !!ordersError}>
+                  <SelectTrigger id="order" aria-required="true" className="w-full min-w-0 [&>span]:truncate">
                     <SelectValue placeholder="Selecciona un pedido" />
                   </SelectTrigger>
                   <SelectContent>
@@ -132,6 +143,10 @@ export default function NewClaimPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                {ordersLoading && <p role="status">Cargando pedidos...</p>}
+                {ordersError ? <div role="alert"><p>{ordersError}</p><Button type="button" variant="outline" onClick={() => setRetryOrders((n) => n + 1)}>Reintentar carga de pedidos</Button></div>
+                  : !ordersLoading && orders.length === 0 && <p>No tienes pedidos disponibles para registrar un reclamo.</p>}
+                {!ordersLoading && !ordersError && orderId && !orders.some((order) => order.id === orderId) && <p role="alert">El pedido indicado no está disponible para esta cuenta. Selecciona uno de tus pedidos.</p>}
                 <p className="text-sm text-gray-500">
                   Elige el pedido donde ocurrió el problema.
                 </p>
@@ -177,7 +192,7 @@ export default function NewClaimPage() {
                 <Button
                   type="submit"
                   className="flex-1"
-                  disabled={!orderId || description.trim().length < 10 || isSubmitting}
+                  disabled={ordersLoading || !!ordersError || !orders.some((order) => order.id === orderId) || description.trim().length < 10 || isSubmitting}
                 >
                   {isSubmitting ? 'Enviando...' : 'Enviar reclamo'}
                 </Button>

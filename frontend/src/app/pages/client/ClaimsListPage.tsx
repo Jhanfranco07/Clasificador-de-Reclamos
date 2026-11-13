@@ -22,10 +22,14 @@ export default function ClaimsListPage() {
   const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
+    let active = true;
+    setIsLoading(true);
+    setError('');
     listClaims({ dateFrom, dateTo, page, pageSize: 6 })
-      .then((data) => { setClaims(data.items); setTotalPages(data.pagination.totalPages); })
-      .catch((err) => setError(err instanceof Error ? err.message : 'No se pudieron cargar los reclamos.'))
-      .finally(() => setIsLoading(false));
+      .then((data) => { if (active) { setClaims(data.items); setTotalPages(data.pagination.totalPages); } })
+      .catch((err) => { if (active) setError(err instanceof Error ? err.message : 'No se pudieron cargar los reclamos.'); })
+      .finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
   }, [dateFrom, dateTo, page]);
 
   const getStatusColor = (status: string) => {
@@ -57,7 +61,7 @@ export default function ClaimsListPage() {
   return (
     <ClientLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap gap-3 items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold mb-2">Mis reclamos</h1>
             <p className="text-gray-600">
@@ -74,7 +78,7 @@ export default function ClaimsListPage() {
 
         {error && (
           <Card className="border-red-200 bg-red-50">
-            <CardContent className="py-4 text-red-700">{error}</CardContent>
+            <CardContent role="alert" className="py-4 text-red-700">{error}</CardContent>
           </Card>
         )}
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-4 text-card-foreground">
@@ -90,7 +94,7 @@ export default function ClaimsListPage() {
               Cargando reclamos...
             </CardContent>
           </Card>
-        ) : userClaims.length === 0 ? (
+        ) : error ? null : userClaims.length === 0 ? (
           <Card>
             <CardContent className="text-center py-12">
               <AlertCircle className="size-16 mx-auto mb-4 text-gray-300" />
@@ -108,9 +112,9 @@ export default function ClaimsListPage() {
             {userClaims.map((claim) => (
               <Card key={claim.id} className="hover:shadow-lg transition-shadow">
                 <CardContent className="p-6">
-                  <div className="flex items-start justify-between gap-6">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
+                  <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0 break-words">
+                      <div className="flex flex-wrap items-center gap-3 mb-2">
                         <h3 className="font-semibold text-lg">{claim.code}</h3>
                         <Badge className={getStatusColor(claim.statusKey)}>
                           {CLAIM_STATUS_LABELS[claim.statusKey as keyof typeof CLAIM_STATUS_LABELS] || claim.status}
@@ -139,7 +143,7 @@ export default function ClaimsListPage() {
                 </CardContent>
               </Card>
             ))}
-            <div className="flex items-center justify-between pt-3 text-sm">
+            <div className="flex flex-wrap gap-3 items-center justify-between pt-3 text-sm">
               <span>Página {page} de {totalPages}</span>
               <div className="flex gap-2"><Button variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>Anterior</Button><Button variant="outline" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Siguiente</Button></div>
             </div>

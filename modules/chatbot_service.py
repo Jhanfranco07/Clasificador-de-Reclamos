@@ -13,6 +13,8 @@ from database.repositories import (
     listar_reclamos_por_correo,
 )
 from modules.rag_engine import recuperar_documentos
+from modules.faq_router import find_faq, is_procedural_question
+from modules.ai_trace import traced_chat, trace_update, trace_append
 
 logger = logging.getLogger(__name__)
 
@@ -161,9 +163,24 @@ def deterministic_response(intent: dict[str, Any], context: dict[str, Any]) -> s
     return None
 
 
+@traced_chat
 def answer_chat(message: str, user: dict[str, Any] | None = None, context: dict[str, Any] | None = None) -> dict[str, Any]:
     intent = detect_chat_intent(message)
+    procedural = is_procedural_question(message)
+    # A question about how to consult a status is not a request for personal status.
+    if procedural and not intent["order_code"] and not intent["claim_code"]:
+        faq = find_faq(message)
+        if faq:
+            trace_update(route="FAQ", retrieval_strategy="faq_terms", document_count=1)
+            return {"message": faq["contenido"], "intent": "faq", "provider": "faq",
+                    "documents": [faq["titulo"]],
+                    "sources": [{"id": faq["id_documento"], "title": faq["titulo"],
+                                 "score": faq["score"]}]}
+        trace_append("fallback_reasons", "no_confident_faq_match")
+        if intent["requires_auth"]:
+            intent = {**intent, "name": "general", "requires_auth": False}
     if intent["requires_auth"] and not user:
+        trace_append("fallback_reasons", "authentication_required")
         return {
             "message": "Para consultar tus pedidos, reclamos, carrito o notificaciones necesitas iniciar sesión.",
             "intent": intent["name"],
@@ -174,11 +191,16 @@ def answer_chat(message: str, user: dict[str, Any] | None = None, context: dict[
     user_context = build_user_context(user, intent, context) if user else {}
     direct = deterministic_response(intent, user_context)
     if direct:
+        trace_update(route="atencion_humana" if intent["name"] == "sensitive_problem" else "consulta_directa")
+        if intent["name"] == "sensitive_problem":
+            trace_update(human_review_required=True)
+            trace_append("fallback_reasons", "sensitive_problem")
         return {"message": direct, "intent": intent["name"], "provider": "local", "documents": []}
 
-    documents = recuperar_documentos(message, "Soporte general", max_docs=3)
+    documents = recuperar_documentos(message, None, max_docs=3)
     fallback = "Puedo ayudarte con pedidos, pagos, reclamos y uso de la plataforma."
     if not os.getenv("OPENAI_API_KEY"):
+        trace_append("fallback_reasons", "openai_not_configured")
         return {"message": fallback, "intent": intent["name"], "provider": "local", "documents": []}
 
     try:
@@ -189,6 +211,7 @@ def answer_chat(message: str, user: dict[str, Any] | None = None, context: dict[
             f"{doc.get('titulo')}: {doc.get('fragmento') or doc.get('contenido')}"
             for doc in documents
         )
+        trace_update(openai_used=True)
         response = OpenAI(timeout=20.0, max_retries=1).responses.create(
             model=os.getenv("OPENAI_CHAT_MODEL", os.getenv("OPENAI_MODEL", "gpt-4.1-mini")),
             instructions=(
@@ -196,13 +219,16 @@ def answer_chat(message: str, user: dict[str, Any] | None = None, context: dict[
                 "Usa únicamente los datos del contexto entregado por el backend. No inventes cantidades, "
                 "estados, nombres, montos ni fechas. No uses placeholders. Si faltan datos, dilo claramente. "
                 "No prometas devoluciones, cupones ni compensaciones automáticas."
+                " No confirmes pagos o entregas reales ni comunicaciones automáticas: esta es una demostración sin esas integraciones."
             ),
             input=f"Consulta: {message}\nDatos reales: {safe_context}\nDocumentos internos:\n{knowledge}",
         )
         text = response.output_text.strip()
         if "[" in text and "]" in text:
             return {"message": fallback, "intent": intent["name"], "provider": "local_fallback", "documents": []}
+        trace_update(generation_strategy="openai")
         return {"message": text, "intent": intent["name"], "provider": "openai", "documents": [doc.get("titulo") for doc in documents]}
     except Exception:
-        logger.exception("Falló la respuesta OpenAI del chatbot; se utilizará respuesta local")
+        trace_append("fallback_reasons", "chat_generation_unavailable")
+        logger.warning("Generación del chatbot no disponible; se utiliza respuesta local")
         return {"message": fallback, "intent": intent["name"], "provider": "local_fallback", "documents": []}

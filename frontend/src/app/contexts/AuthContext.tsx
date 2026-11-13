@@ -18,7 +18,7 @@ const toUser = (user: {
   id: string;
   name: string;
   email: string;
-  role: 'CLIENT' | 'AGENT' | 'ADMIN';
+  role: 'CLIENT' | 'AGENT' | 'ADMIN' | 'MERCHANT' | 'COURIER';
   phone?: string;
   createdAt: string;
 }): User => ({

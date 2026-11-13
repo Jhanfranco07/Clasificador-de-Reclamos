@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import ClaimOrderContext from '../../components/ClaimOrderContext';
+import ClaimAssignmentControls from '../../components/ClaimAssignmentControls';
 import { useParams, Link } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -48,6 +50,7 @@ export default function AdminClaimDetailPage() {
   const [comments, setComments] = useState<Array<{ id: string; comment: string; type: string; user: string; createdAt: string }>>([]);
   const [commentText, setCommentText] = useState('');
   const [commentType, setCommentType] = useState('INTERNO');
+  const [closeReason, setCloseReason] = useState('');
 
   const loadClaim = async () => {
     if (!id) return;
@@ -55,7 +58,7 @@ export default function AdminClaimDetailPage() {
     try {
       const data = await getClaim(id);
       setDetail(data);
-      setEditedResponse(data.response?.finalResponse || data.response?.editedResponse || data.response?.suggestedResponse || '');
+      setEditedResponse(data.response?.editedResponse || data.response?.finalResponse || data.response?.suggestedResponse || '');
       const commentData = await listAgentComments(id);
       setComments(commentData.items);
     } catch (err) {
@@ -74,7 +77,7 @@ export default function AdminClaimDetailPage() {
     try {
       const data = await action();
       setDetail(data);
-      setEditedResponse(data.response?.finalResponse || data.response?.editedResponse || data.response?.suggestedResponse || '');
+      setEditedResponse(data.response?.editedResponse || data.response?.finalResponse || data.response?.suggestedResponse || '');
       setIsEditing(false);
       return true;
     } catch (err) {
@@ -102,7 +105,7 @@ export default function AdminClaimDetailPage() {
 
   const handleSendResponse = async () => {
     if (!response) return;
-    const ok = await runAction(() => approveResponse(response.id, editedResponse || response.suggestedResponse));
+    const ok = await runAction(() => approveResponse(response.id, editedResponse || response.suggestedResponse || ''));
     if (ok) {
       toast.success('Respuesta enviada al cliente correctamente.');
     }
@@ -148,7 +151,7 @@ export default function AdminClaimDetailPage() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6 max-w-6xl mx-auto">
+      <div className="space-y-6 max-w-6xl mx-auto min-w-0 break-words">
         <div className="flex items-center gap-4">
           <Link to="/admin/claims">
             <Button variant="ghost" size="sm">
@@ -158,9 +161,9 @@ export default function AdminClaimDetailPage() {
           </Link>
         </div>
 
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Reclamo {claim.code}</h1>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2 [overflow-wrap:anywhere]">Reclamo {claim.code}</h1>
             <p className="text-gray-600">Revisión de soporte con clasificación, contexto documental y respuesta sugerida.</p>
           </div>
           <Badge className={`${getStatusColor(claim.statusKey)} text-lg px-4 py-2`}>
@@ -342,33 +345,26 @@ export default function AdminClaimDetailPage() {
                     <>
                       <div className="bg-green-50 p-4 rounded-lg">
                         <p className="whitespace-pre-line text-gray-800">
-                          {response.finalResponse || response.editedResponse || response.suggestedResponse}
+                          {response.status === 'APROBADA' ? response.finalResponse : (response.editedResponse || response.suggestedResponse)}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-3">
                         <Button
-                          disabled={isWorking}
+                          disabled={isWorking || claim.statusKey === 'CLOSED' || ['APROBADA', 'ENVIADA'].includes(response.status)}
                           onClick={handleSendResponse}
+                          aria-disabled={claim.statusKey === 'CLOSED' || ['APROBADA', 'ENVIADA'].includes(response.status)}
                           className="flex-1"
                         >
                           <CheckCircle className="size-4 mr-2" />
                           Enviar respuesta al cliente
                         </Button>
-                        <Button onClick={() => setIsEditing(true)} variant="outline" className="flex-1">
+                        <Button disabled={claim.statusKey === 'CLOSED' || ['APROBADA', 'ENVIADA'].includes(response.status)} onClick={() => setIsEditing(true)} variant="outline" className="flex-1">
                           <Edit className="size-4 mr-2" />
                           Editar respuesta
                         </Button>
                         <Button
-                          disabled={isWorking}
-                          onClick={() => id && runAction(() => updateClaimState(id, 'ESCALATED', 'Caso escalado desde panel full stack.'))}
-                          variant="destructive"
-                        >
-                          <AlertTriangle className="size-4 mr-2" />
-                          Escalar
-                        </Button>
-                        <Button
-                          disabled={isWorking}
-                          onClick={() => id && runAction(() => updateClaimState(id, 'CLOSED', 'Caso cerrado desde panel full stack.'))}
+                          disabled={isWorking || !closeReason.trim() || claim.statusKey === 'CLOSED'}
+                          onClick={() => runAction(() => closeClaim(claim.id, closeReason))}
                           variant="outline"
                         >
                           <Lock className="size-4 mr-2" />
@@ -510,7 +506,23 @@ export default function AdminClaimDetailPage() {
             </Card>
           </div>
         </div>
-        <ClaimConversation claimId={claim.id} viewer="agent" closed={claim.statusKey === 'CLOSED'} />
+        <ClaimAssignmentControls key={`${claim.id}-${claim.assignment?.version}`} detail={detail} onChange={setDetail} />
+        <section aria-label="Historial de atención" className="rounded-lg border p-4 space-y-3 break-words">
+          <h2 className="text-lg font-bold">Historial de atención</h2>
+          {detail.history.map(event => <article key={event.id} className="border-l-2 pl-3 space-y-1">
+            <h3 className="font-semibold">{event.action}</h3>
+            <p className="text-sm">{event.newState} · {formatDateTime(event.createdAt)}</p>
+            <p className="text-sm">{event.user || 'Autor histórico sin identificar'}{event.actorId ? ` · ID ${event.actorId} (${event.actorRole})` : ' · Sin identidad autenticada conciliada'}</p>
+            {event.comment && <p className="text-sm whitespace-pre-wrap">{event.comment}</p>}
+          </article>)}
+        </section>
+        <ClaimOrderContext claimId={detail.claim.id} />
+          <ClaimConversation claimId={claim.id} viewer="agent" closed={claim.statusKey === 'CLOSED'} />
+        {claim.statusKey !== 'CLOSED' && <div className="space-y-2">
+          <label htmlFor="close-reason" className="font-semibold">Motivo de cierre administrativo</label>
+          <Textarea id="close-reason" value={closeReason} onChange={(event) => setCloseReason(event.target.value)} maxLength={2000} />
+          <p className="text-sm text-muted-foreground">Cerrar el caso no acredita una solución económica ni un pago. La aceptación de soluciones y sus plazos quedan pendientes de definir.</p>
+        </div>}
         <div className="flex justify-end">
           {claim.statusKey === 'CLOSED' ? (
             <Button
@@ -523,8 +535,8 @@ export default function AdminClaimDetailPage() {
           ) : (
             <Button
               variant="outline"
-              disabled={isWorking}
-              onClick={() => runAction(() => closeClaim(claim.id))}
+              disabled={isWorking || !closeReason.trim()}
+              onClick={() => runAction(() => closeClaim(claim.id, closeReason))}
             >
               Cerrar reclamo
             </Button>

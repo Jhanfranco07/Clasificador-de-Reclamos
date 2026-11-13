@@ -42,7 +42,7 @@ export default function OrdersPage() {
 
         {error && (
           <Card className="border-red-200 bg-red-50">
-            <CardContent className="py-4 text-red-700">{error}</CardContent>
+            <CardContent role="alert" className="py-4 text-red-700">{error}</CardContent>
           </Card>
         )}
 
@@ -52,7 +52,7 @@ export default function OrdersPage() {
               Cargando pedidos...
             </CardContent>
           </Card>
-        ) : orders.length === 0 ? (
+        ) : error ? null : orders.length === 0 ? (
           <Card>
             <CardContent className="text-center py-12">
               <ShoppingBag className="size-16 mx-auto mb-4 text-gray-300" />
@@ -70,17 +70,17 @@ export default function OrdersPage() {
             {orders.map((order) => (
               <Card key={order.id} className="hover:shadow-lg transition-shadow">
                 <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 flex-1">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
                       {order.storeImage && (
                         <img
                           src={order.storeImage}
                           alt={order.storeName}
-                          className="size-16 rounded-lg object-cover"
+                          className="size-12 sm:size-16 shrink-0 rounded-lg object-cover"
                         />
                       )}
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-1">
+                      <div className="flex-1 min-w-0 break-words">
+                        <div className="flex flex-wrap items-center gap-3 mb-1">
                           <h3 className="font-semibold text-lg">{order.storeName}</h3>
                           <Badge className={getStatusColor(order.status)}>
                             {ORDER_STATUS_LABELS[order.status]}
@@ -88,14 +88,14 @@ export default function OrdersPage() {
                         </div>
                         <p className="text-sm text-gray-500">{order.code}</p>
                         <p className="text-xs text-gray-400 mt-1">
-                          {formatDateTime(new Date(order.createdAt))}
+                          {formatDateTime(order.createdAt)}
                         </p>
                         <p className="text-sm text-gray-600 mt-2">
                           {order.items.length} productos · {order.paymentMethod}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-6">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
                       <div className="text-right">
                         <p className="text-sm text-gray-500">Total</p>
                         <p className="text-2xl font-bold">{formatCurrency(order.total)}</p>

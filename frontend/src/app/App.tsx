@@ -6,6 +6,8 @@ import ChatbotWidget from './components/ChatbotWidget';
 import ClientLayout from './components/ClientLayout';
 import { ThemeProvider } from 'next-themes';
 
+const OperationsPage = lazy(() => import('./pages/operations/OperationsPage'));
+const OperationsAdminPage = lazy(() => import('./pages/operations/OperationsAdminPage'));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
@@ -32,7 +34,7 @@ function ProtectedRoute({
   allowedRoles,
 }: {
   children?: React.ReactNode;
-  allowedRoles?: Array<'CLIENT' | 'AGENT' | 'ADMIN'>;
+  allowedRoles?: Array<'CLIENT' | 'AGENT' | 'ADMIN' | 'MERCHANT' | 'COURIER'>;
 }) {
   const { isAuthenticated, currentUser, isLoading } = useAuth();
   const location = useLocation();
@@ -50,7 +52,7 @@ function ProtectedRoute({
   }
 
   if (allowedRoles && currentUser && !allowedRoles.includes(currentUser.role)) {
-    return <Navigate to={currentUser.role === 'CLIENT' ? '/dashboard' : '/admin'} replace />;
+    return <Navigate to={currentUser.role === 'MERCHANT' ? '/merchant' : currentUser.role === 'COURIER' ? '/courier' : currentUser.role === 'CLIENT' ? '/dashboard' : '/admin'} replace />;
   }
 
   return <>{children ?? <Outlet />}</>;
@@ -64,14 +66,14 @@ function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/restaurants/:id" element={<RestaurantPage />} />
+      <Route path="/cart" element={<CartPage />} />
       {/* Client routes */}
-      <Route element={<ProtectedRoute />}>
+      <Route element={<ProtectedRoute allowedRoles={['CLIENT']} />}>
         <Route element={<ClientLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/restaurants" element={<LandingPage internal />} />
-          <Route path="/restaurants/:id" element={<RestaurantPage />} />
           <Route path="/products" element={<LandingPage internal />} />
-          <Route path="/cart" element={<CartPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/orders" element={<OrdersPage />} />
@@ -84,6 +86,13 @@ function AppRoutes() {
         </Route>
       </Route>
 
+      <Route path="/merchant" element={<ProtectedRoute allowedRoles={['MERCHANT']}><OperationsPage /></ProtectedRoute>} />
+      <Route path="/merchant/orders/:id" element={<ProtectedRoute allowedRoles={['MERCHANT']}><OperationsPage /></ProtectedRoute>} />
+      <Route path="/courier" element={<ProtectedRoute allowedRoles={['COURIER']}><OperationsPage /></ProtectedRoute>} />
+      <Route path="/courier/orders/:id" element={<ProtectedRoute allowedRoles={['COURIER']}><OperationsPage /></ProtectedRoute>} />
+      <Route path="/admin/orders" element={<ProtectedRoute allowedRoles={['ADMIN']}><OperationsPage /></ProtectedRoute>} />
+      <Route path="/admin/orders/:id" element={<ProtectedRoute allowedRoles={['ADMIN']}><OperationsPage /></ProtectedRoute>} />
+      <Route path="/admin/operations" element={<ProtectedRoute allowedRoles={['ADMIN']}><OperationsAdminPage /></ProtectedRoute>} />
       {/* Admin routes */}
       <Route
         path="/admin"

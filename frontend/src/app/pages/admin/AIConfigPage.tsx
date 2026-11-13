@@ -1,3 +1,4 @@
+import { formatDateTime } from '../../lib/utils';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -13,7 +14,7 @@ import {
 } from '../../components/ui/select';
 import { Brain, Save, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '../../components/ui/alert';
-import { getConfig, saveConfig } from '../../lib/api';
+import { ConfigResponse, getConfig, saveConfig } from '../../lib/api';
 import AdminLayout from '../../components/AdminLayout';
 
 export default function AIConfigPage() {
@@ -21,34 +22,53 @@ export default function AIConfigPage() {
   const [humanReview, setHumanReview] = useState(true);
   const [confidenceThreshold, setConfidenceThreshold] = useState([85]);
   const [maxDocuments, setMaxDocuments] = useState('3');
-  const [model, setModel] = useState('modelo_ml_tfidf_logistic_regression');
+  const [configuration, setConfiguration] = useState<ConfigResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [reload, setReload] = useState(0);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError('');
+    setMessage('');
     getConfig()
       .then((config) => {
+        if (!active) return;
         setRagEnabled(config.useRag);
         setHumanReview(config.humanReviewRequired);
-        setConfidenceThreshold([Math.round(config.confidenceThreshold * 100)]);
+        setConfidenceThreshold([config.confidenceThreshold * 100]);
         setMaxDocuments(String(config.maxDocuments));
-        setModel(config.model || 'modelo_ml_tfidf_logistic_regression');
+        setConfiguration(config);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : 'No se pudo cargar la configuración.'));
-  }, []);
+      .catch((err) => { if (active) { setConfiguration(null); setError(err instanceof Error ? err.message : 'No se pudo cargar la configuración.'); } })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [reload]);
 
   const handleSave = async () => {
+    if (!configuration || loading || isSaving) return;
     setError('');
     setMessage('');
     setIsSaving(true);
     try {
-      const config = await saveConfig({
+      const desired = {
+        config_id: configuration.id,
         confidence_threshold: confidenceThreshold[0] / 100,
         human_review_required: humanReview,
         use_rag: ragEnabled,
         max_documents: Number(maxDocuments),
-      });
+      };
+      await saveConfig(desired);
+      const config = await getConfig();
+      if (config.id !== desired.config_id || Math.abs(config.confidenceThreshold - desired.confidence_threshold) > 0.000001
+          || config.humanReviewRequired !== desired.human_review_required || config.useRag !== desired.use_rag
+          || config.maxDocuments !== desired.max_documents) {
+        throw new Error('El guardado no coincide con la configuración consultada. Recarga y verifica los valores.');
+      }
+      setConfiguration(config);
       setMessage(`Configuración guardada. RAG: ${config.useRag ? 'activo' : 'inactivo'}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar la configuración.');
@@ -70,14 +90,14 @@ export default function AIConfigPage() {
         <Alert>
           <Brain className="size-4" />
           <AlertDescription>
-            El sistema usa clasificación local, recuperación documental con RAG y generación con OpenAI si `OPENAI_API_KEY` está configurada.
+            La clasificación es local y puede combinar ML con reglas. La generación y recuperación ejecutadas se informan según la última traza disponible; disponer de un artefacto o proveedor no acredita su ejecución.
           </AlertDescription>
         </Alert>
 
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="size-4" />
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>{error} <Button variant="outline" size="sm" onClick={() => setReload((value) => value + 1)} disabled={isSaving}>Recargar configuración</Button></AlertDescription>
           </Alert>
         )}
         {message && (
@@ -86,6 +106,21 @@ export default function AIConfigPage() {
             <AlertDescription>{message}</AlertDescription>
           </Alert>
         )}
+
+        {loading && <p role="status">Cargando configuración...</p>}
+        {configuration && <div className="rounded-lg border p-4 space-y-2 break-words">
+          <p>Configuración efectiva: #{configuration.id} · se utiliza el mayor ID activo.</p>
+          {configuration.activeCount > 1 && <p role="alert">Hay {configuration.activeCount} configuraciones activas heredadas. Se conserva la selección por mayor ID; su conciliación sigue pendiente.</p>}
+          <p>Modelo configurado: {configuration.model || 'Sin metadato'}</p>
+          <p>Artefacto clasificador local: {configuration.runtime.classifierArtifactPresent ? 'presente (no acredita ejecución)' : 'ausente; el clasificador dispone de respaldo por reglas'}</p>
+          {configuration.runtime.lastExecution ? <>
+            <p>Última clasificación ejecutada registrada: {configuration.runtime.lastExecution.classifierModel}</p>
+            <p>Generación registrada: {configuration.runtime.lastExecution.generationStrategy || 'No consta'} · Recuperación: {configuration.runtime.lastExecution.retrievalStrategy || 'No consta'}</p>
+            <p>OpenAI utilizado en esa ejecución: {configuration.runtime.lastExecution.openaiUsed ? 'Sí' : 'No'} · {formatDateTime(configuration.runtime.lastExecution.recordedAt)} · {configuration.runtime.lastExecution.outcome}</p>
+          </> : <p>No hay una ejecución reciente verificable en las trazas consultadas.</p>}
+        </div>}
+
+        <fieldset className="space-y-6 min-w-0" disabled={loading || isSaving || !configuration} onChange={() => setMessage('')}>
 
         <Card>
           <CardHeader>
@@ -102,20 +137,17 @@ export default function AIConfigPage() {
                   Si está apagado, la respuesta usa una plantilla básica sin documentos consultados.
                 </p>
               </div>
-              <Switch id="rag-enabled" checked={ragEnabled} onCheckedChange={setRagEnabled} />
+              <Switch id="rag-enabled" checked={ragEnabled} onCheckedChange={(value) => { setRagEnabled(value); setMessage(''); }} />
             </div>
 
             <div className="space-y-2">
-              <Label>Número de documentos a recuperar</Label>
-              <Select value={maxDocuments} onValueChange={setMaxDocuments} disabled={!ragEnabled}>
-                <SelectTrigger>
+              <Label htmlFor="max-documents">Número de documentos a recuperar</Label>
+              <Select value={maxDocuments} onValueChange={(value) => { setMaxDocuments(value); setMessage(''); }} disabled={!ragEnabled || loading || isSaving || !configuration}>
+                <SelectTrigger id="max-documents">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1">1 documento</SelectItem>
-                  <SelectItem value="2">2 documentos</SelectItem>
-                  <SelectItem value="3">3 documentos</SelectItem>
-                  <SelectItem value="5">5 documentos</SelectItem>
+                  {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => <SelectItem key={n} value={String(n)}>{n} documento(s)</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -131,17 +163,10 @@ export default function AIConfigPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <Label>Modelo de clasificación</Label>
-              <Select value={model} onValueChange={setModel} disabled>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="modelo_ml_tfidf_logistic_regression">Local - TF-IDF + Logistic Regression</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Modelo de clasificación configurado</Label>
+              <p className="break-words">{configuration?.model || 'No disponible'}</p>
               <p className="text-xs text-gray-500">
-                El selector queda bloqueado porque no hay proveedor externo configurado.
+                Metadato histórico de configuración. Esta pantalla no permite cambiar el motor de clasificación; consulta la ejecución registrada por separado.
               </p>
             </div>
 
@@ -150,7 +175,7 @@ export default function AIConfigPage() {
                 <Label>Umbral mínimo de confianza</Label>
                 <span className="text-sm font-semibold">{confidenceThreshold[0]}%</span>
               </div>
-              <Slider value={confidenceThreshold} onValueChange={setConfidenceThreshold} min={50} max={95} step={5} />
+              <Slider aria-label="Umbral mínimo de confianza" value={confidenceThreshold} onValueChange={(value) => { setConfidenceThreshold(value); setMessage(''); }} min={0} max={100} step={1} disabled={loading || isSaving || !configuration} />
             </div>
           </CardContent>
         </Card>
@@ -170,7 +195,7 @@ export default function AIConfigPage() {
                   Recomendado cuando un agente debe validar la respuesta antes de enviarla.
                 </p>
               </div>
-              <Switch id="human-review" checked={humanReview} onCheckedChange={setHumanReview} />
+              <Switch id="human-review" checked={humanReview} onCheckedChange={(value) => { setHumanReview(value); setMessage(''); }} />
             </div>
           </CardContent>
         </Card>
@@ -181,6 +206,7 @@ export default function AIConfigPage() {
             {isSaving ? 'Guardando...' : 'Guardar configuración'}
           </Button>
         </div>
+        </fieldset>
       </div>
     </AdminLayout>
   );

@@ -3,17 +3,19 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture()
-def api_client(monkeypatch, tmp_path):
+def api_client(monkeypatch, tmp_path, request):
     import database.db_connection as db_connection
-    import modules.rag_engine as rag_engine
 
     monkeypatch.setattr(db_connection, "DB_PATH", tmp_path / "smartclaim_api_test.db")
 
-    vector_dir = tmp_path / "vector_store"
-    monkeypatch.setattr(rag_engine, "VECTOR_DIR", vector_dir)
-    monkeypatch.setattr(rag_engine, "VECTORIZER_PATH", vector_dir / "rag_tfidf_vectorizer.joblib")
-    monkeypatch.setattr(rag_engine, "MATRIX_PATH", vector_dir / "rag_tfidf_matrix.joblib")
-    monkeypatch.setattr(rag_engine, "METADATA_PATH", vector_dir / "rag_metadata.joblib")
+
+    if getattr(request, 'param', 'sqlite') == 'postgres':
+        request.getfixturevalue('vector_db')
+        from database.repositories import asegurar_usuarios_auth_base, asegurar_pedidos_demo_base
+        asegurar_usuarios_auth_base()
+        asegurar_pedidos_demo_base()
+        from modules.rag_engine import construir_indice_tfidf
+        construir_indice_tfidf(forzar=True)
 
     from backend.main import app
 
@@ -21,6 +23,7 @@ def api_client(monkeypatch, tmp_path):
         yield client
 
 
+@pytest.mark.parametrize("api_client", ["sqlite", "postgres"], indirect=True)
 def test_auth_orders_claims_and_roles(api_client):
     login = api_client.post(
         "/api/auth/login",
@@ -33,15 +36,17 @@ def test_auth_orders_claims_and_roles(api_client):
     forbidden = api_client.get("/api/dashboard", headers=headers)
     assert forbidden.status_code == 403
 
+    catalog = api_client.get('/api/catalog').json()['items']
+    items = [{"product_id": int(catalog[0]['products'][0]['id']), "quantity": 1}]
+    quote = api_client.post('/api/orders/quote', json={"items": items}).json()
     order = api_client.post(
         "/api/orders",
         headers=headers,
         json={
-            "store_name": "Burger Palace",
-            "store_image": "https://example.com/burger.jpg",
+            "quote_hash": quote['quoteHash'],
             "payment_method": "Tarjeta",
             "delivery_address": "Av. Primavera 123, Lima",
-            "items": [{"name": "Combo clasico", "quantity": 1, "price": 24.5}],
+            "items": items,
         },
     )
     assert order.status_code == 201
@@ -99,6 +104,46 @@ def test_register_creates_client_account(api_client):
     assert login.status_code == 200
 
 
+@pytest.mark.parametrize("api_client", ["sqlite", "postgres"], indirect=True)
+def test_registration_cannot_claim_a_legacy_customer(api_client):
+    from database.db_connection import execute, fetch_one
+    from database.repositories import crear_cliente
+
+    email = "historico@example.com"
+    customer_id = crear_cliente("Cliente histórico", email)
+    execute("""
+        INSERT INTO pedidos (codigo_pedido, id_cliente, tienda_nombre, direccion_entrega)
+        VALUES (?, ?, ?, ?)
+    """, ("ORDER-LEGACY-TEST", customer_id, "Comercio sintético", "Dirección sintética"))
+
+    response = api_client.post("/api/auth/register", json={
+        "name": "Otro titular", "email": email.upper(), "password": "test-password",
+    })
+
+    assert response.status_code == 409
+    assert fetch_one("SELECT 1 FROM auth_users WHERE lower(correo) = ?", (email,)) is None
+    assert fetch_one("SELECT id_cliente FROM pedidos WHERE codigo_pedido = ?", ("ORDER-LEGACY-TEST",))[
+        "id_cliente"
+    ] == customer_id
+
+
+def test_registration_cannot_claim_legacy_notifications(api_client):
+    from database.db_connection import execute, fetch_one
+
+    email = "notificaciones@example.com"
+    execute("""
+        INSERT INTO notificaciones (correo_cliente, titulo, mensaje, tipo)
+        VALUES (?, 'Aviso histórico', 'Aviso sintético', 'INFO')
+    """, (email,))
+    response = api_client.post("/api/auth/register", json={
+        "name": "Otro titular", "email": email, "password": "test-password",
+    })
+
+    assert response.status_code == 409
+    assert fetch_one("SELECT 1 FROM auth_users WHERE lower(correo) = ?", (email,)) is None
+
+
+@pytest.mark.parametrize("api_client", ["sqlite", "postgres"], indirect=True)
 def test_claim_continuous_conversation(api_client):
     client_login = api_client.post(
         "/api/auth/login",
@@ -111,7 +156,7 @@ def test_claim_continuous_conversation(api_client):
         json={
             "customer_name": "Jhan Perez",
             "customer_email": "jhan.perez@gmail.com",
-            "order_code": "ORD-CONVERSATION-001",
+            "order_code": api_client.get("/api/orders", headers=client_headers).json()["items"][0]["code"],
             "description": "Mi pedido llegó incompleto y necesito ayuda con el producto faltante.",
             "analyze": False,
         },
@@ -243,7 +288,7 @@ def test_client_message_succeeds_when_notification_fails(api_client, monkeypatch
         json={
             "customer_name": "Jhan Perez",
             "customer_email": "jhan.perez@gmail.com",
-            "order_code": "ORD-NOTIFICATION-FAILURE",
+            "order_code": api_client.get("/api/orders", headers=client_headers).json()["items"][0]["code"],
             "description": "Necesito información adicional sobre la respuesta de soporte.",
             "analyze": False,
         },
@@ -266,12 +311,26 @@ def test_client_message_succeeds_when_notification_fails(api_client, monkeypatch
     assert response.json()["items"][-1]["message"].startswith("¿Podrían explicarme")
 
 
+@pytest.mark.parametrize("api_client", ["sqlite", "postgres"], indirect=True)
 def test_reports_expose_operational_and_ai_metrics(api_client):
     admin_login = api_client.post(
         "/api/auth/login",
         json={"email": "admin@smartclaim.com", "password": "123456"},
     )
     headers = {"Authorization": f"Bearer {admin_login.json()['token']}"}
+
+    allowed_origin = "http://127.0.0.1:5173"
+    preflight = {
+        "Access-Control-Request-Method": "GET",
+        "Access-Control-Request-Headers": "authorization",
+    }
+    allowed = api_client.options("/api/reports", headers={**preflight, "Origin": allowed_origin})
+    assert allowed.status_code == 200
+    assert allowed.headers["Access-Control-Allow-Origin"] == allowed_origin
+    denied = api_client.options("/api/reports", headers={**preflight, "Origin": "https://untrusted.example"})
+    assert denied.status_code == 400
+    assert "Access-Control-Allow-Origin" not in denied.headers
+    assert api_client.get("/api/reports").status_code == 401
 
     response = api_client.get("/api/reports", headers=headers)
 
@@ -348,3 +407,250 @@ def test_profile_update_and_claim_pagination(api_client):
     assert claims.status_code == 200
     assert claims.json()["pagination"]["pageSize"] == 1
     assert len(claims.json()["items"]) <= 1
+
+
+@pytest.mark.parametrize("api_client", ["sqlite", "postgres"], indirect=True)
+def test_document_pdf_preview_requires_admin_and_can_be_saved(api_client):
+    import io
+    from pypdf import PdfWriter
+    from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
+
+    def headers(email):
+        response = api_client.post("/api/auth/login", json={"email": email, "password": "123456"})
+        return {"Authorization": f"Bearer {response.json()['token']}"}
+
+    path = "/api/documents/pdf-preview"
+    admin = headers("admin@smartclaim.com")
+    client = headers("jhan.perez@gmail.com")
+    assert api_client.post(path, content=b"bad").status_code == 401
+    assert api_client.post(path, content=b"bad", headers=client).status_code == 403
+    assert api_client.post(path, content=b"bad", headers=admin).status_code == 415
+    pdf_headers = {**admin, "Content-Type": "application/pdf"}
+    assert api_client.post(path, content=b"%PDF-1.7\ntruncated", headers=pdf_headers).status_code == 422
+
+    writer = PdfWriter()
+    page = writer.add_blank_page(300, 300)
+    buffer = io.BytesIO()
+    writer.write(buffer)
+    assert api_client.post(path, content=buffer.getvalue(), headers=pdf_headers).status_code == 422
+
+    font = DictionaryObject({
+        NameObject("/Type"): NameObject("/Font"),
+        NameObject("/Subtype"): NameObject("/Type1"),
+        NameObject("/BaseFont"): NameObject("/Helvetica"),
+    })
+    page[NameObject("/Resources")] = DictionaryObject({
+        NameObject("/Font"): DictionaryObject({NameObject("/F1"): font}),
+    })
+    stream = DecodedStreamObject()
+    stream.set_data(b"BT /F1 12 Tf 20 200 Td (Revisar recibo y pedido incompleto.) Tj ET")
+    page[NameObject("/Contents")] = writer._add_object(stream)
+    buffer = io.BytesIO()
+    writer.write(buffer)
+    preview = api_client.post(path, content=buffer.getvalue(), headers=pdf_headers)
+    assert preview.json() == {"content": "Revisar recibo y pedido incompleto."}
+    document = {"title": "PDF de prueba", "type": "FAQ", "category": "Producto incompleto", **preview.json()}
+    saved = api_client.post("/api/documents", json=document, headers=admin)
+    assert saved.status_code == 201
+    registered = next(item for item in saved.json()["items"] if item["title"] == document["title"])
+    edited_text = "Guía sobre recibos incompletos con el marcador auditoría cuarzo."
+    edited = api_client.put(f"/api/documents/{registered['id']}",
+                            json={**document, "content": edited_text}, headers=admin)
+    assert edited.status_code == 200
+    first = api_client.post("/api/documents/reindex", headers=admin)
+    second = api_client.post("/api/documents/reindex", headers=admin)
+    assert first.status_code == second.status_code == 200
+    assert first.json()["fragmentos"] == second.json()["fragmentos"]
+
+    from modules.rag_engine import recuperar_documentos_tfidf
+
+    hits = recuperar_documentos_tfidf("marcador auditoría cuarzo", document["category"])
+    assert str(hits[0]["id_documento"]) == registered["id"]
+    assert hits[0]["fragmento"] == edited_text
+
+
+
+def test_pdf_limits_multipage_encryption_and_image_only(api_client, monkeypatch):
+    import io
+    from pypdf import PdfWriter
+    from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject, NumberObject
+    from modules import pdf_documents
+    from backend import main
+
+    def pdf(texts=(), *, image=False, encrypted=False):
+        writer = PdfWriter()
+        for text in texts or ("",):
+            page = writer.add_blank_page(300, 300)
+            if image:
+                xobject = DecodedStreamObject()
+                xobject.set_data(b"\xff\xff\xff")
+                xobject.update({NameObject("/Type"): NameObject("/XObject"),
+                                NameObject("/Subtype"): NameObject("/Image"),
+                                NameObject("/Width"): NumberObject(1), NameObject("/Height"): NumberObject(1),
+                                NameObject("/ColorSpace"): NameObject("/DeviceRGB"),
+                                NameObject("/BitsPerComponent"): NumberObject(8)})
+                resources = {NameObject("/XObject"): DictionaryObject({NameObject("/Im0"): writer._add_object(xobject)})}
+                command = b"q 100 0 0 100 10 10 cm /Im0 Do Q"
+            else:
+                font = DictionaryObject({
+                    NameObject("/Type"): NameObject("/Font"),
+                    NameObject("/Subtype"): NameObject("/Type1"),
+                    NameObject("/BaseFont"): NameObject("/Helvetica"),
+                    NameObject("/Encoding"): NameObject("/WinAnsiEncoding"),
+                })
+                resources = {NameObject("/Font"): DictionaryObject({NameObject("/F1"): font})}
+                encoded = text.encode("cp1252")
+                command = b"BT /F1 12 Tf 20 200 Td (" + encoded + b") Tj ET"
+            page[NameObject("/Resources")] = DictionaryObject(resources)
+            stream = DecodedStreamObject()
+            stream.set_data(command)
+            page[NameObject("/Contents")] = writer._add_object(stream)
+        if encrypted:
+            writer.encrypt("demo-password")
+        buffer = io.BytesIO()
+        writer.write(buffer)
+        return buffer.getvalue()
+
+    login = api_client.post("/api/auth/login", json={"email": "admin@smartclaim.com", "password": "123456"})
+    headers = {"Authorization": f"Bearer {login.json()['token']}", "Content-Type": "application/pdf"}
+    path = "/api/documents/pdf-preview"
+    pages = ["Primera página: número y acentuación.", "Segunda página: revisión del pedido."]
+    valid = pdf(pages)
+    assert api_client.post(path, content=valid, headers=headers).json() == {"content": "\n\n".join(pages)}
+    for data, error in (
+        (pdf(pages, encrypted=True), "contraseña"),
+        (pdf(image=True), "texto legible"),
+        (b"PK\x03\x04", "cabecera PDF"),
+    ):
+        response = api_client.post(path, content=data, headers=headers)
+        assert response.status_code == 422
+        assert error in response.json()["detail"]
+    monkeypatch.setattr(pdf_documents, "PDF_MAX_PAGES", 1)
+    assert "límite de páginas" in api_client.post(path, content=valid, headers=headers).json()["detail"]
+    monkeypatch.setattr(main, "PDF_MAX_BYTES", len(valid) - 1)
+    assert api_client.post(path, content=valid, headers=headers).status_code == 413
+
+
+def test_document_api_rejects_duplicates_and_agent_writes(api_client):
+    def headers(email):
+        response = api_client.post("/api/auth/login", json={"email": email, "password": "123456"})
+        return {"Authorization": f"Bearer {response.json()['token']}"}
+
+    agent = headers("gonzalo.caceres@smartclaim.com")
+    admin = headers("admin@smartclaim.com")
+    document = {"title": "Política de prueba documental", "type": "FAQ", "category": "Producto incompleto",
+                "content": "Revisar los artículos del pedido según el comprobante indicado."}
+    for method, path in (
+        ("POST", "/api/documents"), ("POST", "/api/documents/pdf-preview"),
+        ("PUT", "/api/documents/4"), ("DELETE", "/api/documents/4"),
+        ("POST", "/api/documents/reindex"),
+    ):
+        assert api_client.request(method, path, json=document, headers=agent).status_code == 403
+    assert api_client.post("/api/documents", json={**document, "category": "Otra"}, headers=admin).status_code == 422
+    assert api_client.post("/api/documents", json=document, headers=admin).status_code == 201
+    assert api_client.post("/api/documents", json={**document, "title": document["title"].upper(),
+                                                   "content": "Una variante distinta del texto de la política."},
+                           headers=admin).status_code == 409
+    assert api_client.post("/api/documents", json={**document, "title": "Título nuevo para contenido repetido"},
+                           headers=admin).status_code == 409
+
+
+
+@pytest.mark.parametrize("api_client", ["sqlite", "postgres"], indirect=True)
+def test_claim_rag_draft_edit_escalation_and_send(api_client):
+    def headers(email):
+        auth = api_client.post("/api/auth/login", json={"email": email, "password": "123456"})
+        return {"Authorization": f"Bearer {auth.json()['token']}"}
+
+    client = headers("jhan.perez@gmail.com")
+    agent = headers("gonzalo.caceres@smartclaim.com")
+    assert api_client.get("/api/catalog").status_code == 200
+    claim = api_client.post("/api/claims", headers=client, json={
+        "customer_name": "Cliente demo",
+        "customer_email": "jhan.perez@gmail.com",
+        "order_code": api_client.get("/api/orders", headers=client).json()["items"][0]["code"],
+        "description": "Recibí un pedido incompleto. Faltan productos pagados y tengo el recibo.",
+        "analyze": False,
+    })
+    assert claim.status_code == 201
+    claim_id = claim.json()["claim"]["id"]
+    analyzed = api_client.post(f"/api/claims/{claim_id}/analyze", headers=agent).json()
+    assert analyzed["analysis"]
+    assert analyzed["documents"]
+    response_id = analyzed["response"]["id"]
+    escalation = api_client.patch(f"/api/claims/{claim_id}/state", headers=agent,
+                                  json={"state": "Escalado", "comment": "Revisión de un pedido incompleto."})
+    assert escalation.status_code == 200
+    assert len(escalation.json()["history"]) > len(analyzed["history"])
+    text = "Confirmamos la recepción de tu reclamo y revisaremos el comprobante."
+    payload = {"response_text": text}
+    edited = api_client.patch(f"/api/responses/{response_id}", headers=agent, json=payload)
+    assert edited.json()["response"]["editedResponse"] == text
+    assert edited.json()["response"]["finalResponse"] is None
+    private = api_client.get(f"/api/claims/{claim_id}", headers=client).json()
+    assert private["response"] is None and private["documents"] == []
+    assert all(event["action"] != "Edición de respuesta" for event in private["history"])
+    sent = api_client.post(f"/api/responses/{response_id}/approve", headers=agent, json=payload)
+    assert sent.status_code == 200
+    assert text in sent.json()["response"]["finalResponse"]
+    visible = api_client.get(f"/api/claims/{claim_id}", headers=client).json()
+    assert text in visible["response"]["finalResponse"]
+    assert visible["response"].get("editedResponse") is None
+    assert [event["action"] for event in visible["history"]].count("Envio de respuesta") == 1
+    assert all(event["action"] != "Marcado como respondido" for event in visible["history"])
+    assert len(sent.json()["history"]) > len(escalation.json()["history"])
+
+
+def test_production_startup_does_not_create_demo_accounts(monkeypatch, tmp_path):
+    from backend.main import app
+    from database import db_connection as db
+
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("SMARTCLAIM_BOOTSTRAP_DEMO", "0")
+    monkeypatch.setenv("AUTH_SECRET", "test-only-production-secret-longer-than-32")
+    monkeypatch.setenv("DATABASE_URL", "")
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "startup.db")
+    db.init_db()
+    with pytest.raises(RuntimeError, match="requiere una conexión PostgreSQL"), TestClient(app):
+        pytest.fail("Producción arrancó con SQLite")
+    assert db.fetch_one("SELECT COUNT(*) AS total FROM auth_users")["total"] == 0
+    assert db.fetch_one("SELECT COUNT(*) AS total FROM pedidos")["total"] == 0
+
+def test_hosted_startup_and_document_mutations_leave_database_intact(api_client, monkeypatch):
+    from backend import main
+    from database import db_connection as db
+
+    admin = api_client.post("/api/auth/login", json={"email": "admin@smartclaim.com", "password": "123456"})
+    headers = {"Authorization": f"Bearer {admin.json()['token']}"}
+    before = db.fetch_all("SELECT * FROM fragmentos_documento ORDER BY id_fragmento")
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("El entorno alojado intentó modificar el catálogo automáticamente")
+
+    monkeypatch.setenv("RENDER", "true")
+    monkeypatch.setenv("SMARTCLAIM_BOOTSTRAP_DEMO", "0")
+    for name in ("init_db", "asegurar_usuarios_auth_base", "asegurar_pedidos_demo_base", "construir_indice_vectorial"):
+        monkeypatch.setattr(main, name, forbidden)
+    payload = {"title": "Documento de auditoría", "type": "FAQ", "category": "Soporte general",
+               "content": "Contenido académico para verificar los controles de escritura."}
+    with TestClient(main.app) as hosted:
+        assert hosted.get("/api/documents", headers=headers).status_code == 200
+        for method, path in (
+            ("POST", "/api/documents"), ("PUT", "/api/documents/4"),
+            ("DELETE", "/api/documents/4"), ("POST", "/api/documents/reindex"),
+        ):
+            assert hosted.request(method, path, headers=headers, json=payload).status_code == 503
+    assert db.fetch_all("SELECT * FROM fragmentos_documento ORDER BY id_fragmento") == before
+
+
+@pytest.mark.parametrize("dsn", [
+    "host=example.invalid dbname=smartclaim",
+    "host=127.0.0.1 hostaddr=198.51.100.1 dbname=smartclaim",
+    "host=127.0.0.1 service=external dbname=smartclaim",
+])
+def test_remote_database_disables_automatic_setup(monkeypatch, dsn):
+    from database.db_connection import allows_automatic_database_setup
+
+    monkeypatch.setenv("DB_PROVIDER", "postgres")
+    monkeypatch.setenv("DATABASE_URL", dsn)
+    assert not allows_automatic_database_setup()
