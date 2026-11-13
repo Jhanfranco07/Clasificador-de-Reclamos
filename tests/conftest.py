@@ -233,6 +233,16 @@ def restricted_postgres(hardening_postgres, vector_db, monkeypatch):
     with _local_pg_connect(hardening_postgres, autocommit=True) as owner:
         for name in ("integrated_order_integrity.sql", "integrated_database_security.sql"):
             owner.execute((migrations / name).read_text(encoding="utf-8"))
+        from psycopg.conninfo import conninfo_to_dict
+        connection = conninfo_to_dict(vector_db)
+        password = connection.get("password")
+        if password:
+            owner.execute(
+                sql.SQL("ALTER ROLE smartclaim_backend PASSWORD {}").format(sql.Literal(password))
+            )
+        owner.execute(
+            sql.SQL("GRANT smartclaim_backend TO {}").format(sql.Identifier(owner.info.user))
+        )
     dsn = make_conninfo(vector_db, user="smartclaim_backend")
 
     def connect_service_only(requested_dsn, *args, **kwargs):

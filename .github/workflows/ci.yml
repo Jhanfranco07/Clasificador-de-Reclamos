@@ -81,7 +81,7 @@ jobs:
           PYTHON_DOTENV_DISABLED: "1"
         run: |
           set -euo pipefail
-          control="$RUNNER_TEMP/smartclaim-control-$GITHUB_RUN_ID"
+          control="/tmp/smartclaim-control-$GITHUB_RUN_ID"
           python tests/serve_offline.py --control-dir "$control" >"$RUNNER_TEMP/api.log" 2>&1 &
           api_pid=$!
           (cd frontend && npm exec vite -- preview --host 127.0.0.1 --port 5173) >"$RUNNER_TEMP/frontend.log" 2>&1 &
