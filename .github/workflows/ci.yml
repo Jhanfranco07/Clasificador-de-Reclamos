@@ -19,6 +19,7 @@ jobs:
         image: public.ecr.aws/supabase/postgres:17.11.0.011
         env:
           POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: smartclaim_test
         ports:
           - 5432:5432
         options: >-
@@ -27,7 +28,7 @@ jobs:
           --health-timeout 5s
           --health-retries 12
     env:
-      SMARTCLAIM_TEST_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      SMARTCLAIM_TEST_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/smartclaim_test
       SMARTCLAIM_TEST_SECURITY_PG: "1"
       OPENAI_API_KEY: ""
       USE_OPENAI_EMBEDDINGS: "false"
@@ -91,14 +92,22 @@ jobs:
             kill "$web_pid" "$api_pid" 2>/dev/null || true
           }
           trap cleanup EXIT
-          for attempt in {1..60}; do
+          for attempt in {1..180}; do
             curl --fail --silent http://127.0.0.1:8000/health >/dev/null \
               && curl --fail --silent http://127.0.0.1:5173 >/dev/null \
               && break
+            if ! kill -0 "$api_pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/api.log"
+              exit 1
+            fi
             sleep 1
           done
-          curl --fail --silent http://127.0.0.1:8000/health >/dev/null
-          curl --fail --silent http://127.0.0.1:5173 >/dev/null
+          curl --fail --silent http://127.0.0.1:8000/health >/dev/null || {
+            cat "$RUNNER_TEMP/api.log"; exit 1;
+          }
+          curl --fail --silent http://127.0.0.1:5173 >/dev/null || {
+            cat "$RUNNER_TEMP/frontend.log"; exit 1;
+          }
           cd frontend
           npx playwright test --config playwright.offline.config.ts
           touch "$control/stop"
