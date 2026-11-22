@@ -162,7 +162,7 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
 
       <main>
         <div className="container mx-auto px-4"><CartNotice warning={cartState.warning} reset={cartState.reset} /></div>
-        <section className="bg-card">
+        {!internal && <section className="bg-card">
           <div className="container mx-auto px-4 py-10 grid lg:grid-cols-[1.05fr_0.95fr] gap-8 items-center">
             <div className="space-y-6 min-w-0">
               <Badge className="max-w-full whitespace-normal bg-orange-100 text-orange-700 hover:bg-orange-100">
