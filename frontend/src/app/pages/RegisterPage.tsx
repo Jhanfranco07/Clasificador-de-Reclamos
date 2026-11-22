@@ -43,7 +43,10 @@ export default function RegisterPage() {
       return;
     }
     const requestedPath = (location.state as { from?: string } | null)?.from;
-    navigate(requestedPath && !requestedPath.startsWith('/admin') ? requestedPath : '/dashboard', { replace: true });
+    const clientReturnPath = requestedPath && /^\/(checkout|cart|restaurants|products|orders|claims|help|profile|dashboard)(\/|\?|$)/.test(requestedPath)
+      ? requestedPath
+      : '/restaurants';
+    navigate(clientReturnPath, { replace: true });
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
