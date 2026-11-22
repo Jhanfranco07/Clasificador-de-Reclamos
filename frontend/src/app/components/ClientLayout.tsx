@@ -65,7 +65,7 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
     <div className="min-h-screen bg-background text-foreground">
       <header className="bg-card border-b border-border sticky top-0 z-50 shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/dashboard" className="flex items-center gap-2">
+          <Link to="/restaurants" className="flex items-center gap-2">
             <Package className="size-8 text-orange-500" />
             <span className="sr-only sm:not-sr-only font-bold text-xl">SmartClaim AI</span>
           </Link>
