@@ -230,7 +230,7 @@ export default function CatalogPage({ internal = false }: { internal?: boolean }
               </div>
             </div>
           </div>
-        </section>
+        </section>}
 
         <section id="catalogo" className="container mx-auto px-4 py-10">
           {catalogLoading && <p role="status">Cargando catálogo...</p>}
