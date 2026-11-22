@@ -42,25 +42,25 @@
 }
 
 .dark {
-  --background: #0f172a;
+  --background: #0b1322;
   --foreground: #f8fafc;
-  --card: #1e293b;
+  --card: #1c2b40;
   --card-foreground: #f8fafc;
-  --popover: #1e293b;
+  --popover: #23334a;
   --popover-foreground: #f8fafc;
   --primary: #f97316;
   --primary-foreground: #ffffff;
-  --secondary: #334155;
+  --secondary: #2e415b;
   --secondary-foreground: #f8fafc;
-  --muted: #243145;
-  --muted-foreground: #94a3b8;
-  --accent: #334155;
+  --muted: #263750;
+  --muted-foreground: #bfccdf;
+  --accent: #30445d;
   --accent-foreground: #f8fafc;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #334155;
-  --input: #334155;
-  --input-background: #111827;
+  --border: #43536c;
+  --input: #344965;
+  --input-background: #172437;
   --switch-background: #475569;
   --ring: #fb923c;
   --font-weight-medium: 500;
@@ -70,13 +70,13 @@
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: #111827;
+  --sidebar: #111d30;
   --sidebar-foreground: #f8fafc;
   --sidebar-primary: #f97316;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1e293b;
+  --sidebar-accent: #243650;
   --sidebar-accent-foreground: #f8fafc;
-  --sidebar-border: #334155;
+  --sidebar-border: #405370;
   --sidebar-ring: #fb923c;
 }
 
@@ -229,7 +229,29 @@
 .dark .bg-orange-100 { background-color: rgb(249 115 22 / 0.2); }
 .dark .text-orange-700 { color: #fed7aa; }
 
-.dark .recharts-cartesian-grid line { stroke: #334155; }
+
+// Superficies nocturnas: separación visual y texto legible sin alterar el tema claro.
+.dark [data-slot="card"] {
+  border-color: var(--border);
+  box-shadow: 0 12px 30px -22px rgb(0 0 0 / 0.85), inset 0 1px 0 rgb(255 255 255 / 0.035);
+}
+.dark .text-slate-500,
+.dark .text-slate-400 { color: var(--muted-foreground); }
+.dark .border-slate-200,
+.dark .border-slate-100 { border-color: var(--border); }
+.dark .bg-slate-50 { background-color: #213047; }
+.dark .bg-slate-100 { background-color: var(--muted); }
+.dark .bg-slate-200 { background-color: #344860; }
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark select,
+.dark textarea {
+  color: var(--foreground);
+}
+.dark input::placeholder,
+.dark textarea::placeholder { color: #a7b6cb; }
+.dark .recharts-cartesian-grid line { stroke: #455771; }
+.dark .recharts-text { fill: #c7d4e6; }
+
 .dark .recharts-text { fill: #cbd5e1; }
 .dark .recharts-default-tooltip {
   background: #1e293b !important;
