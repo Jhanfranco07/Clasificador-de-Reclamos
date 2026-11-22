@@ -72,3 +72,22 @@ test('el panel se minimiza al cambiar de sección y deja utilizar sus controles'
   await page.locator('#under-chat-control').click();
   await expect(page.locator('#under-chat-control')).toHaveAttribute('data-clicked', 'yes');
 });
+
+
+test('cliente tiene el botón de asistente en el catálogo y todas sus secciones', async ({ page }) => {
+  await login(page);
+  await expect(page).toHaveURL('/restaurants');
+  const launcher = page.getByTestId('chatbot-launcher');
+  await expect(launcher).toBeVisible();
+  for (const path of ['/restaurants', '/dashboard', '/cart', '/orders', '/claims', '/help', '/restaurants/1']) {
+    await page.goto(path);
+    await expect(launcher).toBeVisible();
+    const trigger = launcher.getByRole('button', { name: /Abrir ayuda|Minimizar ayuda/ });
+    await expect(trigger).toBeVisible();
+  }
+  await page.goto('/');
+  await expect(page).toHaveURL('/restaurants');
+  await expect(launcher).toBeVisible();
+  await page.goto('/login');
+  await expect(launcher).toHaveCount(0);
+});
