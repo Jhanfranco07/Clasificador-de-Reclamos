@@ -4,15 +4,9 @@ import pytest
 @pytest.fixture()
 def temp_app(monkeypatch, tmp_path):
     import database.db_connection as db_connection
-    import modules.rag_engine as rag_engine
 
     monkeypatch.setattr(db_connection, "DB_PATH", tmp_path / "smartclaim_test.db")
 
-    vector_dir = tmp_path / "vector_store"
-    monkeypatch.setattr(rag_engine, "VECTOR_DIR", vector_dir)
-    monkeypatch.setattr(rag_engine, "VECTORIZER_PATH", vector_dir / "rag_tfidf_vectorizer.joblib")
-    monkeypatch.setattr(rag_engine, "MATRIX_PATH", vector_dir / "rag_tfidf_matrix.joblib")
-    monkeypatch.setattr(rag_engine, "METADATA_PATH", vector_dir / "rag_metadata.joblib")
 
     db_connection.init_db()
     return tmp_path
@@ -147,3 +141,96 @@ def test_guardar_respuesta_sin_rag_no_registra_documentos(temp_app):
     assert respuesta_db["respuesta_generada"] == respuesta
     assert documentos == []
     assert any("sin consulta RAG" in h["comentario"] for h in historial if h["comentario"])
+
+
+def test_reindex_corrige_fragmento_cruzado_y_descarta_version_anterior(temp_app):
+    from database.db_connection import execute, fetch_all
+    from database.repositories import actualizar_documento_base
+    from modules.rag_engine import construir_indice_tfidf, recuperar_documentos_tfidf
+
+    title = "FAQ sobre pedido incompleto o productos faltantes"
+    construir_indice_tfidf(forzar=True)
+    faq = recuperar_documentos_tfidf("productos faltantes en pedido incompleto", "Producto incompleto")[0]
+    fraud = recuperar_documentos_tfidf("acceso no reconocido y pedidos no autorizados", "Fraude o seguridad")[0]
+    assert faq["titulo"] == title
+    assert faq["id_documento"] != fraud["id_documento"]
+    execute("UPDATE fragmentos_documento SET texto_fragmento = ? WHERE id_fragmento = ?",
+            (fraud["fragmento"], faq["id_fragmento"]))
+    assert faq["id_fragmento"] not in {
+        row["id_fragmento"] for row in recuperar_documentos_tfidf("acceso no reconocido", "Producto incompleto")
+    }
+
+    content = "Faltante de producto por omisión de preparación. Validar el recibo y la entrega parcial."
+    actualizar_documento_base(faq["id_documento"], title, "FAQ", "Producto incompleto", content)
+    construir_indice_tfidf(forzar=True)
+    repaired = recuperar_documentos_tfidf("faltante por omisión de preparación", "Producto incompleto")[0]
+    assert (repaired["id_documento"], repaired["titulo"], repaired["categoria_asociada"], repaired["fragmento"]) == (
+        faq["id_documento"], title, "Producto incompleto", content,
+    )
+    assert repaired["orden_fragmento"] == 1
+    assert recuperar_documentos_tfidf("zqxvv brrrt", "Producto incompleto") == []
+    current_fraud = recuperar_documentos_tfidf("acceso no reconocido y pedidos no autorizados", "Fraude o seguridad")[0]
+    for field in ("id_documento", "id_fragmento", "titulo", "categoria_asociada", "fragmento"):
+        assert current_fraud[field] == fraud[field]
+    assert len(fetch_all("SELECT * FROM fragmentos_documento WHERE id_documento = ?", (faq["id_documento"],))) == 1
+    construir_indice_tfidf(forzar=True)
+    assert recuperar_documentos_tfidf("faltante por omisión de preparación", "Producto incompleto")[0] == repaired
+
+
+def test_importador_valida_duplicados_y_no_sobrescribe(temp_app):
+    import json
+    from pathlib import Path
+    from database.db_connection import DB_PATH, fetch_one
+    from scripts.import_documents import import_documents
+
+    original = Path("data/documentos_academicos.json")
+    catalog = temp_app / "catalog.json"
+    doc = json.loads(original.read_text(encoding="utf-8"))[0]
+    baseline = fetch_one("SELECT COUNT(*) AS n FROM documentos_base")["n"]
+
+    def write(*rows):
+        catalog.write_text(json.dumps(rows), encoding="utf-8")
+
+    write(doc, {**doc, "id": "sc-faltantes-99"})
+    assert [row["status"] for row in import_documents(DB_PATH, catalog)] == ["rejected", "rejected"]
+    write({**doc, "category": "Desconocida"})
+    assert import_documents(DB_PATH, catalog)[0]["status"] == "rejected"
+    write(doc)
+    assert import_documents(DB_PATH, catalog, dry_run=True)[0]["status"] == "created"
+    assert fetch_one("SELECT COUNT(*) AS n FROM documentos_base")["n"] == baseline
+    assert import_documents(DB_PATH, catalog)[0]["status"] == "created"
+    assert import_documents(DB_PATH, catalog)[0]["status"] == "skipped"
+    write({**doc, "title": "Intento de sobrescritura", "version": "2.0"})
+    assert import_documents(DB_PATH, catalog)[0]["status"] == "rejected"
+    assert fetch_one("SELECT COUNT(*) AS n FROM documentos_base")["n"] == baseline + 1
+    assert fetch_one("SELECT titulo FROM documentos_base WHERE titulo = ?", (doc["title"],))
+
+
+def test_reindex_revierte_los_cambios_si_falla_el_indice(temp_app, monkeypatch):
+    from database.db_connection import fetch_all
+    from database.repositories import actualizar_documento_base
+    from modules import rag_engine
+
+    rag_engine.construir_indice_tfidf(forzar=True)
+    before = fetch_all("SELECT * FROM fragmentos_documento ORDER BY id_fragmento")
+    actualizar_documento_base(4, "FAQ modificada", "FAQ", "Producto incompleto",
+                             "Un documento modificado requiere nuevos fragmentos en el índice.")
+
+    def fail(_corpus, _mode):
+        raise RuntimeError("Fallo de indexación simulado")
+
+    monkeypatch.setattr(rag_engine, "_ajustar_tfidf", fail)
+    with pytest.raises(RuntimeError, match="Fallo de indexación simulado"):
+        rag_engine.construir_indice_tfidf(forzar=True)
+    assert fetch_all("SELECT * FROM fragmentos_documento ORDER BY id_fragmento") == before
+
+
+def test_seed_conserva_ediciones_administrativas(temp_app):
+    from database.db_connection import fetch_one, init_db
+    from database.repositories import actualizar_documento_base
+
+    actualizar_documento_base(4, "FAQ revisada por administración", "FAQ", "Producto incompleto",
+                             "Contenido revisado para comprobar que el seed no sobrescribe ediciones.")
+    init_db()
+    row = fetch_one("SELECT titulo FROM documentos_base WHERE id_documento = 4")
+    assert row["titulo"] == "FAQ revisada por administración"

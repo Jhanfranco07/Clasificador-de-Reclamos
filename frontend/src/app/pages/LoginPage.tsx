@@ -29,7 +29,9 @@ export default function LoginPage() {
 
     if (user) {
       const requestedPath = (location.state as { from?: string } | null)?.from;
-      const destination = user.role === 'CLIENT'
+      const destination = user.role === 'MERCHANT' ? '/merchant'
+        : user.role === 'COURIER' ? '/courier'
+        : user.role === 'CLIENT'
         ? requestedPath && !requestedPath.startsWith('/admin') ? requestedPath : '/dashboard'
         : requestedPath?.startsWith('/admin') ? requestedPath : '/admin';
       navigate(destination, { replace: true });

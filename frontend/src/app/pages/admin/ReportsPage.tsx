@@ -145,9 +145,12 @@ export default function ReportsPage() {
   const [priority, setPriority] = useState('ALL');
 
   useEffect(() => {
+    let active = true;
+    setError('');
     getReports({ dateFrom, dateTo, status, category, priority })
-      .then(setData)
-      .catch((err) => setError(err instanceof Error ? err.message : 'No se pudieron cargar los reportes.'));
+      .then((result) => { if (active) setData(result); })
+      .catch((err) => { if (active) setError(err instanceof Error ? err.message : 'No se pudieron cargar los reportes.'); });
+    return () => { active = false; };
   }, [category, dateFrom, dateTo, priority, status]);
 
   const metrics = data?.metrics || {};
@@ -228,6 +231,8 @@ export default function ReportsPage() {
     });
     document.save('smartclaim-reporte-ejecutivo.pdf');
   };
+
+  if (!data || error) return <AdminLayout><h1 className="text-3xl font-bold mb-4">Reportes y Analytics</h1><p role={error ? 'alert' : 'status'}>{error || 'Cargando reportes...'}</p>{error && <Button variant="outline" onClick={() => window.location.reload()}>Reintentar</Button>}</AdminLayout>;
 
   return (
     <AdminLayout>

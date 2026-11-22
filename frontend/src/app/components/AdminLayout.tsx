@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import ThemeToggle from './ThemeToggle';
+import NotificationBell from './NotificationBell';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -46,6 +47,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { path: '/admin/claims', label: 'Bandeja de reclamos', icon: Inbox },
     ...(currentUser?.role === 'ADMIN'
       ? [
+          { path: '/admin/orders', label: 'Pedidos', icon: Package },
+          { path: '/admin/operations', label: 'Comercios y operadores', icon: UserRound },
           { path: '/admin/knowledge', label: 'Base documental', icon: FileText },
           { path: '/admin/ai-config', label: 'Configuración IA', icon: Settings },
           { path: '/admin/reports', label: 'Reportes', icon: BarChart3 },
@@ -64,12 +67,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     <div className="min-h-screen bg-background text-foreground">
       <header className="bg-slate-950 text-white dark:bg-slate-900 border-b border-slate-800 dark:border-slate-700 sticky top-0 z-50 shadow-lg shadow-slate-950/10">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/admin" className="flex items-center gap-2">
+          <Link to="/admin" aria-label="SmartClaim AI" className="flex items-center gap-2">
             <span className="flex size-10 items-center justify-center rounded-xl bg-orange-500 text-white">
               <Package className="size-6" />
             </span>
-            <div>
-              <span className="font-bold text-xl">SmartClaim AI</span>
+            <div className="hidden sm:block">
+              <span className="font-bold text-base sm:text-xl">SmartClaim AI</span>
               <span className="text-xs text-gray-400 block">
                 {currentUser?.role === 'ADMIN' ? 'Panel Administrativo' : 'Panel de Soporte'}
               </span>
@@ -78,6 +81,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
           <div className="flex items-center gap-2 sm:gap-4">
             <ThemeToggle />
+            <NotificationBell />
             <div className="relative" ref={accountRef}>
               <Button
                 type="button"

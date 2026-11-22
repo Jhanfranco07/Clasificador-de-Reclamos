@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
 import {
   AlertCircle,
   CheckCircle,
@@ -48,6 +49,8 @@ export default function AdminDashboardPage() {
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
+
+  if (!data || error) return <AdminLayout><h1 className="text-3xl font-bold mb-4">Centro de soporte operativo</h1><p role={error ? 'alert' : 'status'}>{error || 'Cargando dashboard...'}</p>{error && <Button variant="outline" onClick={() => window.location.reload()}>Reintentar</Button>}</AdminLayout>;
 
   return (
     <AdminLayout>

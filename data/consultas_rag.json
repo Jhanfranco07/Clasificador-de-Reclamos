@@ -1,0 +1,414 @@
+[
+  {
+    "query": "No vino la gaseosa del combo",
+    "category": "Producto incompleto",
+    "expected": [
+      "sc-faltantes-01"
+    ]
+  },
+  {
+    "query": "Mi gaceosa no vino en el combo",
+    "category": "Producto incompleto",
+    "expected": [
+      "sc-faltantes-01"
+    ]
+  },
+  {
+    "query": "Pedí tres empanadas y vinieron dos",
+    "category": "Producto incompleto",
+    "expected": [
+      "sc-faltantes-02"
+    ]
+  },
+  {
+    "query": "Me llegó solo uno de los dos paquetes",
+    "category": "Producto incompleto",
+    "expected": [
+      "sc-faltantes-03"
+    ]
+  },
+  {
+    "query": "En la promo decía que venía una salsa",
+    "category": "Producto incompleto",
+    "expected": [
+      "sc-faltantes-04"
+    ]
+  },
+  {
+    "query": "Solo me mandaron papas y falta el pollo",
+    "category": "Producto incompleto",
+    "expected": [
+      "sc-faltantes-05"
+    ]
+  },
+  {
+    "query": "Solo vino la guarnición sin mi plato principal",
+    "category": "Producto incompleto",
+    "expected": [
+      "sc-faltantes-05"
+    ]
+  },
+  {
+    "query": "La bolsa llegó sellada pero faltaba un producto",
+    "category": "Producto incompleto",
+    "expected": [
+      "sc-faltantes-06"
+    ]
+  },
+  {
+    "query": "Me mandaron fresa y pedí lúcuma",
+    "category": "Producto incorrecto",
+    "expected": [
+      "sc-incorrectos-01"
+    ]
+  },
+  {
+    "query": "La bolsa tiene el nombre de otra persona",
+    "category": "Producto incorrecto",
+    "expected": [
+      "sc-incorrectos-02"
+    ]
+  },
+  {
+    "query": "Yara, esa bolsa tiene otro nombre",
+    "category": "Producto incorrecto",
+    "expected": [
+      "sc-incorrectos-02"
+    ]
+  },
+  {
+    "query": "Lo pedí sin maní y vino con maní",
+    "category": "Producto incorrecto",
+    "expected": [
+      "sc-incorrectos-03"
+    ]
+  },
+  {
+    "query": "Pedí pizza familiar y llegó mediana",
+    "category": "Producto incorrecto",
+    "expected": [
+      "sc-incorrectos-04"
+    ]
+  },
+  {
+    "query": "Estaba recontra picante y pedí sin ají",
+    "category": "Producto incorrecto",
+    "expected": [
+      "sc-incorrectos-05"
+    ]
+  },
+  {
+    "query": "Elegí arroz, me pusieron ensalada",
+    "category": "Producto incorrecto",
+    "expected": [
+      "sc-incorrectos-06"
+    ]
+  },
+  {
+    "query": "En vez de arroz hay ensalada",
+    "category": "Producto incorrecto",
+    "expected": [
+      "sc-incorrectos-06"
+    ]
+  },
+  {
+    "query": "Ya pasó el estimado y no asignan repartidor",
+    "category": "Retraso de pedido",
+    "expected": [
+      "sc-retrasos-01"
+    ]
+  },
+  {
+    "query": "El repartidor salió hace rato y el mapa sigue igual",
+    "category": "Retraso de pedido",
+    "expected": [
+      "sc-retrasos-02"
+    ]
+  },
+  {
+    "query": "El motorizado se quedó congelado en el mapa",
+    "category": "Retraso de pedido",
+    "expected": [
+      "sc-retrasos-02"
+    ]
+  },
+  {
+    "query": "Programé de doce a una y llegó a las dos",
+    "category": "Retraso de pedido",
+    "expected": [
+      "sc-retrasos-03"
+    ]
+  },
+  {
+    "query": "No encuentran mi edificio y se demora",
+    "category": "Retraso de pedido",
+    "expected": [
+      "sc-retrasos-04"
+    ]
+  },
+  {
+    "query": "Se sigue demorando y quiero cancelar",
+    "category": "Retraso de pedido",
+    "expected": [
+      "sc-retrasos-05"
+    ]
+  },
+  {
+    "query": "Quiero anularlo porque se está demorando",
+    "category": "Retraso de pedido",
+    "expected": [
+      "sc-retrasos-05"
+    ]
+  },
+  {
+    "query": "Tengo dos pedidos y solo uno está tardando",
+    "category": "Retraso de pedido",
+    "expected": [
+      "sc-retrasos-06"
+    ]
+  },
+  {
+    "query": "Ya se contabilizaron dos pagos por mi pedido",
+    "category": "Cobro indebido",
+    "expected": [
+      "sc-cobros-01"
+    ]
+  },
+  {
+    "query": "Doble cobroo confirmado",
+    "category": "Cobro indebido",
+    "expected": [
+      "sc-cobros-01"
+    ]
+  },
+  {
+    "query": "Decía 35 soles y cobraron 43",
+    "category": "Cobro indebido",
+    "expected": [
+      "sc-cobros-02"
+    ]
+  },
+  {
+    "query": "Aceptó el cupón pero igual me cobró el total",
+    "category": "Cobro indebido",
+    "expected": [
+      "sc-cobros-03"
+    ]
+  },
+  {
+    "query": "Cancelaron la orden y se mantuvo el cargo",
+    "category": "Cobro indebido",
+    "expected": [
+      "sc-cobros-04"
+    ]
+  },
+  {
+    "query": "Me descontaron la plata y no salió ninguna orden",
+    "category": "Cobro indebido",
+    "expected": [
+      "sc-cobros-05"
+    ]
+  },
+  {
+    "query": "Hay dos tarifas de delivery en la boleta",
+    "category": "Cobro indebido",
+    "expected": [
+      "sc-cobros-06"
+    ]
+  },
+  {
+    "query": "La boleta tiene dos líneas de reparto",
+    "category": "Cobro indebido",
+    "expected": [
+      "sc-cobros-06"
+    ]
+  },
+  {
+    "query": "Aviso de inicio de sesión desde un celular ajeno",
+    "category": "Fraude o seguridad",
+    "expected": [
+      "sc-seguridad-01"
+    ]
+  },
+  {
+    "query": "Alguien inició seción desde un dispositivo desconocido",
+    "category": "Fraude o seguridad",
+    "expected": [
+      "sc-seguridad-01"
+    ]
+  },
+  {
+    "query": "Alguien cambió el correo de mi cuenta",
+    "category": "Fraude o seguridad",
+    "expected": [
+      "sc-seguridad-02"
+    ]
+  },
+  {
+    "query": "Hay un delivery en camino que yo nunca pedí",
+    "category": "Fraude o seguridad",
+    "expected": [
+      "sc-seguridad-03"
+    ]
+  },
+  {
+    "query": "Me escribieron por WhatsApp diciendo que son soporte",
+    "category": "Fraude o seguridad",
+    "expected": [
+      "sc-seguridad-04"
+    ]
+  },
+  {
+    "query": "Me llegan alertas de intentos fallidos de login",
+    "category": "Fraude o seguridad",
+    "expected": [
+      "sc-seguridad-05"
+    ]
+  },
+  {
+    "query": "Varios intentos de ingreso fallaron a cada rato",
+    "category": "Fraude o seguridad",
+    "expected": [
+      "sc-seguridad-05"
+    ]
+  },
+  {
+    "query": "Perdí el celu con la cuenta abierta",
+    "category": "Fraude o seguridad",
+    "expected": [
+      "sc-seguridad-06"
+    ]
+  },
+  {
+    "query": "Rechazaron mi tarjeta y no salió el pedido",
+    "category": "Problema con tarjeta",
+    "expected": [
+      "sc-tarjeta-01"
+    ]
+  },
+  {
+    "query": "El pago falló pero hay una autorización pendiente",
+    "category": "Problema con tarjeta",
+    "expected": [
+      "sc-tarjeta-02"
+    ]
+  },
+  {
+    "query": "Autorisación pendiente aunque falló el pago",
+    "category": "Problema con tarjeta",
+    "expected": [
+      "sc-tarjeta-02"
+    ]
+  },
+  {
+    "query": "Se cerró la pantalla del banco antes de validar",
+    "category": "Problema con tarjeta",
+    "expected": [
+      "sc-tarjeta-03"
+    ]
+  },
+  {
+    "query": "La tarjeta guardada caducó",
+    "category": "Problema con tarjeta",
+    "expected": [
+      "sc-tarjeta-04"
+    ]
+  },
+  {
+    "query": "La tarjeta ya venció",
+    "category": "Problema con tarjeta",
+    "expected": [
+      "sc-tarjeta-04"
+    ]
+  },
+  {
+    "query": "Mi tarjeta pasa en tienda pero no por internet",
+    "category": "Problema con tarjeta",
+    "expected": [
+      "sc-tarjeta-05"
+    ]
+  },
+  {
+    "query": "No puedo borrar una tarjeta guardada",
+    "category": "Problema con tarjeta",
+    "expected": [
+      "sc-tarjeta-06"
+    ]
+  },
+  {
+    "query": "Cómo va mi reclamo que ya registré",
+    "category": "Soporte general",
+    "expected": [
+      "sc-soporte-01"
+    ]
+  },
+  {
+    "query": "Oe, quiero saber en qué quedó mi reclamo",
+    "category": "Soporte general",
+    "expected": [
+      "sc-soporte-01"
+    ]
+  },
+  {
+    "query": "Mandé el reclamo y quiero agregar una foto",
+    "category": "Soporte general",
+    "expected": [
+      "sc-soporte-02"
+    ]
+  },
+  {
+    "query": "¿Puedo adjuntar una foto después?",
+    "category": "Soporte general",
+    "expected": [
+      "sc-soporte-02"
+    ]
+  },
+  {
+    "query": "Falta la bebida y encima cobraron dos veces",
+    "category": "Soporte general",
+    "expected": [
+      "sc-soporte-03"
+    ]
+  },
+  {
+    "query": "Me cerraron el caso pero el problema sigue",
+    "category": "Soporte general",
+    "expected": [
+      "sc-soporte-04"
+    ]
+  },
+  {
+    "query": "Me derivaron al área equivocada y sigo esperando",
+    "category": "Soporte general",
+    "expected": [
+      "sc-soporte-05"
+    ]
+  },
+  {
+    "query": "Me equivoqué al describir lo ocurrido en mi reclamo",
+    "category": "Soporte general",
+    "expected": [
+      "sc-soporte-06"
+    ]
+  },
+  {
+    "query": "¿Cuál es la capital de Noruega?",
+    "category": "Soporte general",
+    "expected": []
+  },
+  {
+    "query": "zqxvv brrrt",
+    "category": "Producto incompleto",
+    "expected": []
+  },
+  {
+    "query": "Telescopio ecuatorial",
+    "category": "Fraude o seguridad",
+    "expected": []
+  },
+  {
+    "query": "Órbita saturniana",
+    "category": "Problema con tarjeta",
+    "expected": []
+  }
+]

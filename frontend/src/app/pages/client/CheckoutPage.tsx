@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -9,46 +9,33 @@ import { ShoppingCart, ArrowLeft } from 'lucide-react';
 import ClientLayout from '../../components/ClientLayout';
 import { createOrder } from '../../lib/api';
 import { formatCurrency } from '../../lib/utils';
-
-const CART_KEY = 'smartclaim_pending_cart';
-
-type PendingCartItem = {
-  id: string;
-  name: string;
-  price: number;
-  image?: string;
-  restaurantName: string;
-  restaurantImage?: string;
-  quantity: number;
-};
-
-const readCart = (): PendingCartItem[] => {
-  try {
-    return JSON.parse(window.localStorage.getItem(CART_KEY) || '[]') as PendingCartItem[];
-  } catch {
-    return [];
-  }
-};
+import { useOrderQuote } from '../../lib/useOrderQuote';
+import { useCart } from '../../lib/useCart';
+import CartNotice from '../../components/CartNotice';
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const [cart] = useState<PendingCartItem[]>(readCart);
+  const [params] = useSearchParams();
+  const cartState = useCart();
+  const fullCart = cartState.items;
+  const { quote: fullQuote, error: fullQuoteError } = useOrderQuote(fullCart);
+  const selectedRestaurant = params.get('restaurant');
+  const selectedIds = new Set(fullQuote?.items.filter(item => String(item.restaurantId) === selectedRestaurant).map(item => String(item.productId)));
+  const cart = selectedRestaurant ? fullCart.filter(item => selectedIds.has(item.id)) : fullCart;
   const [address, setAddress] = useState('Av. Primavera 123, Lima');
   const [paymentMethod, setPaymentMethod] = useState('Tarjeta');
-  const [paymentReference, setPaymentReference] = useState('');
   const [deliveryNotes, setDeliveryNotes] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const subtotal = useMemo(
-    () => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
-    [cart]
-  );
-  const deliveryFee = cart.length ? 5.9 : 0;
-  const serviceFee = cart.length ? 2.0 : 0;
-  const total = subtotal + deliveryFee + serviceFee;
-  const restaurantName = cart[0]?.restaurantName || 'SmartClaim Delivery';
-  const restaurantImage = cart[0]?.restaurantImage || cart[0]?.image;
+  const { quote, error: quoteError } = useOrderQuote(cart);
+  const requestId = useMemo(() => crypto.randomUUID(), [quote?.quoteHash, address, paymentMethod, deliveryNotes]);
+  const subtotal = quote?.subtotal ?? 0;
+  const deliveryFee = quote?.delivery;
+  const serviceFee = quote?.service;
+  const total = quote?.total;
+  const restaurantName = quote?.items[0]?.restaurantName || 'Cotización del catálogo';
+  const displayItems = quote?.items || [];
 
   const handleConfirm = async () => {
     if (!cart.length) {
@@ -60,8 +47,8 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (paymentMethod !== 'Efectivo' && paymentReference.trim().length < 4) {
-      setError('Ingresa una referencia de pago o los ultimos digitos del medio usado.');
+    if (!quote?.canConfirm) {
+      setError(quote?.limitation || quoteError || 'Espera una cotización válida.');
       return;
     }
 
@@ -69,22 +56,15 @@ export default function CheckoutPage() {
     setIsSubmitting(true);
     try {
       const result = await createOrder({
-        store_name: restaurantName,
-        store_image: restaurantImage,
+        request_id: requestId,
+        quote_hash: quote.quoteHash,
         payment_method: paymentMethod,
         delivery_address: address.trim(),
-        items: [
-          ...cart.map((item) => ({
-            name: item.name,
-            quantity: item.quantity,
-            price: item.price,
-            image: item.image,
-          })),
-          { name: 'Delivery', quantity: 1, price: deliveryFee },
-          { name: 'Servicio', quantity: 1, price: serviceFee },
-        ],
+        delivery_notes: deliveryNotes.trim() || undefined,
+        items: cart.map((item) => ({ product_id: Number(item.id), quantity: item.quantity })),
       });
-      window.localStorage.removeItem(CART_KEY);
+      const purchasedIds = new Set(cart.map(item => item.id));
+      cartState.update(fullCart.filter(item => !purchasedIds.has(item.id)));
       navigate(`/orders/${result.order.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo crear el pedido.');
@@ -108,7 +88,12 @@ export default function CheckoutPage() {
           <p className="text-gray-600">Revisa tu carrito, dirección y forma de pago antes de finalizar.</p>
         </div>
 
-        {cart.length === 0 ? (
+        <CartNotice warning={cartState.warning} reset={cartState.reset} />
+        {cartState.blocked ? null : selectedRestaurant && fullCart.length > 0 && !fullQuote ? (
+          fullQuoteError ? <p role="alert" className="text-red-700">{fullQuoteError}</p> : <p role="status">Cotizando los artículos del establecimiento...</p>
+        ) : selectedRestaurant && fullQuote && cart.length === 0 ? (
+          <p role="alert">No hay artículos de este establecimiento en el carrito. Revisa la selección desde el carrito.</p>
+        ) : cart.length === 0 ? (
           <Card>
             <CardContent className="text-center py-12">
               <ShoppingCart className="size-16 mx-auto mb-4 text-gray-300" />
@@ -127,8 +112,8 @@ export default function CheckoutPage() {
                 <CardDescription>{restaurantName}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {cart.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between gap-4 border-b pb-4 last:border-b-0 last:pb-0">
+                {displayItems.map((item) => (
+                  <div key={item.productId} className="flex items-center justify-between gap-4 border-b pb-4 last:border-b-0 last:pb-0">
                     <div className="flex items-center gap-3">
                       {item.image && <img src={item.image} alt={item.name} className="size-14 rounded-lg object-cover" />}
                       <div>
@@ -145,7 +130,7 @@ export default function CheckoutPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Pago y entrega</CardTitle>
-                <CardDescription>Total: {formatCurrency(total)}</CardDescription>
+                <CardDescription>Total: {total != null ? formatCurrency(total) : 'Pendiente de cotización'}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -178,17 +163,7 @@ export default function CheckoutPage() {
                   </Select>
                 </div>
 
-                {paymentMethod !== 'Efectivo' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="paymentReference">Referencia de pago</Label>
-                    <Input
-                      id="paymentReference"
-                      value={paymentReference}
-                      onChange={(event) => setPaymentReference(event.target.value)}
-                      placeholder="Ultimos 4 digitos o codigo de operacion"
-                    />
-                  </div>
-                )}
+                <p className="text-sm text-muted-foreground">Operación de demostración: no se procesa ni verifica un pago.</p>
 
                 <div className="rounded-lg border bg-gray-50 p-3 space-y-2 text-sm">
                   <div className="flex justify-between">
@@ -197,25 +172,25 @@ export default function CheckoutPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Delivery</span>
-                    <span>{formatCurrency(deliveryFee)}</span>
+                    <span>{deliveryFee != null ? formatCurrency(deliveryFee) : 'Pendiente'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Servicio</span>
-                    <span>{formatCurrency(serviceFee)}</span>
+                    <span>{serviceFee != null ? formatCurrency(serviceFee) : 'Pendiente'}</span>
                   </div>
                   <div className="flex justify-between font-bold text-base border-t pt-2">
                     <span>Total</span>
-                    <span>{formatCurrency(total)}</span>
+                    <span>{total != null ? formatCurrency(total) : 'Pendiente'}</span>
                   </div>
                 </div>
 
-                {error && (
+                {(error || quoteError || quote?.limitation) && (
                   <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
-                    {error}
+                    {error || quoteError || quote?.limitation}
                   </div>
                 )}
 
-                <Button onClick={handleConfirm} disabled={isSubmitting} className="w-full">
+                <Button onClick={handleConfirm} disabled={isSubmitting || !quote?.canConfirm} className="w-full">
                   {isSubmitting ? 'Confirmando...' : 'Confirmar pedido'}
                 </Button>
               </CardContent>

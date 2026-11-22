@@ -3,6 +3,10 @@ import unicodedata
 
 STOPWORDS = {"el","la","los","las","un","una","de","del","que","y","a","en","por","con","para","mi","me","no","se","es","al","lo","su","ya","pero","como","tengo","quiero","pedido"}
 
+def normalizar_documento(texto):
+    return " ".join(unicodedata.normalize("NFKC", texto).casefold().split())
+
+
 def normalizar_texto(texto):
     texto = texto.lower().strip()
     texto = "".join(c for c in unicodedata.normalize("NFD", texto) if unicodedata.category(c) != "Mn")

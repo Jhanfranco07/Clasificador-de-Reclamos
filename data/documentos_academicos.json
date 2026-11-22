@@ -1,0 +1,674 @@
+[
+  {
+    "id": "sc-faltantes-01",
+    "title": "Bebida pagada ausente del combo",
+    "content": "Contrasta la bebida elegida con la descripción del combo y el recibo. Registra la bebida ausente aunque el precio figure en una sola línea.",
+    "category": "Producto incompleto",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-faltantes-02",
+    "title": "Cantidad parcial de un mismo artículo",
+    "content": "Compara el número de unidades compradas con las recibidas y anota la diferencia en la misma línea del pedido. Adjunta la foto disponible. Aplica si entregaron menos unidades de las pagadas, por ejemplo, faltó un taco de una orden de cuatro. Distingue una cantidad incompleta de un artículo sustituido.",
+    "category": "Producto incompleto",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "2.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-faltantes-03",
+    "title": "Faltante en una entrega dividida",
+    "content": "Consulta el estado de cada paquete y distingue un paquete todavía en tránsito de un artículo omitido en una entrega que ya terminó.",
+    "category": "Producto incompleto",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-faltantes-04",
+    "title": "Complemento anunciado que no llegó",
+    "content": "Verifica si el complemento constaba en la descripción del producto vigente al comprar. Conserva la captura de la oferta para revisar su alcance.",
+    "category": "Producto incompleto",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-faltantes-05",
+    "title": "Plato principal ausente con guarnición entregada",
+    "content": "Registra el plato principal omitido y las guarniciones recibidas. Vincula el caso a la línea correspondiente para facilitar la revisión parcial.",
+    "category": "Producto incompleto",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-faltantes-06",
+    "title": "Faltante en bolsa recibida con sello intacto",
+    "content": "Documenta la condición del sello y cuándo se detectó el faltante. El sello orienta la revisión de preparación y por sí solo no establece responsabilidad.",
+    "category": "Producto incompleto",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-incorrectos-01",
+    "title": "Sustitución de sabor o presentación",
+    "content": "Contrasta la variante elegida con la etiqueta recibida y verifica si el cliente aceptó expresamente una sustitución. Registra ambas opciones.",
+    "category": "Producto incorrecto",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-incorrectos-02",
+    "title": "Pedido ajeno con etiqueta de otra persona",
+    "content": "Contrasta el código propio con la etiqueta y oculta nombres y direcciones ajenos en la evidencia. Registra la posible confusión de pedidos.",
+    "category": "Producto incorrecto",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-incorrectos-03",
+    "title": "Ingrediente expresamente excluido",
+    "content": "Consulta la nota de preparación y contrasta la exclusión solicitada con el plato. Si el cliente reporta un alérgeno, marca el riesgo para revisión prioritaria.",
+    "category": "Producto incorrecto",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-incorrectos-04",
+    "title": "Tamaño de porción distinto al comprado",
+    "content": "Verifica el tamaño seleccionado y compáralo con la etiqueta del envase. Si no hay un tamaño verificable, solicita una aclaración sobre la porción. Aplica si se pidió una pizza familiar y entregaron una mediana, o si se eligió una bebida grande y llegó una pequeña. Compara la medida o la presentación ofrecida con la que llegó.",
+    "category": "Producto incorrecto",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "2.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-incorrectos-05",
+    "title": "Nivel de picante distinto al solicitado",
+    "content": "Comprueba el modificador de picante elegido al comprar. Conserva el nombre del plato y el modificador para que el comercio revise la preparación.",
+    "category": "Producto incorrecto",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-incorrectos-06",
+    "title": "Acompañamiento distinto al elegido",
+    "content": "Confirma que se podía personalizar el acompañamiento y consulta la opción guardada. Identifica qué guarnición reemplazó a la solicitada.",
+    "category": "Producto incorrecto",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-retrasos-01",
+    "title": "Demora antes de asignar repartidor",
+    "content": "Comprueba si el comercio confirmó la preparación y si hay repartidor asignado. Comunica el estado visible y deriva si se superó la ventana informada. Distingue si el restaurante aceptó el pedido pero todavía no hay conductor, motorizado o persona asignada, frente a un reparto que ya salió.",
+    "category": "Retraso de pedido",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "2.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-retrasos-02",
+    "title": "Demora con repartidor en camino",
+    "content": "Contrasta el plazo estimado con la última actualización del reparto. Comunica cuándo se observó el último cambio y registra el seguimiento.",
+    "category": "Retraso de pedido",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-retrasos-03",
+    "title": "Entrega programada fuera de la franja elegida",
+    "content": "Verifica la fecha y la franja programadas en la confirmación. Registra la diferencia horaria y verifica si hubo un aviso de reprogramación. Una entrega agendada o reservada se considera fuera de ventana si llega después de la hora acordada. Compara, por ejemplo, un horario de nueve a diez con una llegada a las once.",
+    "category": "Retraso de pedido",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "2.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-retrasos-04",
+    "title": "Retraso por dificultad para localizar el destino",
+    "content": "Revisa las referencias de entrega y los intentos de contacto. Solicita una referencia de ubicación pertinente mediante el canal autenticado. Aplica si el repartidor no encuentra la puerta, edificio o entrada del condominio y da vueltas en la zona. Diferéncialo de la espera sin conductor asignado.",
+    "category": "Retraso de pedido",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "2.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-retrasos-05",
+    "title": "Cancelación solicitada durante la espera",
+    "content": "Registra cuándo se pidió cancelar y el estado del pedido en ese momento. Verifica si hubo aceptación y deriva los efectos económicos a revisión.",
+    "category": "Retraso de pedido",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-retrasos-06",
+    "title": "Demora con varios pedidos activos",
+    "content": "Identifica el código del pedido retrasado antes de consultar los eventos. Usa la cronología de ese pedido para explicar el seguimiento.",
+    "category": "Retraso de pedido",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-cobros-01",
+    "title": "Dos cargos contabilizados para un pedido",
+    "content": "Distingue cargos definitivos de autorizaciones pendientes. Compara fecha, importe y referencia enmascarada para determinar si coinciden con un pedido.",
+    "category": "Cobro indebido",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-cobros-02",
+    "title": "Importe final mayor al confirmado",
+    "content": "Compara el total confirmado con el importe contabilizado. Separa el precio, las tarifas y los descuentos para registrar la diferencia exacta.",
+    "category": "Cobro indebido",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-cobros-03",
+    "title": "Descuento aceptado ausente del total",
+    "content": "Consulta si el cupón figuraba aplicado en la confirmación. Registra el código promocional y el importe de la diferencia para validación.",
+    "category": "Cobro indebido",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-cobros-04",
+    "title": "Cargo tras una cancelación confirmada",
+    "content": "Verifica la fecha de cancelación y si el cargo sigue pendiente o contabilizado. Vincula ambos eventos para la revisión del equipo de pagos.",
+    "category": "Cobro indebido",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-cobros-05",
+    "title": "Cobro definitivo sin pedido generado",
+    "content": "Busca el intento con la hora y el monto. Si no hay pedido confirmado, registra la referencia enmascarada y deriva la conciliación del movimiento.",
+    "category": "Cobro indebido",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-cobros-06",
+    "title": "Tarifa de entrega aplicada dos veces",
+    "content": "Desglosa los conceptos del comprobante. Si hay dos líneas de reparto, verifica si corresponden a envíos separados antes de registrar la duplicación.",
+    "category": "Cobro indebido",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-seguridad-01",
+    "title": "Alerta de ingreso desde dispositivo desconocido",
+    "content": "Registra la hora aproximada y el canal de la alerta. Deriva a seguridad y orienta al cliente a revisar sesiones en la aplicación autenticada.",
+    "category": "Fraude o seguridad",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-seguridad-02",
+    "title": "Cambio de correo que el titular desconoce",
+    "content": "Registra cuándo se observó el cambio y si se conserva acceso. Deriva al canal de recuperación verificado y evita revelar la nueva dirección.",
+    "category": "Fraude o seguridad",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-seguridad-03",
+    "title": "Pedido desconocido con reparto en curso",
+    "content": "Anota el código del pedido reportado como ajeno y su estado. Escala con prioridad a seguridad para que determine si corresponde intervenir.",
+    "category": "Fraude o seguridad",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-seguridad-04",
+    "title": "Mensaje que suplanta al equipo de soporte",
+    "content": "Registra el canal y una descripción del mensaje. Orienta a conservar una captura con datos ocultos y a contactar soporte desde la aplicación.",
+    "category": "Fraude o seguridad",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-seguridad-05",
+    "title": "Múltiples intentos de ingreso fallidos",
+    "content": "Distingue intentos fallidos de accesos confirmados y registra la ventana temporal. Deriva si se repiten o coinciden con cambios de cuenta.",
+    "category": "Fraude o seguridad",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-seguridad-06",
+    "title": "Sesión abierta en un equipo perdido",
+    "content": "Registra si la persona conserva acceso desde otro equipo. Oriéntala a cerrar sesiones en los controles de cuenta y deriva si perdió el acceso.",
+    "category": "Fraude o seguridad",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-tarjeta-01",
+    "title": "Tarjeta rechazada con pedido sin confirmar",
+    "content": "Comprueba que el pedido no se confirmó y anota el mensaje de rechazo. Si hay un movimiento pendiente, orienta a consultar el estado antes de reintentar.",
+    "category": "Problema con tarjeta",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-tarjeta-02",
+    "title": "Autorización pendiente tras intento fallido",
+    "content": "Registra la hora y el importe de la autorización pendiente. Distingue una reserva temporal de un cargo confirmado y verifica si cambia el estado.",
+    "category": "Problema con tarjeta",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-tarjeta-03",
+    "title": "Verificación bancaria interrumpida durante el pago",
+    "content": "Comprueba si la pantalla de validación se cerró o venció antes de confirmar. Registra el punto de interrupción y orienta al flujo de la aplicación.",
+    "category": "Problema con tarjeta",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-tarjeta-04",
+    "title": "Tarjeta guardada vencida al confirmar",
+    "content": "Orienta a seleccionar otro medio o actualizar la tarjeta en la pantalla segura. Anota el mensaje de vencimiento si se repite con una tarjeta vigente.",
+    "category": "Problema con tarjeta",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-tarjeta-05",
+    "title": "Tarjeta habilitada solo para compras presenciales",
+    "content": "Comprueba si el emisor comunicó una restricción para compras por internet. Orienta a consultar al emisor y verifica si se generó un pedido.",
+    "category": "Problema con tarjeta",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-tarjeta-06",
+    "title": "Error al retirar un medio de pago guardado",
+    "content": "Identifica si el problema ocurre en la pantalla de medios guardados. Anota el mensaje visible y deriva a soporte técnico si la opción no responde.",
+    "category": "Problema con tarjeta",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-soporte-01",
+    "title": "Seguimiento de un reclamo ya registrado",
+    "content": "Solicita el código del reclamo y consulta el estado más reciente. Resume el último paso registrado y evita duplicar el caso por el mismo hecho.",
+    "category": "Soporte general",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-soporte-02",
+    "title": "Aporte de evidencia tras enviar el reclamo",
+    "content": "Orienta a adjuntar la evidencia en la conversación del caso existente. Indica que oculte datos ajenos y explique qué hecho permite verificar.",
+    "category": "Soporte general",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-soporte-03",
+    "title": "Dos incidencias distintas en el mismo pedido",
+    "content": "Registra ambos hechos por separado con el mismo código de pedido. Enlaza los casos si otro equipo debe atender una de las incidencias.",
+    "category": "Soporte general",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-soporte-04",
+    "title": "Reapertura por incidencia que continúa",
+    "content": "Consulta el motivo de cierre y anota qué cambió desde entonces. Solicita revisión de reapertura si hay evidencia nueva o continúa la incidencia.",
+    "category": "Soporte general",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-soporte-05",
+    "title": "Derivación al equipo de soporte equivocado",
+    "content": "Confirma el equipo asignado y el motivo de derivación. Resume los antecedentes al equipo pertinente para evitar que el cliente repita el relato.",
+    "category": "Soporte general",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  },
+  {
+    "id": "sc-soporte-06",
+    "title": "Corrección de datos descriptivos de un reclamo",
+    "content": "Identifica el código del caso y agrega la aclaración como nota fechada. Conserva la descripción anterior para mantener un historial verificable.",
+    "category": "Soporte general",
+    "type": "PROCEDIMIENTO",
+    "source": "SmartClaim AI — simulación académica",
+    "version": "1.0",
+    "updated": "2026-11-06",
+    "status": "vigente",
+    "rules": {
+      "review": "required",
+      "refund": "subject_to_review",
+      "payment_data": "never_request_secrets"
+    }
+  }
+]

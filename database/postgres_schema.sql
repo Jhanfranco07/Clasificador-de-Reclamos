@@ -54,31 +54,6 @@ CREATE TABLE IF NOT EXISTS auth_users (
     fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS pedidos (
-    id_pedido SERIAL PRIMARY KEY,
-    codigo_pedido TEXT NOT NULL UNIQUE,
-    id_cliente INTEGER NOT NULL REFERENCES clientes(id_cliente),
-    tienda_nombre TEXT NOT NULL,
-    tienda_imagen TEXT,
-    estado TEXT NOT NULL DEFAULT 'PREPARING'
-        CHECK (estado IN ('DELIVERED', 'IN_TRANSIT', 'CANCELLED', 'DELAYED', 'PREPARING')),
-    total REAL NOT NULL DEFAULT 0,
-    metodo_pago TEXT NOT NULL DEFAULT 'Tarjeta',
-    direccion_entrega TEXT NOT NULL,
-    repartidor TEXT,
-    fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    fecha_entrega_estimada TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS pedido_items (
-    id_item SERIAL PRIMARY KEY,
-    id_pedido INTEGER NOT NULL REFERENCES pedidos(id_pedido) ON DELETE CASCADE,
-    nombre_producto TEXT NOT NULL,
-    cantidad INTEGER NOT NULL DEFAULT 1,
-    precio REAL NOT NULL DEFAULT 0,
-    imagen TEXT
-);
-
 CREATE TABLE IF NOT EXISTS restaurantes (
     id_restaurante SERIAL PRIMARY KEY,
     nombre TEXT NOT NULL,
@@ -102,10 +77,44 @@ CREATE TABLE IF NOT EXISTS productos (
     fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS pedidos (
+    id_pedido SERIAL PRIMARY KEY,
+    codigo_pedido TEXT NOT NULL UNIQUE,
+    id_cliente INTEGER NOT NULL REFERENCES clientes(id_cliente),
+    id_restaurante INTEGER REFERENCES restaurantes(id_restaurante),
+    tienda_nombre TEXT NOT NULL,
+    tienda_imagen TEXT,
+    estado TEXT NOT NULL DEFAULT 'PREPARING'
+        CHECK (estado IN ('DELIVERED', 'IN_TRANSIT', 'CANCELLED', 'DELAYED', 'PREPARING')),
+    total REAL NOT NULL DEFAULT 0,
+    metodo_pago TEXT NOT NULL DEFAULT 'Tarjeta',
+    direccion_entrega TEXT NOT NULL,
+    notas_entrega TEXT,
+    subtotal REAL,
+    costo_delivery REAL,
+    costo_servicio REAL,
+    repartidor TEXT,
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_entrega_estimada TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS pedido_items (
+    id_item SERIAL PRIMARY KEY,
+    id_pedido INTEGER NOT NULL REFERENCES pedidos(id_pedido) ON DELETE CASCADE,
+    id_producto INTEGER REFERENCES productos(id_producto),
+    nombre_producto TEXT NOT NULL,
+    cantidad INTEGER NOT NULL DEFAULT 1,
+    precio REAL NOT NULL DEFAULT 0,
+    imagen TEXT
+);
+
+
+
 CREATE TABLE IF NOT EXISTS reclamos (
     id_reclamo SERIAL PRIMARY KEY,
     codigo_reclamo TEXT NOT NULL UNIQUE,
     id_cliente INTEGER NOT NULL REFERENCES clientes(id_cliente),
+    id_pedido INTEGER REFERENCES pedidos(id_pedido),
     codigo_pedido TEXT NOT NULL,
     canal_venta TEXT NOT NULL,
     fecha_pedido TEXT,

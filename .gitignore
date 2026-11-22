@@ -17,6 +17,7 @@ htmlcov/
 # Variables y secretos locales
 .env
 .env.*
+!.env.example
 
 # Logs
 *.log

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from tempfile import NamedTemporaryFile
 import math
 import os
 from datetime import datetime, timezone
@@ -29,7 +30,9 @@ def create_embeddings(texts: list[str]) -> list[list[float]]:
     if not enabled():
         raise RuntimeError("OpenAI embeddings no están habilitados.")
     from openai import OpenAI
+    from modules.ai_trace import trace_update
 
+    trace_update(openai_used=True)
     response = OpenAI(timeout=30.0, max_retries=1).embeddings.create(
         model=MODEL,
         input=texts,
@@ -61,6 +64,7 @@ def build_index() -> dict[str, Any]:
             [
                 str(fragment.get("titulo") or ""),
                 str(fragment.get("categoria_asociada") or ""),
+                str(fragment.get("tipo_documento") or ""),
                 str(fragment.get("texto_fragmento") or ""),
             ]
         ).strip()
@@ -75,7 +79,7 @@ def build_index() -> dict[str, Any]:
     for offset in range(0, len(pending), 50):
         batch = pending[offset : offset + 50]
         vectors = create_embeddings([item[1] for item in batch])
-        for (fragment, text, digest), vector in zip(batch, vectors):
+        for (fragment, text, digest), vector in zip(batch, vectors, strict=True):
             output.append(
                 {
                     "id": f"doc_{fragment['id_documento']}_frag_{fragment['id_fragmento']}",
@@ -94,10 +98,15 @@ def build_index() -> dict[str, Any]:
             )
 
     INDEX_PATH.parent.mkdir(parents=True, exist_ok=True)
-    INDEX_PATH.write_text(
-        json.dumps({"model": MODEL, "items": output}, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    temporary = None
+    try:
+        with NamedTemporaryFile(mode="w", dir=INDEX_PATH.parent, encoding="utf-8", delete=False) as file:
+            temporary = Path(file.name)
+            json.dump({"model": MODEL, "items": output}, file, ensure_ascii=False)
+        temporary.replace(INDEX_PATH)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
     return {
         "status": "updated",
         "model": MODEL,
@@ -114,11 +123,28 @@ def _cosine(left: list[float], right: list[float]) -> float:
     return dot / (left_norm * right_norm) if left_norm and right_norm else 0.0
 
 
-def search(query: str, top_k: int = 5, threshold: float = 0.7) -> list[dict[str, Any]]:
+def search(query: str, top_k: int = 5, threshold: float = 0.7,
+           category: str | None = None, document_ids=None) -> list[dict[str, Any]]:
     index = load_index()
-    items = index.get("items", [])
+    from modules.text_processing import normalizar_texto
+    items = [item for item in index.get("items", [])
+             if item.get("model") == MODEL
+             and (document_ids is None or item["document_id"] in document_ids)
+             and (not category or normalizar_texto(item.get("category") or "") == normalizar_texto(category))]
     if not enabled() or not items:
         return []
+    # Reindexing fragments invalidates old JSON entries. Never use stale/deactivated evidence.
+    fragments = {fragment["id_fragmento"]: fragment for fragment in listar_fragmentos_documento()}
+    items = [item for item in items
+             if item["fragment_id"] in fragments
+             and fragments[item["fragment_id"]]["id_documento"] == item["document_id"]
+             and fragments[item["fragment_id"]]["texto_fragmento"] == item["content"]
+             and fragments[item["fragment_id"]]["titulo"] == item["title"]
+             and fragments[item["fragment_id"]]["categoria_asociada"] == item["category"]]
+    if not items:
+        return []
+    from modules.ai_trace import trace_update
+    trace_update(openai_used=True)
     query_vector = create_embeddings([query])[0]
     ranked = sorted(
         ((item, _cosine(query_vector, item["embedding"])) for item in items),

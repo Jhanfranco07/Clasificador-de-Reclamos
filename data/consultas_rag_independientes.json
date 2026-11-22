@@ -1,0 +1,184 @@
+[
+  {
+    "query": "En el ticket salen cuatro tacos pero dentro conté tres",
+    "category": "Producto incompleto",
+    "expected": [
+      "sc-faltantes-02"
+    ]
+  },
+  {
+    "query": "La app ofrecía cubiertos de bambú con la cena y no los incluyeron",
+    "category": "Producto incompleto",
+    "expected": [
+      "sc-faltantes-04"
+    ]
+  },
+  {
+    "query": "Precinto intacto; al abrir encontré un envase menos",
+    "category": "Producto incompleto",
+    "expected": [
+      "sc-faltantes-06"
+    ]
+  },
+  {
+    "query": "Compré presentación individual de vainilla; la etiqueta indica chocolate",
+    "category": "Producto incorrecto",
+    "expected": [
+      "sc-incorrectos-01"
+    ]
+  },
+  {
+    "query": "La orden decía retirar el queso por alergia y lo dejaron",
+    "category": "Producto incorrecto",
+    "expected": [
+      "sc-incorrectos-03"
+    ]
+  },
+  {
+    "query": "Puse el nivel más suave y llegó demasiado picante",
+    "category": "Producto incorrecto",
+    "expected": [
+      "sc-incorrectos-05"
+    ]
+  },
+  {
+    "query": "El restaurante aceptó hace cuarenta minutos, todavía no tiene motorizado",
+    "category": "Retraso de pedido",
+    "expected": [
+      "sc-retrasos-01"
+    ]
+  },
+  {
+    "query": "Agendé para las nueve y se presentaron cerca de las once",
+    "category": "Retraso de pedido",
+    "expected": [
+      "sc-retrasos-03"
+    ]
+  },
+  {
+    "query": "El conductor da vueltas porque no ubica la entrada del condominio",
+    "category": "Retraso de pedido",
+    "expected": [
+      "sc-retrasos-04"
+    ]
+  },
+  {
+    "query": "En mi estado de cuenta hay dos movimientos definitivos de la misma compra",
+    "category": "Cobro indebido",
+    "expected": [
+      "sc-cobros-01"
+    ]
+  },
+  {
+    "query": "El recibo confirma 28 pero el monto debitado fue 34",
+    "category": "Cobro indebido",
+    "expected": [
+      "sc-cobros-02"
+    ]
+  },
+  {
+    "query": "Veo dos conceptos de envío para una sola entrega",
+    "category": "Cobro indebido",
+    "expected": [
+      "sc-cobros-06"
+    ]
+  },
+  {
+    "query": "Cambió la dirección de email de mi perfil sin que yo lo hiciera",
+    "category": "Fraude o seguridad",
+    "expected": [
+      "sc-seguridad-02"
+    ]
+  },
+  {
+    "query": "Un SMS con un enlace dice venir de atención al cliente",
+    "category": "Fraude o seguridad",
+    "expected": [
+      "sc-seguridad-04"
+    ]
+  },
+  {
+    "query": "Me robaron el teléfono donde quedó iniciada la sesión",
+    "category": "Fraude o seguridad",
+    "expected": [
+      "sc-seguridad-06"
+    ]
+  },
+  {
+    "query": "El desafío de autenticación del emisor se quedó a mitad",
+    "category": "Problema con tarjeta",
+    "expected": [
+      "sc-tarjeta-03"
+    ]
+  },
+  {
+    "query": "Al pagar aparece que el medio almacenado caducó",
+    "category": "Problema con tarjeta",
+    "expected": [
+      "sc-tarjeta-04"
+    ]
+  },
+  {
+    "query": "Pulso quitar tarjeta en métodos guardados y no sucede nada",
+    "category": "Problema con tarjeta",
+    "expected": [
+      "sc-tarjeta-06"
+    ]
+  },
+  {
+    "query": "¿En qué estado se encuentra el expediente que abrí ayer?",
+    "category": "Soporte general",
+    "expected": [
+      "sc-soporte-01"
+    ]
+  },
+  {
+    "query": "La incidencia no se resolvió aunque marcaron el caso como cerrado",
+    "category": "Soporte general",
+    "expected": [
+      "sc-soporte-04"
+    ]
+  },
+  {
+    "query": "Necesito enmendar un dato de la descripción que envié",
+    "category": "Soporte general",
+    "expected": [
+      "sc-soporte-06"
+    ]
+  },
+  {
+    "query": "Quiero saber si mañana habrá un eclipse",
+    "category": "Producto incompleto",
+    "expected": []
+  },
+  {
+    "query": "¿Cómo cultivo orquídeas en maceta?",
+    "category": "Producto incorrecto",
+    "expected": []
+  },
+  {
+    "query": "Mi impresora se atasca al escanear",
+    "category": "Retraso de pedido",
+    "expected": []
+  },
+  {
+    "query": "¿Se puede renovar el pasaporte en línea?",
+    "category": "Cobro indebido",
+    "expected": []
+  },
+  {
+    "query": "¿Cómo cambio el aceite del automóvil?",
+    "category": "Fraude o seguridad",
+    "expected": []
+  },
+  {
+    "query": "¿Qué talla de zapatos debo comprar?",
+    "category": "Problema con tarjeta",
+    "expected": []
+  },
+  {
+    "query": "Busco clases de guitarra por internet",
+    "category": "Soporte general",
+    "expected": []
+  }
+]

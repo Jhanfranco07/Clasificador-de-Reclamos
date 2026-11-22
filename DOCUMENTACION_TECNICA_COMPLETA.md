@@ -1,5 +1,7 @@
 # SmartClaim AI - Documentación técnica y funcional completa
 
+**Actualización del flujo IA (30 de octubre de 2026):** el chat incorpora búsqueda FAQ directa y los reclamos aplican filtros documentales por categoría confiable, con respaldos trazables y revisión humana. Los detalles actuales, diagrama, variables, pruebas y límites están en [Optimización del flujo IA](docs/OPTIMIZACION_FLUJO_IA.md); ese documento complementa y actualiza las descripciones de IA/RAG de esta referencia.
+
 **Proyecto:** SmartClaim AI  
 **Tipo:** Plataforma full stack para comercio delivery y gestión inteligente de reclamos  
 **Estado documentado:** junio de 2026  

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import OrderHistory from '../../components/OrderHistory';
 import { useParams, Link } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -18,10 +19,14 @@ export default function OrderDetailPage() {
 
   useEffect(() => {
     if (!id) return;
+    let active = true;
+    setIsLoading(true);
+    setError('');
     getOrder(id)
-      .then((result) => setOrder(result.order))
-      .catch((err) => setError(err instanceof Error ? err.message : 'No se pudo cargar el pedido.'))
-      .finally(() => setIsLoading(false));
+      .then((result) => { if (active) setOrder(result.order); })
+      .catch((err) => { if (active) setError(err instanceof Error ? err.message : 'No se pudo cargar el pedido.'); })
+      .finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
   }, [id]);
 
   const getStatusColor = (status: string) => {
@@ -49,8 +54,8 @@ export default function OrderDetailPage() {
     return (
       <ClientLayout>
         <div className="text-center py-12">
-          <h2 className="text-2xl font-bold mb-4">Pedido no encontrado</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
+          <h2 className="text-2xl font-bold mb-4">{error ? 'No se pudo cargar el pedido' : 'Pedido no encontrado'}</h2>
+          <p role={error ? 'alert' : undefined} className="text-gray-600 mb-6">{error}</p>
           <Link to="/orders">
             <Button>Volver a pedidos</Button>
           </Link>
@@ -75,6 +80,7 @@ export default function OrderDetailPage() {
           <div>
             <h1 className="text-3xl font-bold mb-2">{order.storeName}</h1>
             <p className="text-gray-600">Pedido {order.code}</p>
+            <p className="text-sm text-amber-800">Operación de demostración: pago no verificado. No acredita un cobro ni una entrega real.</p>
           </div>
           <Badge className={`${getStatusColor(order.status)} text-lg px-4 py-2`}>
             {ORDER_STATUS_LABELS[order.status]}
@@ -139,6 +145,7 @@ export default function OrderDetailPage() {
             </CardHeader>
             <CardContent>
               <p>{order.deliveryAddress}</p>
+              {order.deliveryNotes && <p className="mt-2 text-sm">Referencia de entrega: {order.deliveryNotes}</p>}
             </CardContent>
           </Card>
 
@@ -152,7 +159,7 @@ export default function OrderDetailPage() {
             <CardContent>
               <p>{order.paymentMethod}</p>
               <p className="text-sm text-gray-500 mt-1">
-                Total pagado: {formatCurrency(order.total)}
+                Importe del pedido: {formatCurrency(order.total)}
               </p>
             </CardContent>
           </Card>
@@ -168,12 +175,14 @@ export default function OrderDetailPage() {
             </CardHeader>
             <CardContent>
               <p className="font-semibold">{order.deliveryDriver}</p>
-              <p className="text-sm text-gray-500">Tu repartidor asignado</p>
+              <p className="text-sm text-gray-500">{order.driverVerified ? 'Asignación registrada, sin seguimiento de ubicación' : 'Texto histórico sin asignación de repartidor verificada'}</p>
             </CardContent>
           </Card>
         )}
 
-        {(order.status === 'DELIVERED' || order.status === 'DELAYED') && (
+        <OrderHistory order={order} />
+        {order.deliveredAt && <p>Entrega registrada · {formatDateTime(order.deliveredAt)}</p>}
+        {(
           <Card className="bg-orange-50 border-orange-200">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between gap-4">

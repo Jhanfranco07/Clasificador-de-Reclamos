@@ -126,7 +126,7 @@ def seleccionar_estado_final(categoria):
 def generar_reclamos(cantidad_por_categoria=50, limpiar=False, seed=42):
     random.seed(seed)
     init_db()
-    construir_indice_vectorial(forzar=False)
+    construir_indice_vectorial(forzar=True)
 
     if limpiar:
         limpiar_datos_prueba()

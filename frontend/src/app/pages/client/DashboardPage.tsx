@@ -15,14 +15,22 @@ export default function DashboardPage() {
   const [userOrders, setUserOrders] = useState<ApiOrder[]>([]);
   const recentOrders = userOrders.slice(0, 3);
   const [claims, setClaims] = useState<ClaimSummary[]>([]);
+  const [ordersError, setOrdersError] = useState('');
+  const [claimsError, setClaimsError] = useState('');
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [claimsLoading, setClaimsLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
     listClaims()
-      .then((data) => setClaims(data.items))
-      .catch(() => setClaims([]));
+      .then((data) => { if (active) setClaims(data.items); })
+      .catch(() => { if (active) setClaimsError('No se pudieron cargar los reclamos.'); })
+      .finally(() => { if (active) setClaimsLoading(false); });
     listOrders()
-      .then((data) => setUserOrders(data.items))
-      .catch(() => setUserOrders([]));
+      .then((data) => { if (active) setUserOrders(data.items); })
+      .catch(() => { if (active) setOrdersError('No se pudieron cargar los pedidos.'); })
+      .finally(() => { if (active) setOrdersLoading(false); });
+    return () => { active = false; };
   }, []);
 
   const userClaims = currentUser
@@ -59,6 +67,10 @@ export default function DashboardPage() {
           </p>
         </div>
 
+        {ordersError && <p role="alert">{ordersError}</p>}
+        {claimsError && <p role="alert">{claimsError}</p>}
+        {(ordersLoading || claimsLoading) && <p role="status">Cargando resumen...</p>}
+
         <div className="grid md:grid-cols-3 gap-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -66,7 +78,7 @@ export default function DashboardPage() {
               <ShoppingBag className="size-4 text-gray-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{userOrders.length}</div>
+              <div className="text-2xl font-bold">{ordersLoading || ordersError ? '—' : userOrders.length}</div>
               <p className="text-xs text-gray-500 mt-1">
                 Historial disponible en tu cuenta
               </p>
@@ -79,8 +91,8 @@ export default function DashboardPage() {
               <AlertCircle className="size-4 text-gray-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{openClaims.length}</div>
-              <p className="text-xs text-gray-500 mt-1">{userClaims.length} reclamos registrados</p>
+              <div className="text-2xl font-bold">{claimsLoading || claimsError ? '—' : openClaims.length}</div>
+              <p className="text-xs text-gray-500 mt-1">{claimsError ? 'Reclamos no disponibles' : claimsLoading ? 'Cargando...' : `${userClaims.length} reclamos en la página consultada`}</p>
             </CardContent>
           </Card>
 
@@ -91,7 +103,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {userOrders.filter((order) => order.status === 'IN_TRANSIT').length}
+                {ordersLoading || ordersError ? '—' : userOrders.filter((order) => order.status === 'IN_TRANSIT').length}
               </div>
               <p className="text-xs text-gray-500 mt-1">Seguimiento activo</p>
             </CardContent>
@@ -143,7 +155,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentOrders.length === 0 && (
+              {!ordersLoading && !ordersError && recentOrders.length === 0 && (
                 <div className="rounded-lg border border-dashed p-8 text-center">
                   <ShoppingBag className="size-10 text-orange-500 mx-auto mb-3" />
                   <h2 className="text-xl font-bold">Aún no tienes pedidos</h2>
@@ -153,9 +165,9 @@ export default function DashboardPage() {
                   </Link>
                 </div>
               )}
-              {recentOrders.map((order) => (
-                <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors">
-                  <div className="flex items-center gap-4">
+              {!ordersError && recentOrders.map((order) => (
+                <div key={order.id} className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors">
+                  <div className="flex items-center gap-4 min-w-0 break-words">
                     <img src={order.storeImage} alt={order.storeName} className="size-12 rounded-lg object-cover" />
                     <div>
                       <p className="font-semibold">{order.storeName}</p>
@@ -180,7 +192,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {openClaims.length > 0 && (
+        {!claimsError && openClaims.length > 0 && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">

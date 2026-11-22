@@ -52,6 +52,29 @@ def using_postgres():
     return provider == "postgres" or app_env == "production"
 
 
+def allows_automatic_database_setup():
+    """Restrict automatic seeds and document synchronization to local databases."""
+    from modules.config import is_production
+
+    if is_production() or any(os.getenv(name) for name in ("RENDER", "VERCEL")):
+        return False
+    if not using_postgres():
+        return True
+
+    from psycopg import ProgrammingError
+    from psycopg.conninfo import conninfo_to_dict
+
+    try:
+        config = conninfo_to_dict(os.environ["DATABASE_URL"])
+    except ProgrammingError:
+        return False
+    loopback = {"127.0.0.1", "::1"}
+    host = config.get("host")
+    address = config.get("hostaddr") or os.getenv("PGHOSTADDR") or host
+    return (host in loopback and address == host
+            and not config.get("service") and not os.getenv("PGSERVICE"))
+
+
 def _adapt_query_for_postgres(query):
     adapted = query.replace("?", "%s")
     adapted = adapted.replace("INSERT OR IGNORE", "INSERT")
@@ -80,11 +103,11 @@ def _insert_returning_pk(query):
 
 
 class PostgresConnection:
-    def __init__(self):
+    def __init__(self, dsn=None):
         import psycopg
         from psycopg.rows import dict_row
 
-        self.conn = psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row)
+        self.conn = psycopg.connect(dsn if dsn is not None else os.environ["DATABASE_URL"], row_factory=dict_row)
 
     def __enter__(self):
         return self
@@ -107,21 +130,39 @@ class PostgresConnection:
     def commit(self):
         self.conn.commit()
 
+    def rollback(self):
+        self.conn.rollback()
+
+    def close(self):
+        self.conn.close()
+
+
+class SQLiteConnection(sqlite3.Connection):
+    def __exit__(self, exc_type, exc, tb):
+        try:
+            return super().__exit__(exc_type, exc, tb)
+        finally:
+            self.close()
+
 
 def get_connection():
     if using_postgres():
         return PostgresConnection()
 
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, factory=SQLiteConnection)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
 
-def run_script(path: Path):
+def run_script(path: Path, *, transactional=False):
     with get_connection() as conn:
-        conn.executescript(path.read_text(encoding="utf-8"))
+        script = path.read_text(encoding="utf-8")
+        if transactional and not using_postgres():
+            # Group demo initialization writes instead of fsync for every statement.
+            script = "BEGIN IMMEDIATE;\n" + script + "\nCOMMIT;"
+        conn.executescript(script)
         conn.commit()
 
 
@@ -170,7 +211,19 @@ def migrate_db():
         return
 
     with get_connection() as conn:
+        additions = {
+            "pedidos": {"id_restaurante": "INTEGER REFERENCES restaurantes(id_restaurante)",
+                        "notas_entrega": "TEXT", "subtotal": "REAL", "costo_delivery": "REAL", "costo_servicio": "REAL"},
+            "pedido_items": {"id_producto": "INTEGER REFERENCES productos(id_producto)"},
+        }
+        for table, columns in additions.items():
+            if table_exists(table):
+                for column, definition in columns.items():
+                    if not column_exists(table, column):
+                        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
         if table_exists("reclamos"):
+            if not column_exists("reclamos", "id_pedido"):
+                conn.execute("ALTER TABLE reclamos ADD COLUMN id_pedido INTEGER REFERENCES pedidos(id_pedido)")
             if not column_exists("reclamos", "responsable_asignado"):
                 conn.execute("ALTER TABLE reclamos ADD COLUMN responsable_asignado TEXT")
             if not column_exists("reclamos", "fecha_cierre"):
@@ -191,15 +244,44 @@ def init_db():
         run_script(base_dir / "database" / "postgres_schema.sql")
         ensure_pgvector_embedding_dimension()
         run_script(base_dir / "database" / "postgres_seed_data.sql")
+        from database.migrations.phase2b import apply
+        apply()
+        from database.migrations.phase2c import apply as apply_phase2c
+        apply_phase2c()
         return
 
-    run_script(base_dir / "database" / "schema.sql")
-    run_script(base_dir / "database" / "seed_data.sql")
+    run_script(base_dir / "database" / "schema.sql", transactional=True)
+    run_script(base_dir / "database" / "seed_data.sql", transactional=True)
     migrate_db()
+    from database.migrations.phase2b import apply
+    apply()
+    from database.migrations.phase2c import apply as apply_phase2c
+    apply_phase2c()
+
+
+def ensure_hosted_postgres_identity():
+    """Fail closed if the hosted service uses SQLite or an elevated database login."""
+    if not using_postgres():
+        raise RuntimeError("Producción requiere una conexión PostgreSQL de servicio.")
+    row = fetch_one("""
+        SELECT current_user = 'smartclaim_backend'
+            AND session_user = current_user
+            AND r.rolcanlogin
+            AND NOT (r.rolsuper OR r.rolbypassrls OR r.rolcreaterole OR r.rolcreatedb OR r.rolreplication)
+            AND NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE member = r.oid)
+            AND NOT has_schema_privilege(current_user, 'public', 'CREATE')
+            AND NOT EXISTS (
+                SELECT 1 FROM pg_class
+                WHERE relnamespace = 'public'::regnamespace AND relowner = r.oid
+            ) AS restricted
+        FROM pg_roles r WHERE r.rolname = current_user
+    """)
+    if not row or not row["restricted"]:
+        raise RuntimeError("Producción requiere el login PostgreSQL smartclaim_backend sin privilegios elevados.")
 
 
 def ensure_pgvector_embedding_dimension(expected_dimension=1536):
-    """Keep the persisted pgvector column compatible with OpenAI embeddings."""
+    """Validate vector dimension without mutating persisted vectors."""
     if not using_postgres():
         return
 
@@ -220,17 +302,9 @@ def ensure_pgvector_embedding_dimension(expected_dimension=1536):
     if not row or row.get("vector_type") == expected_type:
         return
 
-    # Existing vectors cannot be resized safely. They are regenerated by reindexing.
-    execute("DELETE FROM rag_embeddings")
-    execute("DROP INDEX IF EXISTS idx_rag_embeddings_vector")
-    execute(
-        f"ALTER TABLE rag_embeddings ALTER COLUMN embedding TYPE {expected_type}"
-    )
-    execute(
-        """
-        CREATE INDEX IF NOT EXISTS idx_rag_embeddings_vector
-        ON rag_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)
-        """
+    raise RuntimeError(
+        f"La columna rag_embeddings.embedding requiere {expected_type}. "
+        "Revisa la dimensión y prepara una migración explícita con respaldo antes de iniciar."
     )
 
 

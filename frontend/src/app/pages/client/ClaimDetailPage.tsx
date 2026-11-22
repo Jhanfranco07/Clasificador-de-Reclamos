@@ -23,10 +23,14 @@ export default function ClaimDetailPage() {
 
   useEffect(() => {
     if (!id) return;
+    let active = true;
+    setIsLoading(true);
+    setError('');
     getClaim(id)
-      .then(setDetail)
-      .catch((err) => setError(err instanceof Error ? err.message : 'No se pudo cargar el reclamo.'))
-      .finally(() => setIsLoading(false));
+      .then((result) => { if (active) setDetail(result); })
+      .catch((err) => { if (active) setError(err instanceof Error ? err.message : 'No se pudo cargar el reclamo.'); })
+      .finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
   }, [id]);
 
   if (isLoading) {
@@ -45,8 +49,8 @@ export default function ClaimDetailPage() {
     return (
       <ClientLayout>
         <div className="text-center py-12">
-          <h2 className="text-2xl font-bold mb-4">Reclamo no encontrado</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
+          <h2 className="text-2xl font-bold mb-4">{error ? 'No se pudo cargar el reclamo' : 'Reclamo no encontrado'}</h2>
+          <p role={error ? 'alert' : undefined} className="text-gray-600 mb-6">{error}</p>
           <Link to="/claims">
             <Button>Volver a reclamos</Button>
           </Link>

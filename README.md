@@ -153,7 +153,11 @@ La migración utiliza:
 
 ## IA y RAG
 
-El clasificador combina un modelo local TF-IDF + Logistic Regression con reglas de negocio. El motor RAG puede usar:
+El clasificador combina un modelo local TF-IDF + Logistic Regression con reglas de negocio.
+
+El chat resuelve preguntas FAQ documentadas mediante coincidencia ligera, sin ML ni OpenAI cuando supera el umbral. Los reclamos formales conservan clasificación y revisión humana; RAG restringe candidatos por categoría confiable en todos sus proveedores. Los respaldos y las ampliaciones a búsqueda general quedan registrados en `logs_sistema`. Consulta [la optimización del flujo IA](docs/OPTIMIZACION_FLUJO_IA.md) para criterios, configuración y validación.
+
+El motor RAG puede usar:
 
 1. Supabase PostgreSQL + pgvector.
 2. Índice local con embeddings OpenAI.

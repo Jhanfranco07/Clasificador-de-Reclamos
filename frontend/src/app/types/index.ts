@@ -1,4 +1,4 @@
-export type UserRole = 'CLIENT' | 'AGENT' | 'ADMIN';
+export type UserRole = 'CLIENT' | 'AGENT' | 'ADMIN' | 'MERCHANT' | 'COURIER';
 
 export interface User {
   id: string;
@@ -10,7 +10,7 @@ export interface User {
   createdAt: Date;
 }
 
-export type OrderStatus = 'DELIVERED' | 'IN_TRANSIT' | 'CANCELLED' | 'DELAYED' | 'PREPARING';
+export type OrderStatus = 'DELIVERED' | 'IN_TRANSIT' | 'CANCELLED' | 'DELAYED' | 'PREPARING' | 'RECEIVED' | 'ACCEPTED' | 'READY_FOR_PICKUP';
 
 export interface Order {
   id: string;
@@ -119,6 +119,9 @@ export const CLAIM_STATUS_LABELS: Record<ClaimStatus, string> = {
 };
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  RECEIVED: 'Recibido',
+  ACCEPTED: 'Aceptado',
+  READY_FOR_PICKUP: 'Listo para recoger',
   DELIVERED: 'Entregado',
   IN_TRANSIT: 'En camino',
   CANCELLED: 'Cancelado',
