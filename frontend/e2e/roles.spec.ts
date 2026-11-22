@@ -28,7 +28,7 @@ test('cliente que llega desde portada accede a catálogo y asistente', async ({ 
   await page.getByLabel(/Contraseña/).fill('123456');
   await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
   await expect(page).toHaveURL(/\/restaurants$/);
-  await expect(page.getByRole('button', { name: 'Abrir ayuda' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Asistente SmartClaim AI' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Restaurantes disponibles' })).toBeVisible();
 });
 
