@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, datetime
 from contextlib import asynccontextmanager
 import logging
 import os
@@ -437,6 +438,15 @@ def _config() -> dict[str, Any]:
     }
 
 
+def _serialize_timestamp(value: Any) -> str | None:
+    """Uniforma fechas SQLite (texto) y PostgreSQL (datetime/date) para las API."""
+    if value is None:
+        return None
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    return str(value)
+
+
 def _to_claim_summary(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": str(row["id_reclamo"]),
@@ -452,8 +462,8 @@ def _to_claim_summary(row: dict[str, Any]) -> dict[str, Any]:
         "status": row.get("estado") or "Nuevo",
         "statusKey": STATUS_TO_UI.get(row.get("estado"), "RECEIVED"),
         "requiresHumanReview": bool(row.get("requiere_revision_humana")),
-        "createdAt": row.get("fecha_creacion"),
-        "updatedAt": row.get("fecha_actualizacion"),
+        "createdAt": _serialize_timestamp(row.get("fecha_creacion")),
+        "updatedAt": _serialize_timestamp(row.get("fecha_actualizacion")),
         "assignment": _assignment(row),
     }
 
