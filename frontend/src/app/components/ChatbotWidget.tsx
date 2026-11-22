@@ -28,6 +28,8 @@ export default function ChatbotWidget() {
   const { pathname } = useLocation();
   const { currentUser } = useAuth();
   const shoppingPage = !/^\/(admin|merchant|courier)(\/|$)/.test(pathname);
+  const visible = Boolean(currentUser) && pathname !== '/' &&
+    !/^\/(login|register|registro|recuperar|password-reset|forgot-password|auth)(\/|$)/.test(pathname);
   const identity = currentUser?.id || 'visitor';
   const [open, setOpen] = useState(() => !dismissed());
   const [text, setText] = useState('');
@@ -36,7 +38,7 @@ export default function ChatbotWidget() {
   const [sessionId, setSessionId] = useState(() => `chat_session_${identity}_${Date.now()}`);
   const [pendingProduct, setPendingProduct] = useState<string | null>(null);
   const [cartNotice, setCartNotice] = useState('');
-  const endRef = useRef<HTMLDivElement | null>(null);
+  const messagesRef = useRef<HTMLDivElement | null>(null);
   const identityRef = useRef(identity);
   const generationRef = useRef(0);
 
@@ -51,7 +53,10 @@ export default function ChatbotWidget() {
   }, [currentUser?.name, identity]);
 
   useEffect(() => {
-    if (open) endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (open) {
+      const viewport = messagesRef.current;
+      viewport?.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' });
+    }
   }, [messages, working, open]);
 
   const close = () => {
@@ -116,24 +121,30 @@ export default function ChatbotWidget() {
     }
   };
 
+  if (!visible) return null;
+
   return (
     <div className="fixed bottom-4 right-4 z-[120] sm:bottom-5 sm:right-5">
-      {open && <section aria-label="Asistente SmartClaim AI" className="pointer-events-none fixed inset-x-3 bottom-20 flex h-[min(70dvh,620px)] flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl shadow-slate-950/30 sm:inset-x-auto sm:right-5 sm:w-[390px]">
-        <header className="flex items-center justify-between bg-slate-900 px-4 py-3 text-white">
+      {open && <section aria-label="Asistente SmartClaim AI" className="pointer-events-auto fixed inset-x-3 bottom-20 flex h-[min(70dvh,620px)] max-h-[calc(100dvh-6rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl shadow-slate-950/30 sm:inset-x-auto sm:right-5 sm:w-[390px]">
+        <header className="flex shrink-0 items-center justify-between bg-slate-900 px-4 py-3 text-white">
           <div><div className="flex items-center gap-2 font-semibold"><Bot className="size-5" /> Asistente SmartClaim AI</div><p className="mt-0.5 text-xs text-white/75">Compras y atención, con opciones reales</p></div>
           <div className="flex">
             <button type="button" onClick={close} aria-label="Minimizar chat" className="pointer-events-auto rounded-lg p-2 hover:bg-white/15 focus-visible:outline focus-visible:outline-2"><Minus className="size-5" /></button>
             <button type="button" onClick={close} aria-label="Cerrar chat" className="pointer-events-auto rounded-lg p-2 hover:bg-white/15 focus-visible:outline focus-visible:outline-2"><X className="size-5" /></button>
           </div>
         </header>
-        <div role="log" aria-label="Conversación" aria-live="polite" className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+        <div ref={messagesRef} role="log" aria-label="Conversación" aria-live="polite" className="min-h-0 flex-1 touch-pan-y space-y-3 overflow-y-auto overscroll-contain p-3">
           {messages.map((item, index) => <div key={index} className={`flex ${item.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[92%] rounded-2xl px-3 py-2 text-sm ${item.role === 'user' ? 'bg-orange-500 text-white' : 'bg-muted text-foreground'}`}>
               <p className="whitespace-pre-wrap">{item.text}</p>
-              {item.recommendations?.map((product) => <div key={product.productId} className="mt-2 rounded-xl border border-border bg-card p-2 text-card-foreground">
-                <p className="font-semibold">{product.name}</p>
-                <p className="text-xs text-muted-foreground">{product.restaurant} · S/ {product.price.toFixed(2)}</p>
-                {product.description && <p className="mt-1 text-xs">{product.description}</p>}
+              {item.recommendations?.map((product) => <div key={product.productId} className="mt-2 min-w-0 rounded-xl border border-border bg-card p-2 text-card-foreground">
+                <div className="flex min-w-0 gap-2">
+                  {product.image && <img src={product.image} alt="" loading="lazy" className="size-14 shrink-0 rounded-lg object-cover" />}
+                  <div className="min-w-0"><p className="break-words font-semibold">{product.name}</p>
+                    <p className="text-xs text-muted-foreground">{product.restaurant} · {product.category}</p>
+                    <p className="font-semibold text-orange-700 dark:text-orange-300">S/ {product.price.toFixed(2)}</p></div>
+                </div>
+                {product.description && <p className="mt-1 break-words text-xs">{product.description}</p>}
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Button type="button" size="sm" variant="outline" asChild><Link className="pointer-events-auto" to={`/restaurants/${product.restaurantId}#product-${product.productId}`}>Ver producto</Link></Button>
                   {pendingProduct === product.productId
@@ -144,11 +155,10 @@ export default function ChatbotWidget() {
             </div>
           </div>)}
           {working && <TypingIndicator />}
-          <div ref={endRef} />
         </div>
-        <div className="border-t border-border bg-card px-3 py-2">
-          {shoppingPage && <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Opciones rápidas">
-            {quickActions.map((action) => <Button key={action.label} type="button" size="sm" variant="outline" disabled={working} className="pointer-events-auto shrink-0 rounded-full" onClick={() => void send(action.message)}>{action.label}</Button>)}
+        <div className="shrink-0 border-t border-border bg-card px-3 py-2">
+          {shoppingPage && <div className="grid grid-cols-2 gap-2" aria-label="Opciones rápidas">
+            {quickActions.map((action) => <Button key={action.label} type="button" size="sm" variant="outline" disabled={working} className="pointer-events-auto h-auto min-h-10 min-w-0 whitespace-normal rounded-xl px-2 py-1.5 text-center leading-tight" onClick={() => void send(action.message)}>{action.label}</Button>)}
           </div>}
           {cartNotice && <p role="status" className="py-1 text-xs">{cartNotice}</p>}
           <form className="mt-2 flex gap-2" onSubmit={(event) => { event.preventDefault(); void send(text); }}>

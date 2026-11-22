@@ -484,6 +484,8 @@ export interface ChatRecommendation {
   restaurant: string;
   price: number;
   description: string;
+  image: string;
+  category: string;
 }
 
 export function sendChatMessage(message: string, sessionId?: string, context?: Record<string, unknown>) {
