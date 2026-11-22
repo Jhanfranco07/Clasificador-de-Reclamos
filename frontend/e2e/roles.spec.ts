@@ -28,7 +28,7 @@ test('cliente que inicia desde la portada entra al catálogo', async ({ page }) 
   await page.getByLabel(/Contraseña/).fill('123456');
   await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
   await expect(page).toHaveURL('/restaurants');
-  await expect(page.getByRole('link', { name: 'Restaurantes' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('link', { name: 'Restaurantes', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByTestId('chatbot-launcher')).toBeVisible();
 });
 
