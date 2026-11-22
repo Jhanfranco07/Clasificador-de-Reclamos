@@ -152,7 +152,7 @@ export interface OrderEvent {
 
 export type ManagedUser = { id_auth_user: number; nombre: string; correo: string; rol: AuthUser['role']; estado: string };
 export type ManagedRestaurant = { id_restaurante: number; nombre: string; direccion?: string; responsable?: string; activo: number };
-export type ManagedProduct = { id_producto: number; nombre: string; precio: number; disponible: number; restaurante: string; puede_editar_productos: number };
+export type ManagedProduct = { id_producto: number; nombre: string; precio: number; disponible: number; imagen?: string; restaurante: string; puede_editar_productos: number };
 export type OperationsOverview = {
   users: ManagedUser[]; restaurants: ManagedRestaurant[];
   operators: Array<{ id_auth_user: number; id_restaurante: number; activo: number; puede_editar_productos: number }>;
