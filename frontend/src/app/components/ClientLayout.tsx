@@ -44,8 +44,8 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
   };
 
   const navItems = [
-    { path: '/dashboard', label: 'Inicio', icon: Home, matches: ['/dashboard'] },
     { path: '/restaurants', label: 'Restaurantes', icon: Utensils, matches: ['/restaurants', '/products'] },
+    { path: '/dashboard', label: 'Mi resumen', icon: Home, matches: ['/dashboard'] },
     { path: '/cart', label: 'Carrito', icon: ShoppingCart, matches: ['/cart', '/checkout'] },
     { path: '/orders', label: 'Mis pedidos', icon: ShoppingBag, matches: ['/orders'] },
     { path: '/claims', label: 'Mis reclamos', icon: AlertCircle, matches: ['/claims', '/notifications'] },
@@ -63,9 +63,9 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
   return (
     <ClientLayoutContext.Provider value>
     <div className="min-h-screen bg-background text-foreground">
-      <header className="bg-card border-b border-border sticky top-0 z-50 shadow-sm">
+      <header className="sticky top-0 z-50 border-b border-border bg-card shadow-sm dark:bg-[#172439] dark:shadow-slate-950/40">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/dashboard" className="flex items-center gap-2">
+          <Link to="/restaurants" className="flex items-center gap-2" aria-label="SmartClaim AI - Ver restaurantes">
             <Package className="size-8 text-orange-500" />
             <span className="sr-only sm:not-sr-only font-bold text-xl">SmartClaim AI</span>
           </Link>
@@ -127,7 +127,7 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
         </div>
       </header>
 
-      <nav className="bg-card border-b border-border">
+      <nav className="border-b border-border bg-card dark:bg-[#1c2b40]">
         <div className="container mx-auto px-4">
           <div className="flex gap-1 overflow-x-auto">
             {navItems.map((item) => (
