@@ -1,7 +1,7 @@
-import { expect, test } from './offline-fixture';
+import { expect, login, test, API } from './offline-fixture';
 
-test('el asistente inicia, recomienda desde el catálogo y confirma el carrito', async ({ page }) => {
-  await page.goto('/');
+test('el asistente inicia tras acceder, recomienda desde el catálogo y confirma el carrito', async ({ page }) => {
+  await login(page);
   const chat = page.getByRole('region', { name: 'Asistente SmartClaim AI' });
   await expect(chat).toBeVisible();
   await expect(chat.getByText(/Soy tu asistente de compras/)).toBeVisible();
@@ -22,28 +22,29 @@ test('el asistente inicia, recomienda desde el catálogo y confirma el carrito',
   await expect(chat).toHaveCount(0);
 });
 
-test('el asistente no muestra pedidos propios a visitantes', async ({ page }) => {
+test('el asistente permanece oculto para visitantes y los pedidos exigen sesión', async ({ page }) => {
   await page.goto('/');
-  const chat = page.getByRole('region', { name: 'Asistente SmartClaim AI' });
-  await chat.getByRole('button', { name: 'Consultar pedidos' }).click();
-  await expect(chat.getByText(/necesitas iniciar sesión/)).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Asistente SmartClaim AI' })).toHaveCount(0);
+  await page.goto('/login');
+  await expect(page.getByRole('button', { name: 'Abrir ayuda' })).toHaveCount(0);
+  const orders = await page.request.get(`${API}/api/orders`);
+  expect(orders.status()).toBe(401);
 });
 
-test('respeta el cierre durante el inicio de sesión', async ({ page }) => {
-  await page.goto('/');
+test('respeta el cierre después de iniciar sesión y oculta el chat en login', async ({ page }) => {
+  await login(page);
   const chat = page.getByRole('region', { name: 'Asistente SmartClaim AI' });
+  await expect(chat).toBeVisible();
   await chat.getByRole('button', { name: 'Minimizar chat' }).click();
-  await page.goto('/login');
-  await page.getByLabel('Email').fill('jhan.perez@gmail.com');
-  await page.getByLabel(/Contraseña/).fill('123456');
-  await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
-  await expect(page).not.toHaveURL(/\/login$/);
+  await page.goto('/claims');
   await expect(chat).toHaveCount(0);
+  await page.goto('/login');
+  await expect(page.getByRole('button', { name: 'Abrir ayuda' })).toHaveCount(0);
 });
 
 test('el chat cabe en una pantalla móvil', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 667 });
-  await page.goto('/');
+  await login(page);
   const chat = page.getByRole('region', { name: 'Asistente SmartClaim AI' });
   await expect(chat).toBeVisible();
   const box = await chat.boundingBox();
@@ -54,9 +55,12 @@ test('el chat cabe en una pantalla móvil', async ({ page }) => {
   await expect(chat.getByLabel('Escribe tu mensaje')).toBeVisible();
 });
 
-test('el panel abierto no bloquea controles de otras pantallas', async ({ page }) => {
+test('el panel se minimiza al cambiar de sección y deja utilizar sus controles', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 667 });
-  await page.goto('/');
+  await login(page);
+  await expect(page.getByRole('region', { name: 'Asistente SmartClaim AI' })).toBeVisible();
+  await page.goto('/claims');
+  await expect(page.getByRole('region', { name: 'Asistente SmartClaim AI' })).toHaveCount(0);
   await page.evaluate(() => {
     const button = document.createElement('button');
     button.id = 'under-chat-control';
