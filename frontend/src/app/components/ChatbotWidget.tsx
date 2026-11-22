@@ -36,7 +36,9 @@ export default function ChatbotWidget() {
   const visible = Boolean(currentUser) && pathname !== '/' &&
     !/^\/(login|register|registro|recuperar|password-reset|forgot-password|auth)(\/|$)/.test(pathname);
   const identity = currentUser?.id || 'visitor';
-  const [open, setOpen] = useState(() => !dismissed() && !alreadyShown());
+  // La bienvenida se abre en el panel de entrada, no encima de flujos operativos.
+  const introPage = /^\/(dashboard|admin|merchant|courier)\/?$/.test(pathname);
+  const [open, setOpen] = useState(() => !dismissed() && !alreadyShown() && introPage);
   const [text, setText] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([{ role: 'bot', text: greetingFor(currentUser?.name) }]);
   const [working, setWorking] = useState(false);
@@ -57,18 +59,18 @@ export default function ChatbotWidget() {
       try { window.sessionStorage.removeItem(AUTO_SHOWN_KEY); } catch { /* Optional storage. */ }
       setOpen(false);
     } else {
-      setOpen((wasOpen) => wasOpen || (!dismissed() && !alreadyShown()));
+      setOpen((wasOpen) => wasOpen || (!dismissed() && !alreadyShown() && introPage));
     }
     setText(''); setWorking(false); setPendingProduct(null); setCartNotice('');
     setSessionId(`chat_session_${identity}_${Date.now()}`);
     setMessages([{ role: 'bot', text: greetingFor(currentUser?.name) }]);
-  }, [currentUser?.name, identity]);
+  }, [currentUser?.name, identity, introPage]);
 
   useEffect(() => {
-    if (!visible || alreadyShown()) return;
+    if (!visible || !introPage || alreadyShown()) return;
     try { window.sessionStorage.setItem(AUTO_SHOWN_KEY, '1'); } catch { /* Optional storage. */ }
     if (!dismissed()) setOpen(true);
-  }, [visible]);
+  }, [visible, introPage]);
 
   useEffect(() => {
     const previous = previousPathRef.current;
