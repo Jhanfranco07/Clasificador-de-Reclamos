@@ -29,10 +29,11 @@ export default function LoginPage() {
 
     if (user) {
       const requestedPath = (location.state as { from?: string } | null)?.from;
+      const clientReturn = requestedPath && /^\/(?:dashboard|restaurants|products|cart|checkout|orders|claims|help|profile|notifications)(?:\/|\?|$)/.test(requestedPath)
+        ? requestedPath : '/restaurants';
       const destination = user.role === 'MERCHANT' ? '/merchant'
         : user.role === 'COURIER' ? '/courier'
-        : user.role === 'CLIENT'
-        ? requestedPath && !requestedPath.startsWith('/admin') ? requestedPath : '/dashboard'
+        : user.role === 'CLIENT' ? clientReturn
         : requestedPath?.startsWith('/admin') ? requestedPath : '/admin';
       navigate(destination, { replace: true });
     } else {
