@@ -12,7 +12,7 @@ async function login(page: Page, email: string) {
 
 test('cliente navega por pedidos, reclamos y perfil', async ({ page }) => {
   await login(page, 'jhan.perez@gmail.com');
-  await expect(page).toHaveURL(/\/dashboard|\/checkout/);
+  await expect(page).toHaveURL(/\/restaurants(?:\?.*)?$/);
   await page.goto('/claims');
   await expect(page.getByRole('heading', { name: 'Mis reclamos' })).toBeVisible();
   await page.getByRole('button', { name: 'Abrir menú de cuenta' }).click();
@@ -21,13 +21,15 @@ test('cliente navega por pedidos, reclamos y perfil', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Mi perfil' })).toBeVisible();
 });
 
-test('cliente vuelve a la pantalla que originó el inicio de sesión', async ({ page }) => {
+test('cliente que llega desde portada accede a catálogo y asistente', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('link', { name: 'Iniciar sesión' }).click();
   await page.getByLabel('Email').fill('jhan.perez@gmail.com');
   await page.getByLabel(/Contraseña/).fill('123456');
   await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
-  await expect(page).toHaveURL('/');
+  await expect(page).toHaveURL(/\/restaurants$/);
+  await expect(page.getByRole('button', { name: 'Abrir ayuda' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Restaurantes disponibles' })).toBeVisible();
 });
 
 test('preferencia de tema oscuro persiste al recargar', async ({ page }) => {
@@ -144,7 +146,7 @@ test('administrador registra texto y revisa PDF desde un móvil', async ({ page 
 
 test('cliente compra y recibe la respuesta solo después de revisión humana', async ({ page, browser }) => {
   await login(page, 'jhan.perez@gmail.com');
-  await expect(page).toHaveURL(/\/dashboard/);
+  await expect(page).toHaveURL(/\/restaurants$/);
   await page.goto('/restaurants/1');
   await expect(page.getByRole('heading', { name: 'Criollo Peruano' })).toBeVisible();
   await page.getByRole('button', { name: /Agregar Lomo/ }).click();
