@@ -12,7 +12,7 @@ async function login(page: Page, email: string) {
 
 test('cliente navega por pedidos, reclamos y perfil', async ({ page }) => {
   await login(page, 'jhan.perez@gmail.com');
-  await expect(page).toHaveURL(/\/dashboard|\/checkout/);
+  await expect(page).toHaveURL(/\/restaurants|\/checkout/);
   await page.goto('/claims');
   await expect(page.getByRole('heading', { name: 'Mis reclamos' })).toBeVisible();
   await page.getByRole('button', { name: 'Abrir menú de cuenta' }).click();
@@ -21,13 +21,15 @@ test('cliente navega por pedidos, reclamos y perfil', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Mi perfil' })).toBeVisible();
 });
 
-test('cliente vuelve a la pantalla que originó el inicio de sesión', async ({ page }) => {
+test('cliente que inicia desde la portada entra al catálogo', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('link', { name: 'Iniciar sesión' }).click();
   await page.getByLabel('Email').fill('jhan.perez@gmail.com');
   await page.getByLabel(/Contraseña/).fill('123456');
   await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
-  await expect(page).toHaveURL('/');
+  await expect(page).toHaveURL('/restaurants');
+  await expect(page.getByRole('link', { name: 'Restaurantes' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByTestId('chatbot-launcher')).toBeVisible();
 });
 
 test('preferencia de tema oscuro persiste al recargar', async ({ page }) => {
@@ -37,6 +39,15 @@ test('preferencia de tema oscuro persiste al recargar', async ({ page }) => {
   await page.reload();
   await expect(page.locator('html')).toHaveClass(/dark/);
   await expect(page.getByRole('button', { name: 'Usar tema claro' })).toBeVisible();
+});
+
+test('tema oscuro mantiene visible la prioridad del turno en administración', async ({ page }) => {
+  await login(page, 'admin@smartclaim.com');
+  await page.getByRole('button', { name: 'Usar tema oscuro' }).click();
+  const priority = page.getByRole('heading', { name: /caso\(s\) requieren seguimiento|No hay reclamos pendientes/ });
+  await expect(priority).toBeVisible();
+  await expect(priority).toHaveCSS('color', 'rgb(255, 255, 255)');
+  await expect(page.locator('html')).toHaveClass(/dark/);
 });
 
 test('agente gestiona reclamos sin acceder a configuración administrativa', async ({ page }) => {
@@ -144,7 +155,7 @@ test('administrador registra texto y revisa PDF desde un móvil', async ({ page 
 
 test('cliente compra y recibe la respuesta solo después de revisión humana', async ({ page, browser }) => {
   await login(page, 'jhan.perez@gmail.com');
-  await expect(page).toHaveURL(/\/dashboard/);
+  await expect(page).toHaveURL(/\/restaurants/);
   await page.goto('/restaurants/1');
   await expect(page.getByRole('heading', { name: 'Criollo Peruano' })).toBeVisible();
   await page.getByRole('button', { name: /Agregar Lomo/ }).click();
