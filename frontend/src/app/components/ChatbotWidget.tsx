@@ -9,6 +9,11 @@ import TypingIndicator from './TypingIndicator';
 import { useAuth } from '../contexts/AuthContext';
 
 const DISMISSED_KEY = 'smartclaim_chat_dismissed';
+const AUTO_SHOWN_KEY = 'smartclaim_chat_auto_shown';
+const alreadyShown = () => {
+  try { return window.sessionStorage.getItem(AUTO_SHOWN_KEY) === '1'; }
+  catch { return false; }
+};
 const dismissed = () => {
   try { return window.sessionStorage.getItem(DISMISSED_KEY) === '1'; }
   catch { return false; }
@@ -31,7 +36,7 @@ export default function ChatbotWidget() {
   const visible = Boolean(currentUser) && pathname !== '/' &&
     !/^\/(login|register|registro|recuperar|password-reset|forgot-password|auth)(\/|$)/.test(pathname);
   const identity = currentUser?.id || 'visitor';
-  const [open, setOpen] = useState(() => !dismissed());
+  const [open, setOpen] = useState(() => !dismissed() && !alreadyShown());
   const [text, setText] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([{ role: 'bot', text: greetingFor(currentUser?.name) }]);
   const [working, setWorking] = useState(false);
@@ -41,16 +46,50 @@ export default function ChatbotWidget() {
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const identityRef = useRef(identity);
   const generationRef = useRef(0);
+  const previousPathRef = useRef(pathname);
+  const chatNavigationRef = useRef(false);
 
   useEffect(() => {
     if (identityRef.current === identity) return;
     identityRef.current = identity;
     generationRef.current += 1;
-    setOpen((wasOpen) => wasOpen || !dismissed());
+    if (identity === 'visitor') {
+      try { window.sessionStorage.removeItem(AUTO_SHOWN_KEY); } catch { /* Optional storage. */ }
+      setOpen(false);
+    } else {
+      setOpen((wasOpen) => wasOpen || (!dismissed() && !alreadyShown()));
+    }
     setText(''); setWorking(false); setPendingProduct(null); setCartNotice('');
     setSessionId(`chat_session_${identity}_${Date.now()}`);
     setMessages([{ role: 'bot', text: greetingFor(currentUser?.name) }]);
   }, [currentUser?.name, identity]);
+
+  useEffect(() => {
+    if (!visible || alreadyShown()) return;
+    try { window.sessionStorage.setItem(AUTO_SHOWN_KEY, '1'); } catch { /* Optional storage. */ }
+    if (!dismissed()) setOpen(true);
+  }, [visible]);
+
+  useEffect(() => {
+    const previous = previousPathRef.current;
+    previousPathRef.current = pathname;
+    if (previous === pathname) return;
+    const fromAuth = /^\/(login|register|registro|auth)(\/|$)/.test(previous);
+    if (!fromAuth && !chatNavigationRef.current) setOpen(false);
+    chatNavigationRef.current = false;
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!open || !visible) return;
+    const closeOnOutsideInteraction = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && !target.closest('[aria-label="Asistente SmartClaim AI"], [aria-label="Abrir ayuda"], [aria-label="Minimizar ayuda"]')) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', closeOnOutsideInteraction);
+    return () => document.removeEventListener('pointerdown', closeOnOutsideInteraction);
+  }, [open, visible]);
 
   useEffect(() => {
     if (open) {
@@ -146,7 +185,7 @@ export default function ChatbotWidget() {
                 </div>
                 {product.description && <p className="mt-1 break-words text-xs">{product.description}</p>}
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="outline" asChild><Link className="pointer-events-auto" to={`/restaurants/${product.restaurantId}#product-${product.productId}`}>Ver producto</Link></Button>
+                  <Button type="button" size="sm" variant="outline" asChild><Link className="pointer-events-auto" onClick={() => { chatNavigationRef.current = true; }} to={`/restaurants/${product.restaurantId}#product-${product.productId}`}>Ver producto</Link></Button>
                   {pendingProduct === product.productId
                     ? <><Button type="button" size="sm" className="pointer-events-auto" onClick={() => void addRecommended(product)}>Confirmar</Button><Button type="button" size="sm" variant="ghost" className="pointer-events-auto" onClick={() => setPendingProduct(null)}>Cancelar</Button></>
                     : <Button type="button" size="sm" className="pointer-events-auto" onClick={() => setPendingProduct(product.productId)}><ShoppingCart className="mr-1 size-4" />Agregar</Button>}
