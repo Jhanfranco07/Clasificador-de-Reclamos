@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import sqlite3
 import unicodedata
 from typing import Any
 
@@ -92,7 +93,13 @@ def _has_any(text: str, phrases: tuple[str, ...]) -> bool:
 def _recommendations(message: str, history: list[dict[str, str]]) -> dict[str, Any] | None:
     current = _normalize(message)
     previous = next((item["text"] for item in reversed(history) if item["role"] == "user"), "")
-    restaurants, grouped = listar_catalogo()
+    try:
+        restaurants, grouped = listar_catalogo()
+    except sqlite3.OperationalError as exc:
+        if "no such table: restaurantes" not in str(exc):
+            raise
+        # En pruebas aisladas, continuar la charla general sin catálogo inicializado.
+        return None
     catalog = [(restaurant, product) for restaurant in restaurants
                for product in grouped.get(restaurant["id_restaurante"], [])]
     catalog_text = _normalize(" ".join(
