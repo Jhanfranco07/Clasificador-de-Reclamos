@@ -33,11 +33,16 @@ export default function ChatbotWidget() {
   const { pathname } = useLocation();
   const { currentUser } = useAuth();
   const shoppingPage = !/^\/(admin|merchant|courier)(\/|$)/.test(pathname);
-  const visible = Boolean(currentUser) && pathname !== '/' &&
+  // El asistente está disponible desde el primer acceso del cliente,
+  // incluso si navega a la portada pública mientras conserva la sesión.
+  const isClient = currentUser?.role === 'CLIENT';
+  const visible = Boolean(currentUser) && (pathname !== '/' || isClient) &&
     !/^\/(login|register|registro|recuperar|password-reset|forgot-password|auth)(\/|$)/.test(pathname);
   const identity = currentUser?.id || 'visitor';
   // La bienvenida se abre en el panel de entrada, no encima de flujos operativos.
-  const introPage = /^\/(dashboard|admin|merchant|courier)\/?$/.test(pathname);
+  const introPage = isClient
+    ? /^\/(dashboard|restaurants|products)\/?$/.test(pathname)
+    : /^\/(admin|merchant|courier)\/?$/.test(pathname);
   const [open, setOpen] = useState(() => !dismissed() && !alreadyShown() && introPage);
   const [text, setText] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([{ role: 'bot', text: greetingFor(currentUser?.name) }]);
@@ -212,7 +217,7 @@ export default function ChatbotWidget() {
         </div>
       </section>}
       <Button type="button" onClick={() => open ? close() : setOpen(true)} aria-label={open ? 'Minimizar ayuda' : 'Abrir ayuda'} aria-expanded={open}
-        className="size-12 rounded-full bg-orange-500 text-white shadow-xl shadow-orange-950/30 hover:bg-orange-600"><Bot className="size-5" /></Button>
+        className="flex h-12 min-w-12 items-center justify-center gap-2 rounded-full border border-orange-300/30 bg-orange-600 px-3 text-white shadow-xl shadow-orange-950/30 hover:bg-orange-500 focus-visible:ring-2 focus-visible:ring-orange-300 sm:px-4"><Bot className="size-5 shrink-0" aria-hidden="true" /><span className="hidden text-sm font-semibold sm:inline">Asistente IA</span></Button>
     </div>
   );
 }

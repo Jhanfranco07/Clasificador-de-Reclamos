@@ -62,15 +62,15 @@ export default function AdminDashboardPage() {
           </p>
         </div>
 
-        <Card className="overflow-hidden border-orange-200 bg-gradient-to-r from-orange-50 via-white to-blue-50 shadow-sm">
+        <Card className="overflow-hidden border-orange-200 bg-gradient-to-r from-orange-50 via-white to-blue-50 shadow-sm dark:border-orange-400/30 dark:from-[#392719] dark:via-[#253148] dark:to-[#183352] dark:shadow-black/20">
           <CardContent className="py-5">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold text-orange-700">Prioridad del turno</p>
-                <h2 className="text-2xl font-bold mt-1">
+                <p className="text-sm font-semibold text-orange-700 dark:text-orange-200">Prioridad del turno</p>
+                <h2 className="mt-1 text-2xl font-bold text-foreground">
                   {pending > 0 ? `${pending} caso(s) requieren seguimiento` : 'No hay reclamos pendientes'}
                 </h2>
-                <p className="text-sm text-orange-900/80 mt-1">
+                <p className="mt-1 text-sm text-orange-950/90 dark:text-slate-200">
                   Revisa primero los reclamos críticos, escalados o marcados para revisión humana.
                 </p>
               </div>

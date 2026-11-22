@@ -22,6 +22,21 @@ test('el asistente inicia tras acceder, recomienda desde el catálogo y confirma
   await expect(chat).toHaveCount(0);
 });
 
+test('el lanzador del asistente se mantiene accesible en todas las secciones del cliente', async ({ page }) => {
+  await login(page);
+  await expect(page).toHaveURL(/\/restaurants$/);
+  const chat = page.getByRole('region', { name: 'Asistente SmartClaim AI' });
+  await expect(chat).toBeVisible();
+  await chat.getByRole('button', { name: 'Minimizar chat' }).click();
+
+  for (const path of ['/restaurants', '/dashboard', '/cart', '/orders', '/claims', '/help']) {
+    await page.goto(path);
+    await expect(page.getByRole('button', { name: 'Abrir ayuda' })).toBeVisible();
+  }
+  await page.goto('/login');
+  await expect(page.getByRole('button', { name: 'Abrir ayuda' })).toHaveCount(0);
+});
+
 test('el asistente permanece oculto para visitantes y los pedidos exigen sesión', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('region', { name: 'Asistente SmartClaim AI' })).toHaveCount(0);

@@ -42,25 +42,25 @@
 }
 
 .dark {
-  --background: #0f172a;
+  --background: #0b1220;
   --foreground: #f8fafc;
-  --card: #1e293b;
+  --card: #1c2a40;
   --card-foreground: #f8fafc;
-  --popover: #1e293b;
+  --popover: #1c2a40;
   --popover-foreground: #f8fafc;
   --primary: #f97316;
   --primary-foreground: #ffffff;
-  --secondary: #334155;
+  --secondary: #31425a;
   --secondary-foreground: #f8fafc;
-  --muted: #243145;
-  --muted-foreground: #94a3b8;
-  --accent: #334155;
+  --muted: #25364e;
+  --muted-foreground: #c0ccdc;
+  --accent: #324760;
   --accent-foreground: #f8fafc;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #334155;
-  --input: #334155;
-  --input-background: #111827;
+  --border: #3b4b61;
+  --input: #3b4b61;
+  --input-background: #142237;
   --switch-background: #475569;
   --ring: #fb923c;
   --font-weight-medium: 500;
@@ -70,13 +70,13 @@
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: #111827;
+  --sidebar: #101d30;
   --sidebar-foreground: #f8fafc;
   --sidebar-primary: #f97316;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1e293b;
+  --sidebar-accent: #25364e;
   --sidebar-accent-foreground: #f8fafc;
-  --sidebar-border: #334155;
+  --sidebar-border: #3b4b61;
   --sidebar-ring: #fb923c;
 }
 
@@ -188,7 +188,15 @@
 .dark .bg-gray-50,
 .dark .bg-\[\#f8fafc\] { background-color: var(--background); }
 .dark .bg-gray-100 { background-color: var(--muted); }
-.dark .bg-slate-950 { background-color: #111827; }
+.dark .bg-slate-950 { background-color: #0b1220; }
+/* Paneles de navegación y formularios: separar superficies sin reducir legibilidad. */
+.dark .bg-slate-50 { background-color: #1c2a40; }
+.dark .border-slate-200,
+.dark .border-slate-100 { border-color: var(--border); }
+.dark .text-slate-600,
+.dark .text-slate-500,
+.dark .text-slate-400 { color: var(--muted-foreground); }
+.dark .bg-slate-100 { background-color: var(--muted); }
 .dark .text-gray-950,
 .dark .text-gray-900,
 .dark .text-gray-800,

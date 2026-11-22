@@ -52,7 +52,7 @@ function ProtectedRoute({
   }
 
   if (allowedRoles && currentUser && !allowedRoles.includes(currentUser.role)) {
-    return <Navigate to={currentUser.role === 'MERCHANT' ? '/merchant' : currentUser.role === 'COURIER' ? '/courier' : currentUser.role === 'CLIENT' ? '/dashboard' : '/admin'} replace />;
+    return <Navigate to={currentUser.role === 'MERCHANT' ? '/merchant' : currentUser.role === 'COURIER' ? '/courier' : currentUser.role === 'CLIENT' ? '/restaurants' : '/admin'} replace />;
   }
 
   return <>{children ?? <Outlet />}</>;
