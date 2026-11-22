@@ -44,12 +44,12 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
   };
 
   const navItems = [
-    { path: '/dashboard', label: 'Inicio', icon: Home, matches: ['/dashboard'] },
     { path: '/restaurants', label: 'Restaurantes', icon: Utensils, matches: ['/restaurants', '/products'] },
     { path: '/cart', label: 'Carrito', icon: ShoppingCart, matches: ['/cart', '/checkout'] },
     { path: '/orders', label: 'Mis pedidos', icon: ShoppingBag, matches: ['/orders'] },
     { path: '/claims', label: 'Mis reclamos', icon: AlertCircle, matches: ['/claims', '/notifications'] },
     { path: '/help', label: 'Ayuda', icon: HelpCircle, matches: ['/help'] },
+    { path: '/dashboard', label: 'Mi resumen', icon: Home, matches: ['/dashboard'] },
   ];
 
   const isActive = (matches: string[]) => matches.some((path) => (
