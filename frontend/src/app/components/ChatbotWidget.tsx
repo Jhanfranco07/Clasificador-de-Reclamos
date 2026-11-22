@@ -36,8 +36,9 @@ export default function ChatbotWidget() {
   const visible = Boolean(currentUser) && pathname !== '/' &&
     !/^\/(login|register|registro|recuperar|password-reset|forgot-password|auth)(\/|$)/.test(pathname);
   const identity = currentUser?.id || 'visitor';
-  // La bienvenida se abre en el panel de entrada, no encima de flujos operativos.
-  const introPage = /^\/(dashboard|admin|merchant|courier)\/?$/.test(pathname);
+  // El catálogo es ahora la entrada del cliente. El botón permanece visible
+  // en las demás páginas; la bienvenida automática solo se ofrece una vez.
+  const introPage = /^\/(dashboard|restaurants|admin|merchant|courier)\/?$/.test(pathname);
   const [open, setOpen] = useState(() => !dismissed() && !alreadyShown() && introPage);
   const [text, setText] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([{ role: 'bot', text: greetingFor(currentUser?.name) }]);
@@ -165,7 +166,7 @@ export default function ChatbotWidget() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[120] sm:bottom-5 sm:right-5">
+    <div data-testid="chatbot-launcher" className="fixed bottom-4 right-4 z-[120] sm:bottom-5 sm:right-5">
       {open && <section aria-label="Asistente SmartClaim AI" className="pointer-events-auto fixed inset-x-3 bottom-20 flex h-[min(70dvh,620px)] max-h-[calc(100dvh-6rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl shadow-slate-950/30 sm:inset-x-auto sm:right-5 sm:w-[390px]">
         <header className="flex shrink-0 items-center justify-between bg-slate-900 px-4 py-3 text-white">
           <div><div className="flex items-center gap-2 font-semibold"><Bot className="size-5" /> Asistente SmartClaim AI</div><p className="mt-0.5 text-xs text-white/75">Compras y atención, con opciones reales</p></div>
@@ -212,7 +213,7 @@ export default function ChatbotWidget() {
         </div>
       </section>}
       <Button type="button" onClick={() => open ? close() : setOpen(true)} aria-label={open ? 'Minimizar ayuda' : 'Abrir ayuda'} aria-expanded={open}
-        className="size-12 rounded-full bg-orange-500 text-white shadow-xl shadow-orange-950/30 hover:bg-orange-600"><Bot className="size-5" /></Button>
+        className="size-14 rounded-full border-2 border-white/90 bg-orange-600 text-white shadow-xl shadow-orange-950/35 ring-2 ring-orange-500/20 transition-transform hover:scale-105 hover:bg-orange-700 focus-visible:ring-4 focus-visible:ring-orange-300 dark:border-slate-950 dark:ring-orange-400/30"><Bot className="size-5" /></Button>
     </div>
   );
 }
