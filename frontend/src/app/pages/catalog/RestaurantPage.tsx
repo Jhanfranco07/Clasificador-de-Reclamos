@@ -34,6 +34,11 @@ export default function RestaurantPage() {
     return () => { active = false; };
   }, [id]);
 
+  useEffect(() => {
+    if (!restaurant || !window.location.hash.startsWith('#product-')) return;
+    requestAnimationFrame(() => document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: 'center' }));
+  }, [restaurant]);
+
   const add = (product: Restaurant['products'][number]) => {
     if (!restaurant) return;
     const current = cart.items;
@@ -62,7 +67,7 @@ export default function RestaurantPage() {
             </div>
             <div className="mt-8 grid gap-4 md:grid-cols-2">
               {restaurant.products.map((product) => (
-                <article key={product.id} className="grid grid-cols-[56px_minmax(0,1fr)_auto] sm:grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border bg-muted/40 p-3">
+                <article id={`product-${product.id}`} key={product.id} className="grid grid-cols-[56px_minmax(0,1fr)_auto] sm:grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border bg-muted/40 p-3">
                   <ImageWithFallback src={product.image} alt={product.name} className="size-14 sm:size-24 rounded-md object-cover" />
                   <div className="min-w-0 break-words"><h2 className="font-semibold">{product.name}</h2><p className="text-sm text-gray-500">{product.description}</p><p className="mt-2 font-bold">{formatCurrency(product.price)}</p></div>
                   <Button size="icon" disabled={cart.blocked} onClick={() => add(product)} aria-label={`Agregar ${product.name}`}><Plus className="size-4" /></Button>

@@ -477,8 +477,17 @@ export function reopenClaim(id: string) {
   return request<ClaimDetailResponse>(`/api/claims/${id}/reopen`, { method: 'POST' });
 }
 
+export interface ChatRecommendation {
+  productId: string;
+  restaurantId: string;
+  name: string;
+  restaurant: string;
+  price: number;
+  description: string;
+}
+
 export function sendChatMessage(message: string, sessionId?: string, context?: Record<string, unknown>) {
-  return request<{ message: string; documents: string[]; provider: string }>('/api/chat', {
+  return request<{ message: string; documents: string[]; provider: string; recommendations?: ChatRecommendation[] }>('/api/chat', {
     method: 'POST',
     body: JSON.stringify({ message, session_id: sessionId, context }),
   });

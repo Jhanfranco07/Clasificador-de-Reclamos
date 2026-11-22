@@ -1,14 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CART_KEY, CartItem, readCart, parseCart } from './cart';
 
 export function useCart() {
   const [snapshot, setSnapshot] = useState(readCart);
+  useEffect(() => {
+    const refresh = () => setSnapshot(readCart());
+    window.addEventListener('smartclaim:cart-changed', refresh);
+    return () => window.removeEventListener('smartclaim:cart-changed', refresh);
+  }, []);
   const persist = (items: CartItem[]) => {
     const next = parseCart(JSON.stringify(items));
     if (next.blocked) { setSnapshot({ ...snapshot, warning: 'No se pudo agregar el artículo: sus datos o cantidad no son válidos.' }); return false; }
     try {
       window.localStorage.setItem(CART_KEY, JSON.stringify(next.items));
       setSnapshot(next);
+      window.dispatchEvent(new Event('smartclaim:cart-changed'));
       return true;
     } catch {
       setSnapshot({ ...snapshot, blocked: true, warning: 'No se pudo guardar el carrito. Revisa el almacenamiento antes de continuar.' });
