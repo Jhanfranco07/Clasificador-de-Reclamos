@@ -29,6 +29,18 @@ const RestaurantPage = lazy(() => import('./pages/catalog/RestaurantPage'));
 const CartPage = lazy(() => import('./pages/catalog/CartPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 
+// La portada pública se conserva para visitantes; las cuentas autenticadas
+// regresan a su espacio operativo, nunca a la landing pública.
+function HomeRoute() {
+  const { currentUser, isLoading } = useAuth();
+  if (isLoading) return <div role="status" className="flex min-h-screen items-center justify-center text-muted-foreground">Cargando sesión...</div>;
+  if (!currentUser) return <LandingPage />;
+  const destination = currentUser.role === 'CLIENT' ? '/restaurants'
+    : currentUser.role === 'MERCHANT' ? '/merchant'
+    : currentUser.role === 'COURIER' ? '/courier' : '/admin';
+  return <Navigate to={destination} replace />;
+}
+
 function ProtectedRoute({
   children,
   allowedRoles,
@@ -52,7 +64,7 @@ function ProtectedRoute({
   }
 
   if (allowedRoles && currentUser && !allowedRoles.includes(currentUser.role)) {
-    return <Navigate to={currentUser.role === 'MERCHANT' ? '/merchant' : currentUser.role === 'COURIER' ? '/courier' : currentUser.role === 'CLIENT' ? '/dashboard' : '/admin'} replace />;
+    return <Navigate to={currentUser.role === 'MERCHANT' ? '/merchant' : currentUser.role === 'COURIER' ? '/courier' : currentUser.role === 'CLIENT' ? '/restaurants' : '/admin'} replace />;
   }
 
   return <>{children ?? <Outlet />}</>;
@@ -63,7 +75,7 @@ function AppRoutes() {
     <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-600">Cargando modulo...</div>}>
       <Routes>
       {/* Public routes */}
-      <Route path="/" element={<LandingPage />} />
+      <Route path="/" element={<HomeRoute />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/restaurants/:id" element={<RestaurantPage />} />
