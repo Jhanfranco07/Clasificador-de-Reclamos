@@ -41,6 +41,18 @@ test('preferencia de tema oscuro persiste al recargar', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Usar tema claro' })).toBeVisible();
 });
 
+test('prioridad del turno mantiene contraste en modo oscuro', async ({ page }) => {
+  await login(page, 'admin@smartclaim.com');
+  await expect(page).toHaveURL(/\/admin$/);
+  const banner = page.locator('.bg-gradient-to-r').first();
+  await expect(banner).toBeVisible();
+  await page.getByRole('button', { name: 'Usar tema oscuro' }).click();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await expect(banner).toHaveCSS('background-image', /rgb\(57, 39, 25\)/);
+  const title = banner.getByRole('heading', { level: 2 });
+  await expect(title).toHaveCSS('color', 'rgb(248, 250, 252)');
+});
+
 test('agente gestiona reclamos sin acceder a configuración administrativa', async ({ page }) => {
   await login(page, 'gonzalo.caceres@smartclaim.com');
   await expect(page).toHaveURL(/\/admin/);
