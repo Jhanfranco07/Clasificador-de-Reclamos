@@ -53,3 +53,18 @@ test('el chat cabe en una pantalla móvil', async ({ page }) => {
   expect(box!.y + box!.height).toBeLessThanOrEqual(667);
   await expect(chat.getByLabel('Escribe tu mensaje')).toBeVisible();
 });
+
+test('el panel abierto no bloquea controles de otras pantallas', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 667 });
+  await page.goto('/');
+  await page.evaluate(() => {
+    const button = document.createElement('button');
+    button.id = 'under-chat-control';
+    button.textContent = 'Control de la página';
+    button.style.cssText = 'position:fixed;right:80px;bottom:250px;z-index:1';
+    button.addEventListener('click', () => button.dataset.clicked = 'yes');
+    document.body.appendChild(button);
+  });
+  await page.locator('#under-chat-control').click();
+  await expect(page.locator('#under-chat-control')).toHaveAttribute('data-clicked', 'yes');
+});

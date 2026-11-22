@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { Bot, Minus, Send, ShoppingCart, X } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -25,7 +25,9 @@ const quickActions = [
 type ChatMessage = { role: 'user' | 'bot'; text: string; recommendations?: ChatRecommendation[] };
 
 export default function ChatbotWidget() {
+  const { pathname } = useLocation();
   const { currentUser } = useAuth();
+  const shoppingPage = !/^\/(admin|merchant|courier)(\/|$)/.test(pathname);
   const identity = currentUser?.id || 'visitor';
   const [open, setOpen] = useState(() => !dismissed());
   const [text, setText] = useState('');
@@ -116,12 +118,12 @@ export default function ChatbotWidget() {
 
   return (
     <div className="fixed bottom-4 right-4 z-[120] sm:bottom-5 sm:right-5">
-      {open && <section aria-label="Asistente SmartClaim AI" className="fixed inset-x-3 bottom-20 flex h-[min(70dvh,620px)] flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl shadow-slate-950/30 sm:inset-x-auto sm:right-5 sm:w-[390px]">
+      {open && <section aria-label="Asistente SmartClaim AI" className="pointer-events-none fixed inset-x-3 bottom-20 flex h-[min(70dvh,620px)] flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl shadow-slate-950/30 sm:inset-x-auto sm:right-5 sm:w-[390px]">
         <header className="flex items-center justify-between bg-slate-900 px-4 py-3 text-white">
           <div><div className="flex items-center gap-2 font-semibold"><Bot className="size-5" /> Asistente SmartClaim AI</div><p className="mt-0.5 text-xs text-white/75">Compras y atención, con opciones reales</p></div>
           <div className="flex">
-            <button type="button" onClick={close} aria-label="Minimizar chat" className="rounded-lg p-2 hover:bg-white/15 focus-visible:outline focus-visible:outline-2"><Minus className="size-5" /></button>
-            <button type="button" onClick={close} aria-label="Cerrar chat" className="rounded-lg p-2 hover:bg-white/15 focus-visible:outline focus-visible:outline-2"><X className="size-5" /></button>
+            <button type="button" onClick={close} aria-label="Minimizar chat" className="pointer-events-auto rounded-lg p-2 hover:bg-white/15 focus-visible:outline focus-visible:outline-2"><Minus className="size-5" /></button>
+            <button type="button" onClick={close} aria-label="Cerrar chat" className="pointer-events-auto rounded-lg p-2 hover:bg-white/15 focus-visible:outline focus-visible:outline-2"><X className="size-5" /></button>
           </div>
         </header>
         <div role="log" aria-label="Conversación" aria-live="polite" className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
@@ -133,10 +135,10 @@ export default function ChatbotWidget() {
                 <p className="text-xs text-muted-foreground">{product.restaurant} · S/ {product.price.toFixed(2)}</p>
                 {product.description && <p className="mt-1 text-xs">{product.description}</p>}
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="outline" asChild><Link to={`/restaurants/${product.restaurantId}#product-${product.productId}`}>Ver producto</Link></Button>
+                  <Button type="button" size="sm" variant="outline" asChild><Link className="pointer-events-auto" to={`/restaurants/${product.restaurantId}#product-${product.productId}`}>Ver producto</Link></Button>
                   {pendingProduct === product.productId
-                    ? <><Button type="button" size="sm" onClick={() => void addRecommended(product)}>Confirmar</Button><Button type="button" size="sm" variant="ghost" onClick={() => setPendingProduct(null)}>Cancelar</Button></>
-                    : <Button type="button" size="sm" onClick={() => setPendingProduct(product.productId)}><ShoppingCart className="mr-1 size-4" />Agregar</Button>}
+                    ? <><Button type="button" size="sm" className="pointer-events-auto" onClick={() => void addRecommended(product)}>Confirmar</Button><Button type="button" size="sm" variant="ghost" className="pointer-events-auto" onClick={() => setPendingProduct(null)}>Cancelar</Button></>
+                    : <Button type="button" size="sm" className="pointer-events-auto" onClick={() => setPendingProduct(product.productId)}><ShoppingCart className="mr-1 size-4" />Agregar</Button>}
                 </div>
               </div>)}
             </div>
@@ -145,16 +147,16 @@ export default function ChatbotWidget() {
           <div ref={endRef} />
         </div>
         <div className="border-t border-border bg-card px-3 py-2">
-          <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Opciones rápidas">
-            {quickActions.map((action) => <Button key={action.label} type="button" size="sm" variant="outline" disabled={working} className="shrink-0 rounded-full" onClick={() => void send(action.message)}>{action.label}</Button>)}
-          </div>
+          {shoppingPage && <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Opciones rápidas">
+            {quickActions.map((action) => <Button key={action.label} type="button" size="sm" variant="outline" disabled={working} className="pointer-events-auto shrink-0 rounded-full" onClick={() => void send(action.message)}>{action.label}</Button>)}
+          </div>}
           {cartNotice && <p role="status" className="py-1 text-xs">{cartNotice}</p>}
           <form className="mt-2 flex gap-2" onSubmit={(event) => { event.preventDefault(); void send(text); }}>
             <label htmlFor="smartclaim-chat-input" className="sr-only">Escribe tu mensaje</label>
-            <Input id="smartclaim-chat-input" name="message" value={text} onChange={(event) => setText(event.target.value)}
+            <Input id="smartclaim-chat-input" name="message" className="pointer-events-auto" value={text} onChange={(event) => setText(event.target.value)}
               onKeyDown={(event) => { if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault(); }}
               maxLength={2000} disabled={working} placeholder={working ? 'Preparando respuesta...' : 'Escribe tu consulta...'} />
-            <Button type="submit" size="sm" disabled={working || text.trim().length < 2} aria-label="Enviar mensaje"><Send className="size-4" /></Button>
+            <Button type="submit" size="sm" className="pointer-events-auto" disabled={working || text.trim().length < 2} aria-label="Enviar mensaje"><Send className="size-4" /></Button>
           </form>
         </div>
       </section>}
