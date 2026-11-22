@@ -344,6 +344,51 @@ def test_reports_expose_operational_and_ai_metrics(api_client):
     assert report["metrics"]["tiempo_promedio_primera_respuesta"] >= 0
 
 
+
+@pytest.mark.parametrize("api_client", ["sqlite", "postgres"], indirect=True)
+def test_report_and_claim_dates_are_iso_strings(api_client, monkeypatch):
+    """Una fila PostgreSQL datetime debe soportar filtros y evolución de reportes."""
+    from datetime import datetime
+    import backend.main as main
+
+    when = datetime(2026, 6, 9, 12, 30, 0)
+    row = {
+        "id_reclamo": 901, "codigo_reclamo": "RC-REPORT-DATE-TEST",
+        "cliente": "Cliente de prueba", "correo": "cliente.fecha@example.com",
+        "codigo_pedido": "ORD-REPORT-DATE-TEST",
+        "categoria": "Producto incompleto", "prioridad": "Media",
+        "estado": "Nuevo", "canal_venta": "WEB",
+        "requiere_revision_humana": 1,
+        "fecha_creacion": when, "fecha_actualizacion": when,
+        "responsable_auth_id": None, "responsable_asignado": None,
+        "version_asignacion": 0, "fecha_asignacion": None,
+    }
+    monkeypatch.setattr(main, "listar_reclamos", lambda: [row])
+    monkeypatch.setattr(main, "_assignment", lambda _: {"active": False})
+
+    login = api_client.post("/api/auth/login", json={
+        "email": "admin@smartclaim.com", "password": "123456",
+    })
+    assert login.status_code == 200
+    headers = {"Authorization": f"Bearer {login.json()['token']}"}
+
+    claims = api_client.get("/api/claims", headers=headers,
+                            params={"date_from": "2026-06-09", "date_to": "2026-06-09"})
+    assert claims.status_code == 200
+    assert claims.json()["items"][0]["createdAt"] == "2026-06-09T12:30:00"
+
+    report = api_client.get("/api/reports", headers=headers,
+                            params={"date_from": "2026-06-09", "date_to": "2026-06-09"})
+    assert report.status_code == 200
+    assert report.json()["metrics"]["total"] == 1
+    assert report.json()["claimsEvolution"] == [{"fecha": "2026-06-09", "total": 1}]
+
+    other_day = api_client.get("/api/reports", headers=headers,
+                               params={"date_from": "2026-06-10"})
+    assert other_day.status_code == 200
+    assert other_day.json()["metrics"]["total"] == 0
+
+
 def test_health_reports_database_status(api_client):
     response = api_client.get("/health")
 
