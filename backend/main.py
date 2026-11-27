@@ -796,12 +796,9 @@ def health() -> dict[str, Any]:
 
 
 @app.post("/api/chat")
-def chat(payload: ChatPayload, authorization: str | None = Header(default=None)) -> dict[str, Any]:
-    user = None
-    if authorization and authorization.lower().startswith("bearer "):
-        token_data = decode_token(authorization.split(" ", 1)[1].strip())
-        if token_data:
-            user = obtener_usuario_auth_por_id(token_data.get("sub"))
+def chat(payload: ChatPayload, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    if user["rol"] != "CLIENT":
+        raise HTTPException(status_code=403, detail="El asistente está reservado para clientes")
     return answer_chat(payload.message, user=user, context=payload.context)
 
 

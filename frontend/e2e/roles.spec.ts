@@ -32,31 +32,39 @@ test('cliente que llega desde portada accede a catálogo y asistente', async ({ 
   await expect(page.getByRole('heading', { name: 'Restaurantes disponibles' })).toBeVisible();
 });
 
-test('preferencia de tema oscuro persiste al recargar', async ({ page }) => {
+test('tema claro obligatorio incluso con preferencia oscura anterior y sistema oscuro', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.addInitScript(() => localStorage.setItem('theme', 'dark'));
+  await page.goto('/');
+  await expect(page.locator('html')).toHaveClass(/light/);
+  await expect(page.locator('html')).not.toHaveClass(/dark/);
   await login(page, 'jhan.perez@gmail.com');
-  await page.getByRole('button', { name: 'Usar tema oscuro' }).click();
-  await expect(page.locator('html')).toHaveClass(/dark/);
+  await expect(page).toHaveURL(/\/restaurants$/);
+  await expect(page.locator('html')).toHaveClass(/light/);
+  await expect(page.getByRole('button', { name: /Usar tema/ })).toHaveCount(0);
   await page.reload();
-  await expect(page.locator('html')).toHaveClass(/dark/);
-  await expect(page.getByRole('button', { name: 'Usar tema claro' })).toBeVisible();
+  await expect(page.locator('html')).toHaveClass(/light/);
+  await page.getByRole('button', { name: 'Abrir menú de cuenta' }).click();
+  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.locator('html')).toHaveClass(/light/);
 });
 
-test('prioridad del turno mantiene contraste en modo oscuro', async ({ page }) => {
+test('panel administrativo conserva prioridad del turno en tema claro', async ({ page }) => {
   await login(page, 'admin@smartclaim.com');
   await expect(page).toHaveURL(/\/admin$/);
+  await expect(page.locator('html')).toHaveClass(/light/);
+  await expect(page.getByRole('button', { name: /Usar tema/ })).toHaveCount(0);
   const banner = page.locator('.bg-gradient-to-r').first();
   await expect(banner).toBeVisible();
-  await page.getByRole('button', { name: 'Usar tema oscuro' }).click();
-  await expect(page.locator('html')).toHaveClass(/dark/);
-  await expect(banner).toHaveCSS('background-image', /rgb\(57, 39, 25\)/);
-  const title = banner.getByRole('heading', { level: 2 });
-  await expect(title).toHaveCSS('color', 'rgb(248, 250, 252)');
+  await expect(banner.getByRole('heading', { level: 2 })).toBeVisible();
 });
 
 test('agente gestiona reclamos sin acceder a configuración administrativa', async ({ page }) => {
   await login(page, 'gonzalo.caceres@smartclaim.com');
   await expect(page).toHaveURL(/\/admin/);
   await expect(page.getByRole('link', { name: 'Bandeja de reclamos' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Abrir ayuda|Minimizar ayuda/ })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Configuración IA' })).toHaveCount(0);
   await page.goto('/admin/knowledge');
   await expect(page).toHaveURL(/\/admin$/);
@@ -66,6 +74,7 @@ test('agente gestiona reclamos sin acceder a configuración administrativa', asy
 
 test('administrador accede a reportes y base documental', async ({ page }) => {
   await login(page, 'admin@smartclaim.com');
+  await expect(page.getByRole('button', { name: /Abrir ayuda|Minimizar ayuda/ })).toHaveCount(0);
   const reportsRequest = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/reports' && response.request().method() === 'GET');
   await page.getByRole('link', { name: 'Reportes' }).click();
   expect((await reportsRequest).ok()).toBeTruthy();

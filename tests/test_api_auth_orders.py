@@ -189,7 +189,10 @@ def test_claim_continuous_conversation(api_client):
 
 def test_chatbot_works_without_openai_key(api_client, monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    response = api_client.post("/api/chat", json={"message": "¿Cómo creo un reclamo?"})
+    login = api_client.post("/api/auth/login", json={"email": "jhan.perez@gmail.com", "password": "123456"})
+    assert login.status_code == 200
+    headers = {"Authorization": f"Bearer {login.json()['token']}"}
+    response = api_client.post("/api/chat", headers=headers, json={"message": "¿Cómo creo un reclamo?"})
     assert response.status_code == 200
     assert response.json()["provider"] == "local"
 
@@ -213,10 +216,21 @@ def test_chatbot_returns_real_authenticated_order_count(api_client, monkeypatch)
     assert "[" not in text
 
 
-def test_chatbot_requires_login_for_personal_data(api_client):
-    response = api_client.post("/api/chat", json={"message": "¿Cuántos pedidos he realizado?"})
-    assert response.status_code == 200
-    assert "iniciar sesión" in response.json()["message"]
+@pytest.mark.parametrize("message", ["¿Cuántos pedidos he realizado?", "¿Cómo creo un reclamo?"])
+def test_chatbot_requires_login(api_client, message):
+    response = api_client.post("/api/chat", json={"message": message})
+    assert response.status_code == 401
+    invalid = api_client.post("/api/chat", headers={"Authorization": "Bearer invalid"}, json={"message": message})
+    assert invalid.status_code == 401
+
+
+@pytest.mark.parametrize("email", ["admin@smartclaim.com", "gonzalo.caceres@smartclaim.com"])
+def test_chatbot_rejects_staff(api_client, email):
+    login = api_client.post("/api/auth/login", json={"email": email, "password": "123456"})
+    assert login.status_code == 200
+    headers = {"Authorization": f"Bearer {login.json()['token']}"}
+    response = api_client.post("/api/chat", headers=headers, json={"message": "Recomiéndame platos"})
+    assert response.status_code == 403
 
 
 def test_chatbot_returns_real_open_claim_count(api_client, monkeypatch):

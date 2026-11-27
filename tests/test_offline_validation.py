@@ -149,7 +149,10 @@ def test_faq_via_http_bypasses_all_ai(monkeypatch):
         monkeypatch.setattr(chat, "recuperar_documentos", spies[2])
         monkeypatch.setattr(embeddings, "create_embeddings", spies[3])
         monkeypatch.setattr(openai, "OpenAI", spies[4])
-        response = api.post("/api/chat", json={"message": "¿Cómo solicito un reembolso?"})
+        login = api.post("/api/auth/login", json={"email": "jhan.perez@gmail.com", "password": "123456"})
+        assert login.status_code == 200
+        headers = {"Authorization": f"Bearer {login.json()['token']}"}
+        response = api.post("/api/chat", headers=headers, json={"message": "¿Cómo solicito un reembolso?"})
         assert response.status_code == 200 and response.json()["provider"] == "faq"
         assert response.json()["trace"]["ml_executed"] is False
         assert response.json()["trace"]["rag_executed"] is False

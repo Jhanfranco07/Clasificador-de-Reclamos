@@ -36,13 +36,11 @@ export default function ChatbotWidget() {
   // El asistente está disponible desde el primer acceso del cliente,
   // incluso si navega a la portada pública mientras conserva la sesión.
   const isClient = currentUser?.role === 'CLIENT';
-  const visible = Boolean(currentUser) && (pathname !== '/' || isClient) &&
+  const visible = isClient && shoppingPage &&
     !/^\/(login|register|registro|recuperar|password-reset|forgot-password|auth)(\/|$)/.test(pathname);
   const identity = currentUser?.id || 'visitor';
   // La bienvenida se abre en el panel de entrada, no encima de flujos operativos.
-  const introPage = isClient
-    ? /^\/(dashboard|restaurants|products)\/?$/.test(pathname)
-    : /^\/(admin|merchant|courier)\/?$/.test(pathname);
+  const introPage = isClient && /^\/(dashboard|restaurants|products)\/?$/.test(pathname);
   const [open, setOpen] = useState(() => !dismissed() && !alreadyShown() && introPage);
   const [text, setText] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([{ role: 'bot', text: greetingFor(currentUser?.name) }]);
@@ -60,7 +58,7 @@ export default function ChatbotWidget() {
     if (identityRef.current === identity) return;
     identityRef.current = identity;
     generationRef.current += 1;
-    if (identity === 'visitor') {
+    if (!isClient) {
       try { window.sessionStorage.removeItem(AUTO_SHOWN_KEY); } catch { /* Optional storage. */ }
       setOpen(false);
     } else {
@@ -69,7 +67,7 @@ export default function ChatbotWidget() {
     setText(''); setWorking(false); setPendingProduct(null); setCartNotice('');
     setSessionId(`chat_session_${identity}_${Date.now()}`);
     setMessages([{ role: 'bot', text: greetingFor(currentUser?.name) }]);
-  }, [currentUser?.name, identity, introPage]);
+  }, [currentUser?.name, identity, introPage, isClient]);
 
   useEffect(() => {
     if (!visible || !introPage || alreadyShown()) return;
@@ -112,7 +110,7 @@ export default function ChatbotWidget() {
 
   const send = async (message: string) => {
     const value = message.trim();
-    if (value.length < 2 || working) return;
+    if (!visible || value.length < 2 || working) return;
     const requestIdentity = identityRef.current;
     const requestGeneration = generationRef.current;
     const isCurrent = () => identityRef.current === requestIdentity && generationRef.current === requestGeneration;
@@ -140,6 +138,7 @@ export default function ChatbotWidget() {
   };
 
   const addRecommended = async (recommendation: ChatRecommendation) => {
+    if (!visible) return;
     try {
       const { items } = await getCatalog();
       const restaurant = items.find((item) => item.id === recommendation.restaurantId);

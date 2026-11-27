@@ -5,7 +5,6 @@ import { Package, Home, ShoppingBag, AlertCircle, HelpCircle, LogOut, Utensils, 
 import { useAuth } from '../contexts/AuthContext';
 import { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import NotificationBell from './NotificationBell';
-import ThemeToggle from './ThemeToggle';
 
 interface ClientLayoutProps {
   children?: ReactNode;
@@ -71,7 +70,6 @@ function ClientLayoutShell({ children }: ClientLayoutProps) {
           </Link>
 
           <div className="flex items-center gap-2 sm:gap-4">
-            <ThemeToggle />
             <NotificationBell />
             <div className="relative" ref={accountRef}>
               <Button
