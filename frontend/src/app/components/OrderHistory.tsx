@@ -1,7 +1,7 @@
 import { ApiOrder } from '../lib/api';
 import { ORDER_STATUS_LABELS } from '../types';
 
-export default function OrderHistory({ order }: { order: ApiOrder }) {
+export default function OrderHistory({ order }: { order: Pick<ApiOrder, 'events'> }) {
   return <section aria-label="Historial del pedido" className="space-y-2">
     <h2 className="font-semibold text-xl">Historial del pedido</h2>
     {!order.events?.length && <p>Sin eventos operativos registrados. Pedido histórico.</p>}

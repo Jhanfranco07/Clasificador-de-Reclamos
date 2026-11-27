@@ -139,6 +139,9 @@ export interface ApiOrder {
   events: OrderEvent[];
 }
 
+// Operational responses are role-scoped: couriers do not receive financial or item data.
+export type OperationalOrder = Pick<ApiOrder, 'id' | 'code' | 'storeName' | 'status' | 'deliveryAddress' | 'deliveryNotes' | 'version' | 'pickedUpAt' | 'deliveredAt' | 'events' | 'restaurantId' | 'createdAt' | 'pickupAddress' | 'reconciliationRequired'> & Partial<Pick<ApiOrder, 'items' | 'total'>>;
+
 export interface OrderEvent {
   accion: string;
   estado_anterior?: string;
@@ -403,6 +406,14 @@ export function listOrders() {
 
 export function getOrder(id: string) {
   return request<{ order: ApiOrder }>(`/api/orders/${id}`);
+}
+
+export function listOperationalOrders() {
+  return request<{ items: OperationalOrder[] }>('/api/orders');
+}
+
+export function getOperationalOrder(id: string) {
+  return request<{ order: OperationalOrder }>(`/api/orders/${id}`);
 }
 
 export interface OrderQuote {

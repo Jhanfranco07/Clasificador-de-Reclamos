@@ -32,6 +32,8 @@ async function setup(page: Page) {
 
 test('Fase 2B: compra, comercio, asignación, entrega, historial y atención por agente desde UI', async ({ page }) => {
   test.setTimeout(90_000);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
   const { accounts } = await setup(page);
   await login(page);
   await page.goto('/restaurants/1');
@@ -49,7 +51,8 @@ test('Fase 2B: compra, comercio, asignación, entrega, historial y atención por
   await expect(page).toHaveURL(/\/merchant$/);
   await expect(page.getByRole('button', { name: /Abrir ayuda|Minimizar ayuda/ })).toHaveCount(0);
   await expect(page.locator('html')).toHaveClass(/light/);
-  await page.goto(`/merchant/orders/${order.id}`);
+  await expect(page.getByRole('region', { name: 'Listado de pedidos' }).getByRole('heading', { name: order.code, exact: true })).toBeVisible();
+  await page.locator(`a[href="/merchant/orders/${order.id}"]`).click();
   for (const label of ['Aceptado', 'Preparando', 'Listo para recoger']) {
     await page.getByRole('button', { name: label, exact: true }).click();
     await expect(page.getByText('Estado actual ·')).toContainText(label);
@@ -58,7 +61,9 @@ test('Fase 2B: compra, comercio, asignación, entrega, historial y atención por
 
   expect((await page.request.put(`${API}/api/operations/availability`, { headers: { Authorization: `Bearer ${accounts.COURIER.token}` }, data: { available: true, request_id: crypto.randomUUID() } })).status()).toBe(200);
   await signIn(page, 'admin@smartclaim.com');
-  await page.goto(`/admin/orders/${order.id}`);
+  await page.goto('/admin/orders');
+  await expect(page.getByRole('region', { name: 'Listado de pedidos' }).getByRole('heading', { name: order.code, exact: true })).toBeVisible();
+  await page.locator(`a[href="/admin/orders/${order.id}"]`).click();
   await page.getByLabel('Motivo de intervención o rechazo').fill('Asignación controlada en prueba');
   await page.getByLabel('Repartidor disponible').selectOption(String(accounts.COURIER.id));
   await page.getByRole('button', { name: 'Asignar repartidor', exact: true }).click();
@@ -68,13 +73,33 @@ test('Fase 2B: compra, comercio, asignación, entrega, historial y atención por
   await expect(page).toHaveURL(/\/courier$/);
   await expect(page.getByRole('button', { name: /Abrir ayuda|Minimizar ayuda/ })).toHaveCount(0);
   await expect(page.locator('html')).toHaveClass(/light/);
-  await page.goto(`/courier/orders/${order.id}`);
+  await page.setViewportSize({ width: 360, height: 800 });
+  const courierList = page.getByRole('region', { name: 'Listado de pedidos' });
+  await expect(courierList.getByRole('heading', { name: order.code, exact: true })).toBeVisible();
+  await expect(courierList.getByText('Recojo:', { exact: true })).toBeVisible();
+  await expect(courierList.getByText('Entrega:', { exact: true })).toBeVisible();
+  await expect(courierList.getByText(/Total registrado|productos|S\//)).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await page.getByLabel('Filtrar pedidos por estado').selectOption('DELIVERED');
+  await expect(courierList.getByRole('heading', { name: order.code, exact: true })).toHaveCount(0);
+  await page.getByLabel('Filtrar pedidos por estado').selectOption('ALL');
+  await page.locator(`a[href="/courier/orders/${order.id}"]`).click();
+  await page.route('**/api/orders/*/transition', route => route.fulfill({ status: 409, json: { detail: 'Conflicto temporal de prueba' } }), { times: 1 });
+  await page.getByRole('button', { name: 'Confirmar recogida y salida', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Conflicto temporal de prueba');
+  await expect(page.getByRole('button', { name: 'Confirmar recogida y salida', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Confirmar recogida y salida', exact: true }).click();
   await expect(page.getByText('Estado actual ·')).toContainText('En camino');
   await page.getByRole('button', { name: 'Confirmar entrega', exact: true }).click();
   await expect(page.getByText('Estado actual ·')).toContainText('Entregado');
   await expect(page.getByRole('button', { name: 'Confirmar entrega', exact: true })).toHaveCount(0);
 
+  await page.getByRole('link', { name: 'Volver al listado' }).click();
+  await expect(courierList.getByRole('heading', { name: order.code, exact: true })).toBeVisible();
+  await expect(courierList.getByText('Entregado', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(courierList.getByRole('heading', { name: order.code, exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 1280, height: 900 });
   await login(page);
   await page.goto(`/orders/${order.id}`);
   await expect(page.getByRole('region', { name: 'Historial del pedido' })).toContainText('Entregado');
@@ -91,6 +116,10 @@ test('Fase 2B: compra, comercio, asignación, entrega, historial y atención por
   await expect(page.getByRole('region', { name: 'Contexto verificado del pedido' })).toContainText('Entregado');
   await page.getByRole('button', { name: 'Enviar respuesta al cliente', exact: true }).click();
   await expect(page.getByText('Respuesta enviada al cliente correctamente.', { exact: true }).first()).toBeVisible();
+  await login(page);
+  await page.goto(`/claims/${claim.id}`);
+  await expect(page.getByRole('heading', { name: `Reclamo ${claim.code}` })).toBeVisible();
+  expect(errors).toEqual([]);
 });
 
 test('Fase 2B: carrito mixto exige confirmación y conserva artículos del otro comercio', async ({ page }) => {
