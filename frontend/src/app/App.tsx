@@ -163,12 +163,12 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+    <ThemeProvider attribute="class" defaultTheme="light" forcedTheme="light" enableSystem={false}>
       <AuthProvider>
         <BrowserRouter>
           <div className="size-full">
             <AppRoutes />
-            <Toaster />
+            <Toaster theme="light" />
             <ChatbotWidget />
           </div>
         </BrowserRouter>

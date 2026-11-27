@@ -241,7 +241,7 @@ def test_admin_document_and_catalog_regression(api):
         "category": "Soporte general", "content": "El horario de atención de prueba es de lunes a viernes.",
     })
     assert created.status_code == 201
-    chat = api.post("/api/chat", json={"message": "¿Cuáles son los horarios de atención?"})
+    chat = api.post("/api/chat", headers=headers(api), json={"message": "¿Cuáles son los horarios de atención?"})
     assert chat.status_code == 200 and chat.json()["provider"] == "faq"
     assert api.get("/api/documents", headers=admin).status_code == 200
     assert api.get("/api/dashboard", headers=admin).status_code == 200

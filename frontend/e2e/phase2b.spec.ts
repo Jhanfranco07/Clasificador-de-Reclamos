@@ -47,6 +47,8 @@ test('Fase 2B: compra, comercio, asignación, entrega, historial y atención por
 
   await signIn(page, accounts.MERCHANT.email);
   await expect(page).toHaveURL(/\/merchant$/);
+  await expect(page.getByRole('button', { name: /Abrir ayuda|Minimizar ayuda/ })).toHaveCount(0);
+  await expect(page.locator('html')).toHaveClass(/light/);
   await page.goto(`/merchant/orders/${order.id}`);
   for (const label of ['Aceptado', 'Preparando', 'Listo para recoger']) {
     await page.getByRole('button', { name: label, exact: true }).click();
@@ -64,6 +66,8 @@ test('Fase 2B: compra, comercio, asignación, entrega, historial y atención por
 
   await signIn(page, accounts.COURIER.email);
   await expect(page).toHaveURL(/\/courier$/);
+  await expect(page.getByRole('button', { name: /Abrir ayuda|Minimizar ayuda/ })).toHaveCount(0);
+  await expect(page.locator('html')).toHaveClass(/light/);
   await page.goto(`/courier/orders/${order.id}`);
   await page.getByRole('button', { name: 'Confirmar recogida y salida', exact: true }).click();
   await expect(page.getByText('Estado actual ·')).toContainText('En camino');

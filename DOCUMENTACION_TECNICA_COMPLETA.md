@@ -440,7 +440,7 @@ La API central está definida en `backend/main.py`. FastAPI valida los cuerpos d
 | Método | Endpoint | Acceso | Función |
 |---|---|---|---|
 | GET | `/health` | Público | Salud de API, base y RAG |
-| POST | `/api/chat` | Público/opcional auth | Chatbot general o personalizado |
+| POST | `/api/chat` | CLIENT autenticado | Asistente de compras y atención al cliente |
 | POST | `/api/auth/login` | Público | Iniciar sesión |
 | POST | `/api/auth/register` | Público | Registrar cliente |
 | POST | `/api/auth/password-reset/request` | Público | Solicitud simulada de recuperación |
@@ -945,7 +945,7 @@ Playwright valida:
 
 - navegación del cliente;
 - retorno a la ruta original después de iniciar sesión;
-- persistencia del tema oscuro;
+- tema claro fijo, incluso con preferencias oscuras previas;
 - restricciones del agente;
 - acceso administrativo a reportes y base documental.
 

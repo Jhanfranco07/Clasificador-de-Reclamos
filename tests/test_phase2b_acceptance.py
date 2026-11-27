@@ -319,3 +319,11 @@ def test_vector_mismatch_never_deletes_or_reindexes(monkeypatch):
     monkeypatch.setattr(db, 'execute', lambda *args: pytest.fail('No destructive automatic vector resizing'))
     with pytest.raises(RuntimeError, match='migración explícita'):
         db.ensure_pgvector_embedding_dimension()
+
+
+def test_chatbot_only_client_in_five_role_scenario(scenario):
+    api = scenario["api"]
+    payload = {"message": "¿Cómo hago un pedido?"}
+    assert api.post("/api/chat", headers=scenario["customer"], json=payload).status_code == 200
+    for headers in [scenario["admin"], scenario["agent"], *scenario["tokens"].values()]:
+        assert api.post("/api/chat", headers=headers, json=payload).status_code == 403

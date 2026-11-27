@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { ReactNode, useEffect, useRef, useState } from 'react';
-import ThemeToggle from './ThemeToggle';
 import NotificationBell from './NotificationBell';
 
 interface AdminLayoutProps {
@@ -80,7 +79,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           </Link>
 
           <div className="flex items-center gap-2 sm:gap-4">
-            <ThemeToggle />
             <NotificationBell />
             <div className="relative" ref={accountRef}>
               <Button
