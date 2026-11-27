@@ -46,8 +46,16 @@ test('tema claro obligatorio incluso con preferencia oscura anterior y sistema o
   await expect(page.locator('html')).toHaveClass(/light/);
   await page.getByRole('button', { name: 'Abrir menú de cuenta' }).click();
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
-  await expect(page).toHaveURL(/\/$/);
+  // La salida puede pasar por la ruta pública o el guard de sesión.
+  await expect(page).toHaveURL(/\/(?:login)?$/);
   await expect(page.locator('html')).toHaveClass(/light/);
+  await page.goto('/restaurants');
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.locator('html')).toHaveClass(/light/);
+  await page.goto('/');
+  await expect(page.locator('html')).toHaveClass(/light/);
+  await expect(page.locator('html')).not.toHaveClass(/dark/);
+  await expect(page.getByRole('button', { name: /Abrir ayuda|Minimizar ayuda/ })).toHaveCount(0);
 });
 
 test('panel administrativo conserva prioridad del turno en tema claro', async ({ page }) => {
