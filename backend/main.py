@@ -1090,8 +1090,10 @@ def create_claim(payload: ClaimCreate, user: dict[str, Any] = Depends(get_curren
         if payload.analyze:
             try:
                 _analyze_and_generate(id_reclamo)
-            except HTTPException:
-                pass
+            except (HTTPException, DomainError):
+                # The claim was already committed; do not tell the client to submit again.
+                # Staff can retry analysis from the existing claim.
+                logger.exception("Análisis automático pendiente para reclamo %s", id_reclamo)
         return _detail_for_user(id_reclamo, user)
     except DomainError:
         raise

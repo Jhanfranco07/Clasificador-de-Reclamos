@@ -381,3 +381,39 @@ def test_bf05_staff_transition_matrix_and_permissions(api):
                     finally:
                         conn.execute('ROLLBACK TO matrix_case')
                         conn.execute('RELEASE matrix_case')
+
+
+@pytest.mark.parametrize("label", ["En revision", "En revisión"])
+def test_claim_analysis_accepts_both_review_labels(api, label):
+    db.execute("UPDATE estados_reclamo SET nombre=? WHERE nombre IN ('En revision', 'En revisión')", (label,))
+    db.execute("UPDATE configuracion_modelo_ia SET revision_humana_obligatoria=1")
+    claim = new_claim(api)
+    assert claim["claim"]["statusKey"] == "IN_REVIEW"
+    assert claim["claim"]["status"] == label
+    assert claim["analysis"] and claim["response"]
+    cid = claim["claim"]["id"]
+    staff = auth(api, "AGENT")
+    assert api.post(f"/api/claims/{cid}/close", headers=staff, json={"comment": "Cierre de prueba"}).status_code == 200
+    reopened = api.post(f"/api/claims/{cid}/reopen", headers=auth(api))
+    assert reopened.status_code == 200 and reopened.json()["claim"]["statusKey"] == "IN_REVIEW"
+
+
+def test_claim_receipt_survives_analysis_domain_error(api, monkeypatch):
+    import backend.main as main
+    from modules.domain_errors import DomainError
+    from uuid import uuid4
+    customer = auth(api)
+    order = api.get("/api/orders", headers=customer).json()["items"][0]
+    payload = {"customer_name": "Jhan Perez", "customer_email": "jhan.perez@gmail.com",
+               "order_code": order["code"], "description": "Reclamo con análisis temporalmente no disponible",
+               "analyze": True, "request_id": str(uuid4())}
+    def fail(_claim_id):
+        raise DomainError("Error de análisis simulado", 409)
+    monkeypatch.setattr(main, "_analyze_and_generate", fail)
+    response = api.post("/api/claims", headers=customer, json=payload)
+    assert response.status_code == 201
+    claim = response.json()["claim"]
+    assert claim["statusKey"] == "RECEIVED" and claim["requiresHumanReview"]
+    retry = api.post("/api/claims", headers=customer, json=payload)
+    assert retry.status_code == 201 and retry.json()["claim"]["id"] == claim["id"]
+    assert api.get("/api/claims/" + claim["id"], headers=customer).status_code == 200

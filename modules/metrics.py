@@ -30,7 +30,7 @@ def obtener_metricas_dashboard():
         SELECT COUNT(*) AS total
         FROM reclamos r
         INNER JOIN estados_reclamo e ON e.id_estado = r.id_estado
-        WHERE e.nombre IN ('Nuevo', 'En revisión', 'Escalado')
+        WHERE e.nombre IN ('Nuevo', 'En revision', 'En revisión', 'Escalado')
     """)["total"]
 
     respondidos = fetch_one("""
