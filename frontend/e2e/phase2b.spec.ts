@@ -96,7 +96,7 @@ test('Fase 2B: compra, comercio, asignación, entrega, historial y atención por
 
   await page.getByRole('link', { name: 'Volver al listado' }).click();
   await expect(courierList.getByRole('heading', { name: order.code, exact: true })).toBeVisible();
-  await expect(courierList.getByText('Entregado', { exact: true })).toBeVisible();
+  await expect(courierList.locator('span').filter({ hasText: /^Entregado$/ })).toBeVisible();
   await page.reload();
   await expect(courierList.getByRole('heading', { name: order.code, exact: true })).toBeVisible();
   await page.setViewportSize({ width: 1280, height: 900 });
