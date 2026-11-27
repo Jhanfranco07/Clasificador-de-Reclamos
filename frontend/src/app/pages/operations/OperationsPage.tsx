@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import AdminLayout from '../../components/AdminLayout';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent } from '../../components/ui/card';
-import { ApiOrder, getOrder, listOrders, operationalWrite, getOperations, getAvailability, getOperationalProducts, ManagedProduct, OperationsOverview } from '../../lib/api';
+import { ApiOrder, OperationalOrder, getOperationalOrder, listOperationalOrders, operationalWrite, getOperations, getAvailability, getOperationalProducts, ManagedProduct, OperationsOverview } from '../../lib/api';
 import { ORDER_STATUS_LABELS } from '../../types';
 import OrderHistory from '../../components/OrderHistory';
 import NotificationBell from '../../components/NotificationBell';
@@ -27,14 +27,15 @@ export default function OperationsPage() {
   const { id } = useParams();
   const role = currentUser?.role;
   const root = role === 'MERCHANT' ? '/merchant' : role === 'COURIER' ? '/courier' : '/admin/orders';
-  const [orders, setOrders] = useState<ApiOrder[]>([]);
-  const [order, setOrder] = useState<ApiOrder | null>(null);
+  const [orders, setOrders] = useState<OperationalOrder[]>([]);
+  const [order, setOrder] = useState<OperationalOrder | null>(null);
   const [overview, setOverview] = useState<OperationsOverview | null>(null);
   const [products, setProducts] = useState<ManagedProduct[]>([]);
   const [available, setAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState('');
   const [reason, setReason] = useState('');
   const [courier, setCourier] = useState('');
   const [filter, setFilter] = useState('ALL');
@@ -46,17 +47,19 @@ export default function OperationsPage() {
     const generation = ++loadGeneration.current;
     setLoading(true);
     setError('');
+    setActionError('');
     setOrder(null);
     try {
       const [detail, listing, administration, availability, catalog] = await Promise.all([
-        id ? getOrder(id) : Promise.resolve(null),
-        id ? Promise.resolve(null) : listOrders(),
+        id ? getOperationalOrder(id) : Promise.resolve(null),
+        id ? Promise.resolve(null) : listOperationalOrders(),
         role === 'ADMIN' ? getOperations() : Promise.resolve(null),
         role === 'COURIER' ? getAvailability() : Promise.resolve(null),
         role === 'MERCHANT' ? getOperationalProducts() : Promise.resolve(null),
       ]);
       if (generation !== loadGeneration.current) return;
       setOrder(detail?.order ?? null);
+      if (listing && !Array.isArray(listing.items)) throw new Error('No se pudo interpretar el listado de pedidos. Actualiza para reintentar.');
       setOrders(listing?.items ?? []);
       setOverview(administration);
       setAvailable(availability?.available ?? false);
@@ -72,16 +75,16 @@ export default function OperationsPage() {
   useEffect(() => {
     void load();
     return () => { loadGeneration.current += 1; };
-  }, [id, role]);
+  }, [id, role, currentUser?.id]);
 
   async function act(path: string, data: object, method = 'POST') {
     setBusy(true);
-    setError('');
+    setActionError('');
     try {
       await operationalWrite(path, { ...data, request_id: crypto.randomUUID() }, method);
       await load();
       setReason('');
-    } catch (err) { setError(err instanceof Error ? err.message : 'No se pudo confirmar la operación.'); }
+    } catch (err) { setActionError(err instanceof Error ? err.message : 'No se pudo confirmar la operación.'); }
     finally { setBusy(false); }
   }
 
@@ -104,7 +107,7 @@ export default function OperationsPage() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-300">{role === 'MERCHANT' ? 'Panel del comercio' : role === 'COURIER' ? 'Panel de repartos' : 'Operaciones'}</p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">{role === 'COURIER' ? 'Entregas asignadas' : 'Gestión de pedidos'}</h1>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-300">Administra los pedidos y consulta su historial de operaciones. El pago no implica verificación bancaria.</p>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-300">{role === 'COURIER' ? 'Consulta tus entregas, verifica las direcciones y confirma el recojo y la entrega.' : 'Administra los pedidos y consulta su historial de operaciones. El pago no implica verificación bancaria.'}</p>
           </div>
         </div>
         <Button variant="outline" className="h-10 gap-2 rounded-xl border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white" disabled={loading || busy} onClick={load}><RefreshCw size={16} aria-hidden="true" />Actualizar</Button>
@@ -115,6 +118,7 @@ export default function OperationsPage() {
         {role === 'MERCHANT' && <div className="col-span-2 rounded-2xl border border-white/10 bg-white/5 p-3 sm:col-span-1 sm:p-4"><p className="text-xs text-slate-300">Platos disponibles</p><p className="mt-1 text-2xl font-bold tabular-nums">{availableProducts}<span className="ml-1 text-sm font-normal text-slate-300">/ {products.length}</span></p></div>}
       </div>}
     </div>
+    {actionError && <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{actionError}</div>}
     {error && <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
     {loading ? <p>Cargando operación...</p> : error ? null : id && order ? <Card><CardContent className="pt-6 space-y-5">
       <Link to={root}>Volver al listado</Link>
@@ -123,7 +127,7 @@ export default function OperationsPage() {
       {order.reconciliationRequired && <p>Referencia o fase histórica pendiente de conciliación. Se conserva el registro original.</p>}
       <p>Recogida · {order.pickupAddress || 'Dirección del establecimiento pendiente de registro'}</p>
       <p>Entrega · {order.deliveryAddress}</p>{order.deliveryNotes && <p>{order.deliveryNotes}</p>}
-      {role !== 'COURIER' && <ul>{order.items?.map(item => <li key={item.id}>{item.quantity} × {item.name} · S/ {item.price.toFixed(2)}</li>)}</ul>}
+      {role !== 'COURIER' && (Array.isArray(order.items) ? <ul>{order.items.map(item => <li key={item.id}>{item.quantity} × {item.name} · {typeof item.price === 'number' && Number.isFinite(item.price) ? `S/ ${item.price.toFixed(2)}` : 'Precio no disponible'}</li>)}</ul> : <p className="text-sm text-muted-foreground">Detalle de productos no disponible.</p>)}
       {(role === 'ADMIN' || role === 'MERCHANT') && <label className="block">Motivo de intervención o rechazo
         <textarea className="border rounded w-full p-2" value={reason} onChange={e => setReason(e.target.value)} /></label>}
       <div className="flex flex-wrap gap-3">
@@ -134,7 +138,7 @@ export default function OperationsPage() {
       </div>
       {role === 'ADMIN' && order.status === 'READY_FOR_PICKUP' && <section className="space-y-3">
         <label className="block">Repartidor disponible<select className="border rounded w-full p-2" value={courier} onChange={e => setCourier(e.target.value)}><option value="">Seleccionar</option>
-          {overview?.couriers.filter(c => c.estado === 'ACTIVO' && c.disponible && !c.active_deliveries).map(c => <option key={c.id_auth_user} value={c.id_auth_user}>{c.nombre}</option>)}</select></label>
+          {overview?.couriers?.filter(c => c.estado === 'ACTIVO' && c.disponible && !c.active_deliveries).map(c => <option key={c.id_auth_user} value={c.id_auth_user}>{c.nombre}</option>)}</select></label>
         <Button className="max-w-full h-auto whitespace-normal" disabled={busy || !courier || !reason.trim()} onClick={() => act(`/api/orders/${order.id}/assignment`, { courier_id: Number(courier), expected_version: order.version, reason })}>Asignar repartidor</Button>
       </section>}
       <OrderHistory order={order} />
@@ -158,7 +162,7 @@ export default function OperationsPage() {
               </div>
               <div className="flex items-center gap-2 text-sm text-slate-600"><Store size={16} className="shrink-0 text-slate-400" aria-hidden="true" /><span className="truncate">{item.storeName}</span></div>
               <div className="mt-auto flex flex-wrap items-end justify-between gap-3 border-t border-slate-100 pt-4">
-                <div><p className="text-xs text-slate-500">{item.items.length} productos · Total registrado</p><p className="text-lg font-bold tabular-nums text-slate-900">S/ {item.total.toFixed(2)}</p></div>
+                {role === 'COURIER' ? <div className="min-w-0 space-y-1 text-sm text-slate-600"><p className="break-words"><strong>Recojo:</strong> {item.pickupAddress || 'Dirección pendiente de registro'}</p><p className="break-words"><strong>Entrega:</strong> {item.deliveryAddress || 'Dirección pendiente de registro'}</p></div> : <div><p className="text-xs text-slate-500">{Array.isArray(item.items) ? `${item.items.length} productos` : 'Productos no disponibles'} · Total registrado</p><p className="text-lg font-bold tabular-nums text-slate-900">{typeof item.total === 'number' && Number.isFinite(item.total) ? `S/ ${item.total.toFixed(2)}` : 'No disponible'}</p></div>}
                 <Button className="h-10 gap-2 rounded-xl bg-orange-600 px-4 text-white hover:bg-orange-700" asChild><Link to={`${root === '/admin/orders' ? '/admin' : root}/orders/${item.id}`}>Ver pedido <ArrowRight size={16} aria-hidden="true" /></Link></Button>
               </div>
             </CardContent>

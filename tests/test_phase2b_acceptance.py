@@ -88,6 +88,11 @@ def test_full_five_role_journey(scenario):
     assert s['order']['id'] in [o['id'] for o in listed]
     ready(s)
     assign(s)
+    courier_list = s['api'].get('/api/orders', headers=s['tokens']['courier'])
+    assert courier_list.status_code == 200
+    visible = next(o for o in courier_list.json()['items'] if o['id'] == s['order']['id'])
+    assert visible['status'] == 'READY_FOR_PICKUP' and visible['deliveryAddress']
+    assert not {'total', 'items', 'userId', 'paymentMethod', 'paymentVerified'} & visible.keys()
     advance(s, 'IN_TRANSIT', 'courier')
     final = advance(s, 'DELIVERED', 'courier')
     assert final['pickedUpAt'] and final['deliveredAt']
