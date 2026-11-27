@@ -46,7 +46,13 @@ def transition(conn, claim, target, *, mode="staff", actor="Soporte", role="AGEN
         if mode in {"client_message", "agent_message", "publish"}:
             conn.execute("UPDATE reclamos SET fecha_actualizacion=CURRENT_TIMESTAMP WHERE id_reclamo=?", (claim["id_reclamo"],))
         return False
-    state = one(conn, "SELECT id_estado FROM estados_reclamo WHERE nombre=?", (target,))
+    # Production databases can retain the accented label from legacy seeds.
+    if target == "En revision":
+        state = one(conn, """SELECT id_estado FROM estados_reclamo
+            WHERE nombre IN (?, ?) ORDER BY CASE WHEN nombre=? THEN 0 ELSE 1 END LIMIT 1""",
+            (target, "En revisión", target))
+    else:
+        state = one(conn, "SELECT id_estado FROM estados_reclamo WHERE nombre=?", (target,))
     if not state:
         raise DomainError("El estado requerido no está configurado", 409)
     if target == "Cerrado":
